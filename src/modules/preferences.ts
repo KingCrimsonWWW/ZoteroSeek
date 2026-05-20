@@ -1,0 +1,19 @@
+/**
+ * Preferences pane registration for ZoteroSeek
+ */
+
+import { config } from '../../package.json';
+
+export function registerPrefs(): void {
+  // Register preferences pane
+  const prefPane = {
+    pluginID: config.addonID,
+    src: `chrome://${config.addonRef}/content/preferences.xhtml`,
+    label: getString('prefs.title'),
+    image: `chrome://${config.addonRef}/content/icons/icon.png`,
+  };
+
+  Zotero.PreferencePanes.register(prefPane);
+}
+
+import { getString } from '../utils/locale';

@@ -1,0 +1,7 @@
+<!-- ZoteroSeek Locale - English -->
+<!ENTITY zoteroseek.menu.tools "ZoteroSeek AI Assistant">
+<!ENTITY zoteroseek.menu.analyze "Analyze with ZoteroSeek">
+<!ENTITY zoteroseek.prefs.title "ZoteroSeek Settings">
+<!ENTITY zoteroseek.prefs.apiKey "API Key">
+<!ENTITY zoteroseek.prefs.model "Model">
+<!ENTITY zoteroseek.prefs.theme "Theme">

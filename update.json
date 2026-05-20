@@ -1,0 +1,17 @@
+{
+  "addons": {
+    "zoteroseek@kingcrimsonwww.github.io": {
+      "updates": [
+        {
+          "version": "0.1.0",
+          "update_link": "https://github.com/KingCrimsonWWW/ZoteroSeek/releases/download/v0.1.0/zoteroseek.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "7.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
