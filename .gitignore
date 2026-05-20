@@ -40,6 +40,15 @@ coverage/
 # Reference projects (not part of this project)
 .reference-*/
 
+# AI knowledge base (local only)
+AGENTS.md
+.opencode/
+
 # Misc
 *.tgz
 .cache
+
+#reference projects
+.reference-ai-ra/
+.reference-papersgpt/
+.reference-zotero-gpt/
