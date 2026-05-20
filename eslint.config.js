@@ -72,9 +72,11 @@ export default [
       'node_modules/',
       'addon/',
       '.reference-*/',
+      '.scaffold/',
       '*.config.js',
       '*.config.mjs',
       'src/typings/',
+      'typings/',
     ],
   },
 ];
