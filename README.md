@@ -23,7 +23,7 @@ English | **[中文](README_zh-CN.md)**
 
 ### Prerequisites
 
-- Zotero 7.0 or later
+- Zotero 9.0 or later
 - Node.js 18+ (for development)
 
 ### Install from Release
