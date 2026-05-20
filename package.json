@@ -1,6 +1,7 @@
 {
   "name": "zoteroseek",
   "version": "0.1.0",
+  "type": "module",
   "description": "AI-powered research assistant for Zotero",
   "config": {
     "addonName": "ZoteroSeek",
@@ -16,8 +17,8 @@
     "start": "zotero-plugin serve",
     "build": "tsc --noEmit && zotero-plugin build",
     "build-dev": "cross-env NODE_ENV=development zotero-plugin build",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
     "typecheck": "tsc --noEmit",
@@ -49,6 +50,7 @@
     "zotero-plugin-toolkit": "^4.1.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/lodash": "^4.17.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
@@ -64,7 +66,6 @@
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.34.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
     "postcss": "^8.4.49",
     "prettier": "^3.3.0",
     "prettier-plugin-tailwindcss": "^0.6.0",
