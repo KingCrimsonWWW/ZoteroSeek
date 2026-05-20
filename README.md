@@ -1,5 +1,11 @@
 # ZoteroSeek
 
+<div align="right">
+
+English | **[中文](README_zh-CN.md)**
+
+</div>
+
 > AI-powered research assistant for Zotero
 
 [![Build and Test](https://github.com/KingCrimsonWWW/ZoteroSeek/actions/workflows/build.yml/badge.svg)](https://github.com/KingCrimsonWWW/ZoteroSeek/actions/workflows/build.yml)
@@ -19,7 +25,6 @@
 
 - Zotero 7.0 or later
 - Node.js 18+ (for development)
-- 你好啊！
 
 ### Install from Release
 
@@ -41,7 +46,7 @@ npm install
 # Build the plugin
 npm run build
 
-# The .xpi file will be in the build/ directory
+# The .xpi file will be in the .scaffold/build/ directory
 ```
 
 ## Development
