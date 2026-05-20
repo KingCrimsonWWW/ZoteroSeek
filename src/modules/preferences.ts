@@ -3,6 +3,7 @@
  */
 
 import { config } from '../../package.json';
+import { getString } from '../utils/locale';
 
 export function registerPrefs(): void {
   // Register preferences pane
@@ -15,5 +16,3 @@ export function registerPrefs(): void {
 
   Zotero.PreferencePanes.register(prefPane);
 }
-
-import { getString } from '../utils/locale';

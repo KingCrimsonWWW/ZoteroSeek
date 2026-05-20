@@ -2,13 +2,13 @@
  * Chat panel component for ZoteroSeek
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { MessageList } from './MessageList';
 import { InputBox } from './InputBox';
 import { useChat } from '../../hooks/useChat';
 
 export function ChatPanel() {
-  const { messages, isLoading, sendMessage, clearMessages } = useChat();
+  const { messages, isLoading, sendMessage } = useChat();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleSend = useCallback(

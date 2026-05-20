@@ -2,6 +2,7 @@
  * Menu registration for ZoteroSeek
  */
 
+import { config } from '../../package.json';
 import { getString } from '../utils/locale';
 
 export function registerMenus(): void {
@@ -12,7 +13,7 @@ export function registerMenus(): void {
     id: `${config.addonRef}-tools-menu`,
     label: getString('menu.tools'),
     icon: menuIcon,
-    commandListener: (_ev) => {
+    commandListener: (_ev: Event) => {
       // Open main panel
       Zotero.ZoteroSeek?.showPanel();
     },
@@ -23,7 +24,7 @@ export function registerMenus(): void {
     id: `${config.addonRef}-item-menu`,
     label: getString('menu.analyze'),
     icon: menuIcon,
-    commandListener: async (_ev) => {
+    commandListener: async (_ev: Event) => {
       const items = Zotero.getActiveZoteroPane().getSelectedItems();
       if (items.length > 0) {
         Zotero.ZoteroSeek?.analyzeItems(items);
@@ -31,5 +32,3 @@ export function registerMenus(): void {
     },
   });
 }
-
-import { config } from '../../package.json';
