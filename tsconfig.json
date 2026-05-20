@@ -22,6 +22,6 @@
     "outDir": "./build",
     "rootDir": "./src"
   },
-  "include": ["src/**/*", "typings/**/*"],
-  "exclude": ["node_modules", "build", "addon"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "build", "addon", "typings"]
 }
