@@ -19,6 +19,7 @@
 
 - Zotero 7.0 or later
 - Node.js 18+ (for development)
+- 你好啊！
 
 ### Install from Release
 
