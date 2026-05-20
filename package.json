@@ -37,7 +37,6 @@
   "dependencies": {
     "@heroicons/react": "^2.1.3",
     "dexie": "^4.0.10",
-    "langchain": "^0.3.0",
     "lodash": "^4.17.21",
     "marked": "^12.0.0",
     "marked-react": "^2.0.0",
