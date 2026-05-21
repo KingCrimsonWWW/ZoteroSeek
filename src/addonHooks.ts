@@ -51,10 +51,15 @@ async function onStartup() {
   registerPrefs();
   Zotero.log('[ZoteroSeek] Preferences registered');
 
-  // Create the React UI immediately
+  // Add a longer delay to avoid blocking the main thread
+  // This is important for Zotero to finish its initialization
+  await Zotero.Promise.delay(1000);
+
+  // Create the React UI
   try {
     const win = Zotero.getMainWindow();
     if (win) {
+      Zotero.log('[ZoteroSeek] Creating React UI...');
       createReactUI(win);
     } else {
       Zotero.log('[ZoteroSeek] No main window available yet');
@@ -68,28 +73,32 @@ async function onStartup() {
  * Create the React UI in the given window.
  */
 function createReactUI(window: Window): void {
-  Zotero.log('[ZoteroSeek] Creating React UI');
-  
-  // Create a container div for the React app
-  const doc = window.document;
-  const container = doc.createElement('div');
-  container.id = `${config.addonRef}-container`;
-  
-  // Style the container to be visible
-  container.style.position = 'fixed';
-  container.style.top = '100px';
-  container.style.left = '100px';
-  container.style.zIndex = '9999';
-  
-  doc.documentElement.appendChild(container);
-  Zotero.log('[ZoteroSeek] Container created and appended to document');
+  try {
+    Zotero.log('[ZoteroSeek] Creating React UI');
+    
+    // Create a container div for the React app
+    const doc = window.document;
+    const container = doc.createElement('div');
+    container.id = `${config.addonRef}-container`;
+    
+    // Style the container to be visible
+    container.style.position = 'fixed';
+    container.style.top = '100px';
+    container.style.left = '100px';
+    container.style.zIndex = '9999';
+    
+    doc.documentElement.appendChild(container);
+    Zotero.log('[ZoteroSeek] Container created and appended to document');
 
-  // Create React root and render
-  const root = createRoot(container);
-  root.render(React.createElement(Container));
-  roots.set(window, root);
-  
-  Zotero.log('[ZoteroSeek] React root rendered');
+    // Create React root and render
+    const root = createRoot(container);
+    root.render(React.createElement(Container));
+    roots.set(window, root);
+    
+    Zotero.log('[ZoteroSeek] React root rendered');
+  } catch (error) {
+    Zotero.log(`[ZoteroSeek] Error in createReactUI: ${error}`);
+  }
 }
 
 /**
