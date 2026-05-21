@@ -10,13 +10,17 @@ export function registerShortcuts(): void {
     if (data.type === 'keyup' && data.keyboard) {
       // Ctrl/Cmd + Shift + S: Toggle ZoteroSeek panel
       if (data.keyboard.equals('accel,shift,s')) {
-        Zotero.ZoteroSeek?.togglePanel();
+        try {
+          addon.togglePanel();
+        } catch (error) {
+          Zotero.log(`[ZoteroSeek] Error toggling panel: ${error}`);
+        }
       }
       // Ctrl/Cmd + Shift + A: Analyze selected items
       if (data.keyboard.equals('accel,shift,a')) {
         const items = Zotero.getActiveZoteroPane().getSelectedItems();
         if (items.length > 0) {
-          Zotero.ZoteroSeek?.analyzeItems(items);
+          Zotero.log('[ZoteroSeek] analyzeItems not implemented yet');
         }
       }
     }

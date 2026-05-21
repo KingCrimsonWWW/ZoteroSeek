@@ -14,9 +14,13 @@ export function registerMenus(): void {
     id: `${config.addonRef}-tools-menu`,
     label: getString('menu-tools'),
     icon: menuIcon,
-    commandListener: (_ev: Event) => {
-      // Open main panel
-      Zotero.ZoteroSeek?.showPanel();
+    commandListener: async (_ev: Event) => {
+      // Open main panel (lazy loading)
+      try {
+        await addon.showPanel();
+      } catch (error) {
+        Zotero.log(`[ZoteroSeek] Error showing panel: ${error}`);
+      }
     },
   });
 
@@ -29,7 +33,7 @@ export function registerMenus(): void {
     commandListener: async (_ev: Event) => {
       const items = Zotero.getActiveZoteroPane().getSelectedItems();
       if (items.length > 0) {
-        Zotero.ZoteroSeek?.analyzeItems(items);
+        Zotero.log('[ZoteroSeek] analyzeItems not implemented yet');
       }
     },
   });

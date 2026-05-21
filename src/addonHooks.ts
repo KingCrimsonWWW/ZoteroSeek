@@ -2,7 +2,7 @@
  * Lifecycle hooks for ZoteroSeek plugin
  *
  * These hooks are called by bootstrap.js during the plugin lifecycle:
- * - onStartup: Plugin initialization
+ * - onStartup: Plugin initialization (lightweight)
  * - onShutdown: Plugin cleanup
  * - onMainWindowLoad: Main window ready
  * - onMainWindowUnload: Main window closing
@@ -15,15 +15,26 @@ import { initLocale } from './utils/locale';
 import { registerMenus } from './modules/menu';
 import { registerShortcuts } from './modules/shortcut';
 import { registerPrefs } from './modules/preferences';
-import { Container } from './views/Container';
 
 // Track React roots for cleanup
 const roots = new Map<Window, Root>();
 
+// Lazy-loaded Container component
+let ContainerModule: typeof import('./views/Container') | null = null;
+
+/**
+ * Lazy load the Container component
+ */
+async function getContainer() {
+  if (!ContainerModule) {
+    ContainerModule = await import('./views/Container');
+  }
+  return ContainerModule.Container;
+}
+
 /**
  * Called when the plugin starts up.
- * Waits for Zotero to be fully initialized, then registers menus/shortcuts/prefs
- * and creates the React UI.
+ * Only registers menus/shortcuts/prefs (lightweight, no React).
  */
 async function onStartup() {
   Zotero.log('[ZoteroSeek] onStartup called');
@@ -51,30 +62,43 @@ async function onStartup() {
   registerPrefs();
   Zotero.log('[ZoteroSeek] Preferences registered');
 
-  // Add a longer delay to avoid blocking the main thread
-  // This is important for Zotero to finish its initialization
-  await Zotero.Promise.delay(1000);
-
-  // Create the React UI
-  try {
-    const win = Zotero.getMainWindow();
-    if (win) {
-      Zotero.log('[ZoteroSeek] Creating React UI...');
-      createReactUI(win);
-    } else {
-      Zotero.log('[ZoteroSeek] No main window available yet');
-    }
-  } catch (error) {
-    Zotero.log(`[ZoteroSeek] Error creating UI in onStartup: ${error}`);
-  }
+  // Expose showPanel/togglePanel on the addon instance
+  addon.showPanel = () => ensureUI().then(() => showPanel());
+  addon.togglePanel = () => ensureUI().then(() => togglePanel());
+  
+  Zotero.log('[ZoteroSeek] onStartup complete');
 }
 
 /**
- * Create the React UI in the given window.
+ * Ensure the React UI is created (lazy loading)
  */
-function createReactUI(window: Window): void {
+async function ensureUI(): Promise<void> {
+  const win = Zotero.getMainWindow();
+  if (!win) {
+    Zotero.log('[ZoteroSeek] No main window available');
+    return;
+  }
+
+  // Check if container already exists
+  const existingContainer = win.document.getElementById(`${config.addonRef}-container`);
+  if (existingContainer) {
+    Zotero.log('[ZoteroSeek] Container already exists');
+    return;
+  }
+
+  // Create the React UI lazily
+  await createReactUI(win);
+}
+
+/**
+ * Create the React UI in the given window (lazy loading)
+ */
+async function createReactUI(window: Window): Promise<void> {
   try {
-    Zotero.log('[ZoteroSeek] Creating React UI');
+    Zotero.log('[ZoteroSeek] Creating React UI (lazy)');
+    
+    // Lazy load the Container component
+    const Container = await getContainer();
     
     // Create a container div for the React app
     const doc = window.document;
@@ -102,6 +126,34 @@ function createReactUI(window: Window): void {
 }
 
 /**
+ * Show the panel (create UI if needed)
+ */
+async function showPanel(): Promise<void> {
+  await ensureUI();
+  const win = Zotero.getMainWindow();
+  if (win) {
+    const container = win.document.getElementById(`${config.addonRef}-container`);
+    if (container) {
+      container.style.display = 'block';
+    }
+  }
+}
+
+/**
+ * Toggle the panel visibility
+ */
+async function togglePanel(): Promise<void> {
+  await ensureUI();
+  const win = Zotero.getMainWindow();
+  if (win) {
+    const container = win.document.getElementById(`${config.addonRef}-container`);
+    if (container) {
+      container.style.display = container.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+}
+
+/**
  * Called when the plugin shuts down.
  * Cleans up all registered resources and React roots.
  */
@@ -124,24 +176,10 @@ function onShutdown(): void {
 
 /**
  * Called when the main window loads.
- * Creates the React container and renders the UI if not already created.
+ * Does NOT create React UI (lazy loading).
  */
 function onMainWindowLoad(window: Window): void {
-  try {
-    Zotero.log('[ZoteroSeek] onMainWindowLoad called');
-    
-    // Check if container already exists
-    const existingContainer = window.document.getElementById(`${config.addonRef}-container`);
-    if (existingContainer) {
-      Zotero.log('[ZoteroSeek] Container already exists, skipping creation');
-      return;
-    }
-    
-    // Create the React UI
-    createReactUI(window);
-  } catch (error) {
-    Zotero.log(`[ZoteroSeek] Error in onMainWindowLoad: ${error}`);
-  }
+  Zotero.log('[ZoteroSeek] onMainWindowLoad called (no-op, lazy loading)');
 }
 
 /**
