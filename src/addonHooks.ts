@@ -25,23 +25,30 @@ const roots = new Map<Window, Root>();
  * Waits for Zotero to be fully initialized, then registers menus/shortcuts/prefs.
  */
 async function onStartup() {
+  Zotero.log('[ZoteroSeek] onStartup called');
+  
   await Promise.all([
     Zotero.initializationPromise,
     Zotero.unlockPromise,
     Zotero.uiReadyPromise,
   ]);
 
+  Zotero.log('[ZoteroSeek] Zotero initialized, registering components');
+
   // Initialize locale/i18n
   initLocale();
 
   // Register menu items
   registerMenus();
+  Zotero.log('[ZoteroSeek] Menus registered');
 
   // Register keyboard shortcuts
   registerShortcuts();
+  Zotero.log('[ZoteroSeek] Shortcuts registered');
 
   // Register preferences pane
   registerPrefs();
+  Zotero.log('[ZoteroSeek] Preferences registered');
 }
 
 /**
@@ -70,16 +77,32 @@ function onShutdown(): void {
  * Creates the React container and renders the UI.
  */
 function onMainWindowLoad(window: Window): void {
-  // Create a container div for the React app
-  const doc = window.document;
-  const container = doc.createElement('div');
-  container.id = `${config.addonRef}-container`;
-  doc.documentElement.appendChild(container);
+  try {
+    Zotero.log('[ZoteroSeek] onMainWindowLoad called');
+    
+    // Create a container div for the React app
+    const doc = window.document;
+    const container = doc.createElement('div');
+    container.id = `${config.addonRef}-container`;
+    
+    // Style the container to be visible
+    container.style.position = 'fixed';
+    container.style.top = '100px';
+    container.style.left = '100px';
+    container.style.zIndex = '9999';
+    
+    doc.documentElement.appendChild(container);
+    Zotero.log('[ZoteroSeek] Container created and appended to document');
 
-  // Create React root and render
-  const root = createRoot(container);
-  root.render(React.createElement(Container));
-  roots.set(window, root);
+    // Create React root and render
+    const root = createRoot(container);
+    root.render(React.createElement(Container));
+    roots.set(window, root);
+    
+    Zotero.log('[ZoteroSeek] React root rendered');
+  } catch (error) {
+    Zotero.log(`[ZoteroSeek] Error in onMainWindowLoad: ${error}`);
+  }
 }
 
 /**

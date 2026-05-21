@@ -109,6 +109,7 @@ if (!basicTool.getGlobal('Zotero')[config.addonInstance]) {
   // Register addon instance on Zotero object
   // NOTE: onStartup is called by bootstrap.js after this script loads
   Zotero[config.addonInstance] = addon;
+  Zotero.__addonInstance__ = addon;  // Required for bootstrap.js hooks
 }
 
 export default Addon;
