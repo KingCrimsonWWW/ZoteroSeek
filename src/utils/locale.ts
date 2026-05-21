@@ -28,11 +28,11 @@ function initLocale(): void {
 /**
  * Get a localized string using Fluent API.
  *
- * FTL key format: `${addonRef}-${name}` (e.g. `zoteroseek-menu.tools`)
+ * FTL key format: `${name}` (e.g. `menu-tools`)
  *
- * @param name - The string key (without addon prefix)
+ * @param name - The string key (matches FTL file key)
  * @param branchOrOptions - Optional branch name or options object
- * @returns The localized string, or the full key as fallback
+ * @returns The localized string, or the key as fallback
  */
 function getString(
   name: string,
@@ -53,17 +53,16 @@ function _getString(
   localeString: string,
   options: { branch?: string | undefined; args?: Record<string, unknown> } = {},
 ): string {
-  const localStringWithPrefix = `${config.addonRef}-${localeString}`;
   const { branch, args } = options;
   const pattern = addon.data.locale?.current.formatMessagesSync([
-    { id: localStringWithPrefix, args },
+    { id: localeString, args },
   ])[0];
   if (!pattern) {
-    return localStringWithPrefix;
+    return localeString;
   }
   if (branch && pattern.attributes) {
-    return pattern.attributes[branch] || localStringWithPrefix;
+    return pattern.attributes[branch] || localeString;
   } else {
-    return pattern.value || localStringWithPrefix;
+    return pattern.value || localeString;
   }
 }

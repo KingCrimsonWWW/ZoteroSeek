@@ -10,7 +10,7 @@ export function registerPrefs(): void {
   const prefPane = {
     pluginID: config.addonID,
     src: `chrome://${config.addonRef}/content/preferences.xhtml`,
-    label: getString('prefs.title'),
+    label: getString('prefs-title'),
     image: `chrome://${config.addonRef}/content/icons/icon.png`,
   };
 

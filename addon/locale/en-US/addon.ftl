@@ -1,6 +1,6 @@
-zoteroseek-menu.tools = ZoteroSeek AI Assistant
-zoteroseek-menu.analyze = Analyze with ZoteroSeek
-zoteroseek-prefs.title = ZoteroSeek Settings
-zoteroseek-prefs.api-key = API Key
-zoteroseek-prefs.model = Model
-zoteroseek-prefs.theme = Theme
+menu-tools = ZoteroSeek AI Assistant
+menu-analyze = Analyze with ZoteroSeek
+prefs-title = ZoteroSeek Settings
+prefs-api-key = API Key
+prefs-model = Model
+prefs-theme = Theme

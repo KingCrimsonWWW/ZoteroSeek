@@ -12,7 +12,7 @@ export function registerMenus(): void {
   ztoolkit.Menu.register('menuTools', {
     tag: "menuitem",
     id: `${config.addonRef}-tools-menu`,
-    label: getString('menu.tools'),
+    label: getString('menu-tools'),
     icon: menuIcon,
     commandListener: (_ev: Event) => {
       // Open main panel
@@ -24,7 +24,7 @@ export function registerMenus(): void {
   ztoolkit.Menu.register('item', {
     tag: "menuitem",
     id: `${config.addonRef}-item-menu`,
-    label: getString('menu.analyze'),
+    label: getString('menu-analyze'),
     icon: menuIcon,
     commandListener: async (_ev: Event) => {
       const items = Zotero.getActiveZoteroPane().getSelectedItems();
