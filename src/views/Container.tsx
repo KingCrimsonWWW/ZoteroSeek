@@ -10,6 +10,7 @@ import { ConversationList } from '../components/chat/ConversationList';
 import { SettingsPanel } from '../components/settings/SettingsPanel';
 import { Header } from '../components/Header';
 import { useDragging } from '../hooks/useDragging';
+import './styles/globals.css';
 
 export function Container() {
   const [isOpen, setIsOpen] = useState(true);

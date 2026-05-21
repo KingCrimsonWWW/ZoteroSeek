@@ -2,6 +2,17 @@
  * Global type declarations for Zotero Plugin
  */
 
+// Mozilla Fluent Localization API (available in Zotero's privileged environment)
+declare class Localization {
+  constructor(resourceIds: string[], eager?: boolean);
+  formatMessagesSync(
+    keys: Array<{ id: string; args?: Record<string, unknown> }>,
+  ): Array<{
+    value: string | null;
+    attributes: Record<string, string> | null;
+  }>;
+}
+
 // Environment variable injected by build tool
 declare const __env__: 'development' | 'production';
 

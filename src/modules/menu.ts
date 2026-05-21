@@ -10,6 +10,7 @@ export function registerMenus(): void {
   const menuIcon = `chrome://${config.addonRef}/content/icons/icon.png`;
 
   ztoolkit.Menu.register('menuTools', {
+    tag: "menuitem",
     id: `${config.addonRef}-tools-menu`,
     label: getString('menu.tools'),
     icon: menuIcon,
@@ -21,6 +22,7 @@ export function registerMenus(): void {
 
   // Register context menu for items
   ztoolkit.Menu.register('item', {
+    tag: "menuitem",
     id: `${config.addonRef}-item-menu`,
     label: getString('menu.analyze'),
     icon: menuIcon,

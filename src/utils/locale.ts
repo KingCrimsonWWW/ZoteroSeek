@@ -1,36 +1,69 @@
 /**
  * Locale/i18n utilities for ZoteroSeek
+ *
+ * Uses Fluent API (Localization) for translations.
+ * FTL files are located at addon/locale/{locale}/addon.ftl
  */
 
+/* eslint-disable no-undef */
 import { config } from '../../package.json';
 
-/**
- * Get a localized string
- */
-export function getString(name: string, params?: string[] | Record<string, string>): string {
-  try {
-    const prefix = config.addonRef;
-    const key = `${prefix}.${name}`;
+export { initLocale, getString };
 
-    if (params) {
-      return Zotero.getString(key, params);
-    }
-    return Zotero.getString(key);
-  } catch {
-    // Fallback to the string name if localization fails
-    return name;
-  }
+/**
+ * Initialize locale data by creating a Localization instance.
+ * Stores the instance in addon.data.locale.current.
+ */
+function initLocale(): void {
+  const l10n = new (
+    typeof Localization === 'undefined'
+      ? ztoolkit.getGlobal('Localization')
+      : Localization
+  )([`${config.addonRef}-addon.ftl`], true);
+  addon.data.locale = {
+    current: l10n,
+  };
 }
 
 /**
- * Initialize locale system
+ * Get a localized string using Fluent API.
+ *
+ * FTL key format: `${addonRef}-${name}` (e.g. `zoteroseek-menu.tools`)
+ *
+ * @param name - The string key (without addon prefix)
+ * @param branchOrOptions - Optional branch name or options object
+ * @returns The localized string, or the full key as fallback
  */
-export function initLocale(): void {
-  const locale = Zotero.Prefs.get('general.useragent.locale') as string || 'en-US';
-  // Zotero 环境中使用 Zotero.log
-  try {
-    Zotero.log(`[ZoteroSeek] Locale initialized: ${locale}`);
-  } catch {
-    // 测试环境忽略
+function getString(
+  name: string,
+  branchOrOptions?: string | { branch?: string | undefined; args?: Record<string, unknown> },
+): string {
+  if (typeof branchOrOptions === 'string') {
+    return _getString(name, { branch: branchOrOptions });
+  } else if (branchOrOptions) {
+    return _getString(name, branchOrOptions);
+  }
+  return _getString(name);
+}
+
+/**
+ * Internal implementation for getString.
+ */
+function _getString(
+  localeString: string,
+  options: { branch?: string | undefined; args?: Record<string, unknown> } = {},
+): string {
+  const localStringWithPrefix = `${config.addonRef}-${localeString}`;
+  const { branch, args } = options;
+  const pattern = addon.data.locale?.current.formatMessagesSync([
+    { id: localStringWithPrefix, args },
+  ])[0];
+  if (!pattern) {
+    return localStringWithPrefix;
+  }
+  if (branch && pattern.attributes) {
+    return pattern.attributes[branch] || localStringWithPrefix;
+  } else {
+    return pattern.value || localStringWithPrefix;
   }
 }

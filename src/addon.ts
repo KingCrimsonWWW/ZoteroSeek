@@ -16,6 +16,9 @@ class Addon {
     alive: boolean;
     env: 'development' | 'production';
     ztoolkit: ZoteroToolkit;
+    locale?: {
+      current: any;
+    };
   };
 
   // Lifecycle hooks
@@ -32,6 +35,35 @@ class Addon {
     };
     this.hooks = hooks;
     this.api = {};
+  }
+
+  showPanel(): void {
+    const win = Zotero.getMainWindow();
+    const container = win?.document.getElementById('zoteroseek-container');
+    if (container) {
+      container.style.display = 'block';
+    }
+  }
+
+  togglePanel(): void {
+    const win = Zotero.getMainWindow();
+    const container = win?.document.getElementById('zoteroseek-container');
+    if (container) {
+      container.style.display = container.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+
+  hidePanel(): void {
+    const win = Zotero.getMainWindow();
+    const container = win?.document.getElementById('zoteroseek-container');
+    if (container) {
+      container.style.display = 'none';
+    }
+  }
+
+  analyzeItems(_items: any[]): void {
+    // Stub - 功能未实现
+    Zotero.log('[ZoteroSeek] analyzeItems not implemented yet');
   }
 }
 
