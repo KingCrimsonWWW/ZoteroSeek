@@ -4,8 +4,6 @@
  * Uses ztoolkit.Keyboard API (KeyboardManager) for shortcut registration.
  */
 
-import { config } from '../../package.json';
-
 export function registerShortcuts(): void {
   // Register keyboard shortcuts using KeyboardManager
   ztoolkit.Keyboard.register((ev: KeyboardEvent, data: { type: string; keyboard?: any }) => {
