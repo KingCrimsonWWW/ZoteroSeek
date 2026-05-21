@@ -27,6 +27,10 @@ export default [
         ztoolkit: 'readonly',
         Zotero_Tabs: 'readonly',
         Components: 'readonly',
+        // Zotero plugin globals
+        _globalThis: 'writable',
+        addon: 'readonly',
+        __env__: 'readonly',
       },
     },
     plugins: {
