@@ -3,6 +3,15 @@
  */
 
 // LLM Adapter types
+export type LLMProvider = 'openai' | 'anthropic';
+
+export interface ModelConfig {
+  provider: LLMProvider;
+  apiKey: string;
+  model: string;
+  baseUrl?: string;
+}
+
 export interface LLMAdapter {
   name: string;
   chat(messages: ChatMessage[], options?: ChatOptions): AsyncGenerator<string>;
@@ -22,6 +31,13 @@ export interface ChatOptions {
 }
 
 // Conversation types
+export interface ConversationMeta {
+  id: string;
+  title: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Conversation {
   id: string;
   title: string;

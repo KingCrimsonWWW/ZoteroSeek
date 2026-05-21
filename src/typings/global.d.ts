@@ -11,9 +11,9 @@ declare const Zotero: {
     getAsync(id: number): Promise<any>;
   };
   Prefs: {
-    get(key: string): any;
-    set(key: string, value: any): void;
-    clear(key: string): void;
+    get(key: string, globalBranch?: boolean): any;
+    set(key: string, value: any, globalBranch?: boolean): void;
+    clear(key: string, globalBranch?: boolean): void;
   };
   getString(key: string, params?: any): string;
   PreferencePanes: {

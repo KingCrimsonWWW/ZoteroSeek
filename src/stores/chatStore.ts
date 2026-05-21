@@ -1,0 +1,316 @@
+/**
+ * Chat Store - 对话状态管理
+ * 使用 Zustand 管理状态，Dexie 持久化到 IndexedDB
+ */
+
+import { create } from 'zustand';
+import Dexie, { type EntityTable } from 'dexie';
+import type { Conversation, ConversationMeta, Message } from '@/typings';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('chatStore');
+
+// ========== Dexie 数据库定义 ==========
+
+/**
+ * ZoteroSeek 对话数据库
+ * 存储完整的对话数据（包含消息历史）
+ */
+class ChatDatabase extends Dexie {
+  conversations!: EntityTable<Conversation, 'id'>;
+
+  constructor() {
+    super('ZoteroSeekChat');
+    this.version(1).stores({
+      conversations: 'id, title, updatedAt, createdAt',
+    });
+  }
+}
+
+const db = new ChatDatabase();
+
+// ========== 工具函数 ==========
+
+/** 生成唯一 ID */
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** 创建新的空对话 */
+function createConversation(title?: string): Conversation {
+  const now = new Date();
+  return {
+    id: generateId(),
+    title: title ?? '新对话',
+    messages: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+// ========== Store 类型定义 ==========
+
+interface ChatState {
+  /** 当前对话 ID */
+  currentConversationId: string | null;
+  /** 当前对话的消息列表 */
+  messages: Message[];
+  /** 对话列表（缓存，用于快速访问） */
+  conversations: ConversationMeta[];
+  /** 是否正在加载 */
+  isLoading: boolean;
+
+  // 对话 CRUD 操作
+  addConversation: (title?: string) => Promise<string>;
+  deleteConversation: (id: string) => Promise<void>;
+  renameConversation: (id: string, title: string) => Promise<void>;
+  listConversations: () => Promise<void>;
+
+  // 当前对话操作
+  setCurrentConversation: (id: string) => Promise<void>;
+
+  // 消息管理
+  addMessage: (role: 'user' | 'assistant', content: string, metadata?: Record<string, unknown>) => Promise<void>;
+  clearMessages: () => Promise<void>;
+}
+
+// ========== Zustand Store ==========
+
+export const useChatStore = create<ChatState>((set, get) => ({
+  // 初始状态
+  currentConversationId: null,
+  messages: [],
+  conversations: [],
+  isLoading: false,
+
+  /**
+   * 创建新对话
+   * @param title - 可选的对话标题
+   * @returns 新对话的 ID
+   */
+  addConversation: async (title?: string) => {
+    const conversation = createConversation(title);
+
+    try {
+      await db.conversations.add(conversation);
+      logger.info('创建对话', { id: conversation.id, title: conversation.title });
+
+      // 更新状态
+      set({
+        currentConversationId: conversation.id,
+        messages: [],
+      });
+
+      // 刷新对话列表
+      await get().listConversations();
+
+      return conversation.id;
+    } catch (error) {
+      logger.error('创建对话失败', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 删除对话
+   * 如果删除的是当前对话，自动切换到最近的对话
+   */
+  deleteConversation: async (id: string) => {
+    try {
+      await db.conversations.delete(id);
+      logger.info('删除对话', { id });
+
+      const { currentConversationId } = get();
+
+      // 如果删除的是当前对话，切换到最近的对话
+      if (currentConversationId === id) {
+        const remaining = await db.conversations
+          .orderBy('updatedAt')
+          .reverse()
+          .first();
+
+        if (remaining) {
+          set({
+            currentConversationId: remaining.id,
+            messages: remaining.messages,
+          });
+        } else {
+          set({
+            currentConversationId: null,
+            messages: [],
+          });
+        }
+      }
+
+      // 刷新对话列表
+      await get().listConversations();
+    } catch (error) {
+      logger.error('删除对话失败', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 重命名对话
+   */
+  renameConversation: async (id: string, title: string) => {
+    try {
+      await db.conversations.update(id, {
+        title,
+        updatedAt: new Date(),
+      });
+      logger.info('重命名对话', { id, title });
+
+      // 刷新对话列表
+      await get().listConversations();
+    } catch (error) {
+      logger.error('重命名对话失败', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 获取对话列表（仅元数据，不含消息）
+   * 用于侧边栏显示
+   */
+  listConversations: async () => {
+    try {
+      const conversations = await db.conversations
+        .orderBy('updatedAt')
+        .reverse()
+        .toArray();
+
+      // 转换为 ConversationMeta（不含 messages）
+      const metas: ConversationMeta[] = conversations.map((c) => ({
+        id: c.id,
+        title: c.title,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      }));
+
+      set({ conversations: metas });
+    } catch (error) {
+      logger.error('获取对话列表失败', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 切换当前对话
+   * 从 IndexedDB 加载完整对话数据
+   */
+  setCurrentConversation: async (id: string) => {
+    try {
+      set({ isLoading: true });
+
+      const conversation = await db.conversations.get(id);
+      if (!conversation) {
+        logger.warn('对话不存在', { id });
+        return;
+      }
+
+      set({
+        currentConversationId: id,
+        messages: conversation.messages,
+        isLoading: false,
+      });
+
+      logger.info('切换对话', { id, messageCount: conversation.messages.length });
+    } catch (error) {
+      logger.error('切换对话失败', error);
+      set({ isLoading: false });
+      throw error;
+    }
+  },
+
+  /**
+   * 添加消息到当前对话
+   * 如果没有当前对话，自动创建一个
+   */
+  addMessage: async (role: 'user' | 'assistant', content: string, metadata?: Record<string, unknown>) => {
+    const { currentConversationId } = get();
+
+    // 如果没有当前对话，先创建一个
+    let conversationId = currentConversationId;
+    if (!conversationId) {
+      conversationId = await get().addConversation();
+    }
+
+    const message: Message = {
+      id: generateId(),
+      role,
+      content,
+      timestamp: new Date(),
+      metadata,
+    };
+
+    try {
+      // 获取当前对话
+      const conversation = await db.conversations.get(conversationId!);
+      if (!conversation) {
+        logger.error('对话不存在', { id: conversationId });
+        return;
+      }
+
+      // 更新对话：添加消息 + 更新时间
+      const updatedMessages = [...conversation.messages, message];
+      await db.conversations.update(conversationId!, {
+        messages: updatedMessages,
+        updatedAt: new Date(),
+      });
+
+      // 更新状态
+      set({ messages: updatedMessages });
+
+      // 如果是第一条用户消息，用它生成对话标题
+      if (role === 'user' && conversation.messages.length === 0) {
+        const title = content.slice(0, 50) + (content.length > 50 ? '...' : '');
+        await db.conversations.update(conversationId!, { title });
+        await get().listConversations();
+      }
+
+      logger.debug('添加消息', { conversationId, role, messageLength: content.length });
+    } catch (error) {
+      logger.error('添加消息失败', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 清空当前对话的消息
+   */
+  clearMessages: async () => {
+    const { currentConversationId } = get();
+    if (!currentConversationId) {
+      return;
+    }
+
+    try {
+      await db.conversations.update(currentConversationId, {
+        messages: [],
+        updatedAt: new Date(),
+      });
+
+      set({ messages: [] });
+      logger.info('清空消息', { conversationId: currentConversationId });
+    } catch (error) {
+      logger.error('清空消息失败', error);
+      throw error;
+    }
+  },
+}));
+
+/**
+ * 初始化对话列表
+ * 在应用启动时调用，加载对话列表到内存
+ */
+export async function initChatStore(): Promise<void> {
+  try {
+    await useChatStore.getState().listConversations();
+    logger.info('对话列表初始化完成');
+  } catch (error) {
+    logger.error('对话列表初始化失败', error);
+  }
+}
+
+export default useChatStore;

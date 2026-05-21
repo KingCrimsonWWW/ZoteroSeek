@@ -43,6 +43,7 @@ coverage/
 # AI knowledge base (local only)
 AGENTS.md
 .opencode/
+.sisyphus/
 
 # Misc
 *.tgz

@@ -1,5 +1,6 @@
 /**
  * Message list component for ZoteroSeek
+ * 支持错误消息特殊样式和空状态占位符
  */
 
 import React from 'react';
@@ -8,6 +9,13 @@ import { Message } from '../../typings';
 interface MessageListProps {
   messages: Message[];
   isLoading: boolean;
+}
+
+/**
+ * 判断消息是否为错误消息
+ */
+function isError(message: Message): boolean {
+  return message.metadata?.isError === true;
 }
 
 export function MessageList({ messages, isLoading }: MessageListProps) {
@@ -37,25 +45,47 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
 
   return (
     <div className="space-y-4">
-      {messages.map((message) => (
-        <div
-          key={message.id}
-          className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-        >
+      {messages.map((message) => {
+        const isErrorMessage = isError(message);
+
+        return (
           <div
-            className={`max-w-[80%] rounded-lg px-4 py-2 ${
-              message.role === 'user'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-800'
-            }`}
+            key={message.id}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <p className="whitespace-pre-wrap text-sm">{message.content}</p>
-            <p className="mt-1 text-xs opacity-70">
-              {new Date(message.timestamp).toLocaleTimeString()}
-            </p>
+            <div
+              className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                isErrorMessage
+                  ? 'border border-red-200 bg-red-50 text-red-700'
+                  : message.role === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-800'
+              }`}
+            >
+              {/* 错误消息显示图标 */}
+              {isErrorMessage && (
+                <svg
+                  className="mb-1 inline-block h-4 w-4 text-red-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                  />
+                </svg>
+              )}
+              <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+              <p className="mt-1 text-xs opacity-70">
+                {new Date(message.timestamp).toLocaleTimeString()}
+              </p>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {isLoading && (
         <div className="flex justify-start">
