@@ -76,12 +76,27 @@ export class Logger {
   }
 
   /**
+   * 输出日志到 Zotero
+   */
+  private log(level: LogLevel, ...args: unknown[]): void {
+    const prefix = formatMessage(this.module, level);
+    // Zotero 环境中使用 Zotero.log，回退到 console
+    try {
+      Zotero.log(`${prefix} ${args.map(a => String(a)).join(' ')}`);
+    } catch {
+      // 测试环境或其他环境回退
+      if (typeof console !== 'undefined') {
+        console.log(prefix, ...args);
+      }
+    }
+  }
+
+  /**
    * debug 级别日志
    */
   debug(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
-      const prefix = formatMessage(this.module, LogLevel.DEBUG);
-      console.log(prefix, ...args);
+      this.log(LogLevel.DEBUG, ...args);
     }
   }
 
@@ -90,8 +105,7 @@ export class Logger {
    */
   info(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.INFO)) {
-      const prefix = formatMessage(this.module, LogLevel.INFO);
-      console.log(prefix, ...args);
+      this.log(LogLevel.INFO, ...args);
     }
   }
 
@@ -100,8 +114,7 @@ export class Logger {
    */
   warn(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.WARN)) {
-      const prefix = formatMessage(this.module, LogLevel.WARN);
-      console.warn(prefix, ...args);
+      this.log(LogLevel.WARN, ...args);
     }
   }
 
@@ -110,8 +123,7 @@ export class Logger {
    */
   error(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.ERROR)) {
-      const prefix = formatMessage(this.module, LogLevel.ERROR);
-      console.error(prefix, ...args);
+      this.log(LogLevel.ERROR, ...args);
     }
   }
 }
