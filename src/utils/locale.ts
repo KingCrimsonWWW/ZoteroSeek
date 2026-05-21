@@ -27,5 +27,10 @@ export function getString(name: string, params?: string[] | Record<string, strin
  */
 export function initLocale(): void {
   const locale = Zotero.Prefs.get('general.useragent.locale') as string || 'en-US';
-  console.log(`Locale initialized: ${locale}`);
+  // Zotero 环境中使用 Zotero.log
+  try {
+    Zotero.log(`[ZoteroSeek] Locale initialized: ${locale}`);
+  } catch {
+    // 测试环境忽略
+  }
 }
