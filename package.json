@@ -77,7 +77,7 @@
     "tailwindcss": "^3.4.3",
     "typescript": "^5.5.0",
     "vitest": "^4.1.7",
-    "zotero-plugin-scaffold": "^0.8.6",
+    "zotero-plugin-scaffold": "^0.3.5",
     "zotero-types": "^3.0.1"
   },
   "prettier": {

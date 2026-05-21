@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
 import react from 'eslint-plugin-react';
+import globals from 'globals';
 
 export default [
   js.configs.recommended,
@@ -17,25 +18,9 @@ export default [
         },
       },
       globals: {
-        // Browser globals
-        window: 'readonly',
-        document: 'readonly',
-        console: 'readonly',
-        setTimeout: 'readonly',
-        clearTimeout: 'readonly',
-        setInterval: 'readonly',
-        clearInterval: 'readonly',
-        fetch: 'readonly',
-        AbortController: 'readonly',
-        URL: 'readonly',
-        Event: 'readonly',
-        Document: 'readonly',
-        MouseEvent: 'readonly',
-        KeyboardEvent: 'readonly',
-        HTMLDivElement: 'readonly',
-        HTMLTextAreaElement: 'readonly',
-        HTMLInputElement: 'readonly',
-        HTMLElement: 'readonly',
+        ...globals.browser,
+        ...globals.node,
+        ...globals.worker,
         React: 'readonly',
         // Zotero globals
         Zotero: 'readonly',
@@ -53,7 +38,7 @@ export default [
       ...react.configs.recommended.rules,
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',

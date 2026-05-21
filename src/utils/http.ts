@@ -110,7 +110,9 @@ export async function zoteroHTTPRequest(
   } catch (error: unknown) {
     const err = error as Error;
     ztoolkit.log("[http] Zotero HTTP 请求失败:", err.message);
-    throw new Error(`Zotero HTTP 请求失败: ${err.message}`);
+    const newError = new Error(`Zotero HTTP 请求失败: ${err.message}`);
+    (newError as any).cause = error;
+    throw newError;
   }
 }
 

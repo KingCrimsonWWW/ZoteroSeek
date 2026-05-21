@@ -139,7 +139,7 @@ describe('chatStore', () => {
       await useChatStore.getState().addMessage('user', '你好');
 
       // 创建另一个对话
-      const id2 = await useChatStore.getState().addConversation('其他对话');
+      await useChatStore.getState().addConversation('其他对话');
 
       // 切换回第一个对话
       await useChatStore.getState().setCurrentConversation(id);

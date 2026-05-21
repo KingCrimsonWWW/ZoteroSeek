@@ -22,7 +22,7 @@ vi.mock('@/utils/logger', () => ({
 }));
 
 import { useModelStore } from '@/stores/modelStore';
-import { getPref, setPref } from '@/utils/prefs';
+import { setPref } from '@/utils/prefs';
 
 describe('modelStore', () => {
   beforeEach(() => {

@@ -51,7 +51,7 @@ function getMinLogLevel(): LogLevel {
  * 格式化日志消息
  * 格式: [ZoteroSeek][模块名][级别] 消息
  */
-function formatMessage(module: string, level: LogLevel, ...args: unknown[]): string {
+function formatMessage(module: string, level: LogLevel, ..._args: unknown[]): string {
   const prefix = `[ZoteroSeek][${module}][${level}]`;
   return prefix;
 }

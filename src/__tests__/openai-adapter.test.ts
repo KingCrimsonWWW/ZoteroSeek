@@ -40,7 +40,7 @@ function createMockStreamWithEmptyDelta() {
   return {
     async *[Symbol.asyncIterator]() {
       yield { choices: [{ delta: {} }] };
-      yield { choices: [{ delta: { content: 'hello' } }] },
+      yield { choices: [{ delta: { content: 'hello' } }] };
       yield { choices: [{}] };
       yield { choices: [{ delta: { content: ' world' } }] };
     },

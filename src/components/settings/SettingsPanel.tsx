@@ -7,8 +7,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useModelStore } from '@/stores/modelStore';
 
 export function SettingsPanel() {
-  const { currentConfig, presetModels, setCurrentConfig, isConfigValid } =
-    useModelStore();
+  const { currentConfig, presetModels, setCurrentConfig } = useModelStore();
 
   // 表单本地状态
   const [apiKey, setApiKey] = useState(currentConfig.apiKey);
