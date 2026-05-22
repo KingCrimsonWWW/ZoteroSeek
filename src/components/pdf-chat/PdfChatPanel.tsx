@@ -173,7 +173,7 @@ export function PdfChatPanel() {
                 </svg>
                 <p className="text-sm">尚未选择 PDF 文档</p>
                 <p className="mt-1 text-xs">
-                  请先点击"选择 PDF"按钮选择 Zotero 中的条目，然后开始对话
+                  请先点击「选择 PDF」按钮选择 Zotero 中的条目，然后开始对话
                 </p>
               </div>
             </div>
