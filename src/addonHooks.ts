@@ -301,9 +301,67 @@ function onMainWindowUnload(window: Window): void {
   reactContainer = null;
 }
 
+/**
+ * Preferences pane load handler.
+ * Called via onload on the vbox element in preferences.xhtml.
+ * Receives the preferences window and initializes form fields.
+ */
+function onPrefsLoad(prefsWindow: Window): void {
+  Zotero.log('[ZoteroSeek] Preferences pane loaded');
+  try {
+    const doc = prefsWindow.document;
+    const apiKeyField = doc.getElementById('zoteroseek-api-key') as HTMLInputElement | null;
+    const modelField = doc.getElementById('zoteroseek-model') as HTMLInputElement | null;
+    const baseUrlField = doc.getElementById('zoteroseek-base-url') as HTMLInputElement | null;
+
+    if (!apiKeyField && !modelField && !baseUrlField) {
+      Zotero.log('[ZoteroSeek] Preferences pane fields not found', 'warn');
+      return;
+    }
+
+    const PREFS_KEY = 'extensions.zotero.zoteroseek.model.currentConfig';
+
+    function loadConfig() {
+      try {
+        const raw = Zotero.Prefs.get(PREFS_KEY, true);
+        if (raw) {
+          const config = JSON.parse(raw);
+          if (apiKeyField) { apiKeyField.value = config.apiKey || ''; }
+          if (modelField) { modelField.value = config.model || ''; }
+          if (baseUrlField) { baseUrlField.value = config.baseUrl || ''; }
+        }
+      } catch (e) {
+        Zotero.log('[ZoteroSeek] Failed to load prefs: ' + e, 'error');
+      }
+    }
+
+    function saveConfig() {
+      try {
+        let currentConfig: Record<string, any> = {};
+        const raw = Zotero.Prefs.get(PREFS_KEY, true);
+        if (raw) { currentConfig = JSON.parse(raw); }
+        currentConfig.apiKey = apiKeyField ? apiKeyField.value : '';
+        currentConfig.model = modelField ? modelField.value : '';
+        currentConfig.baseUrl = baseUrlField ? baseUrlField.value || undefined : undefined;
+        Zotero.Prefs.set(PREFS_KEY, JSON.stringify(currentConfig), true);
+      } catch (e) {
+        Zotero.log('[ZoteroSeek] Failed to save prefs: ' + e, 'error');
+      }
+    }
+
+    loadConfig();
+    if (apiKeyField) { apiKeyField.addEventListener('change', saveConfig); }
+    if (modelField) { modelField.addEventListener('change', saveConfig); }
+    if (baseUrlField) { baseUrlField.addEventListener('change', saveConfig); }
+  } catch (e) {
+    Zotero.log('[ZoteroSeek] Error initializing preferences: ' + e, 'error');
+  }
+}
+
 export default {
   onStartup,
   onShutdown,
   onMainWindowLoad,
   onMainWindowUnload,
+  onPrefsLoad,
 };

@@ -16,6 +16,10 @@ declare class Localization {
 // Environment variable injected by build tool
 declare const __env__: 'development' | 'production';
 
+// rootURI is injected by bootstrap.js via loadSubScript ctx
+// Used for file:// URIs to plugin resources (preferred over chrome:// for some APIs)
+declare const rootURI: string;
+
 // Global addon instance
 declare const addon: import('./addon').default;
 
