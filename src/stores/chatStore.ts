@@ -50,7 +50,7 @@ function createMemoryConversationsTable() {
 
   return {
     add(item: Conversation) {
-      memoryConversations.set(item.id, structuredClone(item));
+      memoryConversations.set(item.id, JSON.parse(JSON.stringify(item)));
       return Promise.resolve(item.id);
     },
     delete(id: string) {

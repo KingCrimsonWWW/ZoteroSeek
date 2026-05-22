@@ -109,6 +109,14 @@ if (!basicTool.getGlobal('Zotero')[config.addonInstance]) {
     (globalThis as any).navigator = nav;
   }
 
+  // Zotero 9 sandbox: structuredClone may not be available.
+  // Polyfill with JSON round-trip (sufficient for serializable objects).
+  if (typeof globalThis.structuredClone === 'undefined') {
+    const sc = (obj: unknown) => JSON.parse(JSON.stringify(obj));
+    _globalThis.structuredClone = sc as typeof structuredClone;
+    (globalThis as any).structuredClone = sc;
+  }
+
   _globalThis.URL = win.URL;
   _globalThis.URLSearchParams = win.URLSearchParams;
   _globalThis.Headers = win.Headers;
