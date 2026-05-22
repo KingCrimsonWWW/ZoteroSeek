@@ -10,6 +10,7 @@ import { OpenAIAdapter } from '@/apis/llm/openai';
 import { AnthropicAdapter } from '@/apis/llm/anthropic';
 import type { LLMAdapter, ChatMessage, Message, ModelConfig } from '@/typings';
 import { createLogger } from '@/utils/logger';
+import { augmentMessage } from '@/services/rag/chatIntegration';
 
 const logger = createLogger('useChat');
 
@@ -142,6 +143,25 @@ export function useChat(): UseChatReturn {
           role: m.role,
           content: m.content,
         }));
+
+        // RAG: 检索相关文献并注入上下文
+        try {
+          const { context } = await augmentMessage(
+            content,
+            currentConfig.apiKey,
+            3,
+            currentConfig.baseUrl,
+            currentConfig.model,
+          );
+          if (context) {
+            chatMessages.unshift({
+              role: 'system',
+              content: `基于以下文献内容回答用户问题：\n\n${context}`,
+            });
+          }
+        } catch (ragError) {
+          logger.warn('RAG 增强失败，使用普通对话', (ragError as Error).message);
+        }
 
         let fullContent = '';
 

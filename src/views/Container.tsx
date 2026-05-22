@@ -8,14 +8,18 @@ import React, { useState, useCallback } from 'react';
 import { ChatPanel } from '../components/chat/ChatPanel';
 import { ConversationList } from '../components/chat/ConversationList';
 import { SettingsPanel } from '../components/settings/SettingsPanel';
+import { KnowledgePanel } from '../components/knowledge/KnowledgePanel';
 import { Header } from '../components/Header';
 import { useDragging } from '../hooks/useDragging';
 import './styles/globals.css';
+
+type ActiveView = 'chat' | 'knowledge';
 
 export function Container() {
   const [isOpen, setIsOpen] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeView, setActiveView] = useState<ActiveView>('chat');
   const { isDragging, position, handleMouseDown } = useDragging();
 
   const togglePanel = useCallback(() => {
@@ -28,6 +32,10 @@ export function Container() {
 
   const toggleSettings = useCallback(() => {
     setIsSettingsOpen((prev) => !prev);
+  }, []);
+
+  const toggleKnowledge = useCallback(() => {
+    setActiveView((prev) => (prev === 'knowledge' ? 'chat' : 'knowledge'));
   }, []);
 
   if (!isOpen) {
@@ -48,9 +56,11 @@ export function Container() {
         onClose={togglePanel}
         onToggleSidebar={toggleSidebar}
         onToggleSettings={toggleSettings}
+        onToggleKnowledge={toggleKnowledge}
         isDragging={isDragging}
         isSidebarOpen={isSidebarOpen}
         isSettingsOpen={isSettingsOpen}
+        isKnowledgeOpen={activeView === 'knowledge'}
       />
 
       {/* Main content area */}
@@ -62,9 +72,15 @@ export function Container() {
           </div>
         )}
 
-        {/* Main panel - Chat or Settings */}
+        {/* Main panel - Chat / Knowledge / Settings */}
         <div className="flex-1 overflow-hidden">
-          {isSettingsOpen ? <SettingsPanel /> : <ChatPanel />}
+          {isSettingsOpen ? (
+            <SettingsPanel />
+          ) : activeView === 'knowledge' ? (
+            <KnowledgePanel />
+          ) : (
+            <ChatPanel />
+          )}
         </div>
       </div>
     </div>
