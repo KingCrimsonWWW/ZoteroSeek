@@ -82,18 +82,29 @@ function createMemoryConversationsTable() {
 
 let db: ChatDatabase;
 
-try {
-  db = new ChatDatabase();
-} catch (error) {
+if (typeof indexedDB === 'undefined') {
+  // Zotero 9 sandbox: IndexedDB not available in privileged context
   isDexieAvailable = false;
   logger.warn(
     '[ZoteroSeek] IndexedDB not available, using in-memory storage',
-    error,
   );
 
-  // 构建内存降级对象，模拟 ChatDatabase 的结构
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db = { conversations: createMemoryConversationsTable() } as any;
+} else {
+  try {
+    db = new ChatDatabase();
+  } catch (error) {
+    isDexieAvailable = false;
+    logger.warn(
+      '[ZoteroSeek] IndexedDB not available, using in-memory storage',
+      error,
+    );
+
+    // 构建内存降级对象，模拟 ChatDatabase 的结构
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    db = { conversations: createMemoryConversationsTable() } as any;
+  }
 }
 
 /** 导出数据库实例，供跨窗口 hook 直接访问 */

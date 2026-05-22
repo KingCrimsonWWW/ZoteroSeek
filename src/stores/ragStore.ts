@@ -107,17 +107,28 @@ function createMemoryProgressTable() {
 
 let db: RagDatabase;
 
-try {
-  db = new RagDatabase();
-} catch (error) {
+if (typeof indexedDB === 'undefined') {
+  // Zotero 9 sandbox: IndexedDB not available in privileged context
   isDexieAvailable = false;
   logger.warn(
     '[ZoteroSeek] IndexedDB not available, using in-memory storage for RAG',
-    error,
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db = { chunks: createMemoryChunksTable(), progress: createMemoryProgressTable() } as any;
+} else {
+  try {
+    db = new RagDatabase();
+  } catch (error) {
+    isDexieAvailable = false;
+    logger.warn(
+      '[ZoteroSeek] IndexedDB not available, using in-memory storage for RAG',
+      error,
+    );
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    db = { chunks: createMemoryChunksTable(), progress: createMemoryProgressTable() } as any;
+  }
 }
 
 // ========== 导出函数 ==========

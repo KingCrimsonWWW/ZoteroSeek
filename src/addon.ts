@@ -81,11 +81,27 @@ if (!basicTool.getGlobal('Zotero')[config.addonInstance]) {
   const win = basicTool.getGlobal('window');
   _globalThis.window = win;
   _globalThis.document = basicTool.getGlobal('document');
+
+  // Fix for Zotero 9: timer functions must be bound to a Window object.
+  // React's dynamic import() resolves setTimeout from globalThis,
+  // NOT from _globalThis, so we must patch BOTH.
+  const boundSetTimeout = win.setTimeout.bind(win);
+  const boundSetInterval = win.setInterval.bind(win);
+  const boundClearTimeout = win.clearTimeout.bind(win);
+  const boundClearInterval = win.clearInterval.bind(win);
+
+  _globalThis.setTimeout = boundSetTimeout;
+  _globalThis.setInterval = boundSetInterval;
+  _globalThis.clearTimeout = boundClearTimeout;
+  _globalThis.clearInterval = boundClearInterval;
+
+  // Also patch globalThis (React's import() uses this scope)
+  globalThis.setTimeout = boundSetTimeout;
+  globalThis.setInterval = boundSetInterval;
+  globalThis.clearTimeout = boundClearTimeout;
+  globalThis.clearInterval = boundClearInterval;
+
   _globalThis.URL = win.URL;
-  _globalThis.setTimeout = win.setTimeout.bind(win);
-  _globalThis.setInterval = win.setInterval.bind(win);
-  _globalThis.clearTimeout = win.clearTimeout.bind(win);
-  _globalThis.clearInterval = win.clearInterval.bind(win);
   _globalThis.URLSearchParams = win.URLSearchParams;
   _globalThis.Headers = win.Headers;
   _globalThis.AbortSignal = win.AbortSignal;
