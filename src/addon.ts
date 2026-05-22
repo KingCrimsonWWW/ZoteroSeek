@@ -8,6 +8,7 @@
 import { BasicTool, ZoteroToolkit } from 'zotero-plugin-toolkit';
 import { config } from '../package.json';
 import hooks from './addonHooks';
+import { openPdfChatWindow } from './modules/pdfChatWindow';
 
 const basicTool = new BasicTool();
 
@@ -59,6 +60,14 @@ class Addon {
     if (container) {
       container.style.display = 'none';
     }
+  }
+
+  /**
+   * Open the standalone PDF chat window.
+   * Delegates to pdfChatWindow module for window lifecycle management.
+   */
+  openPdfChat(): void {
+    openPdfChatWindow();
   }
 
 }

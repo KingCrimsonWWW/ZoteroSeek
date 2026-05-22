@@ -29,6 +29,9 @@ class ChatDatabase extends Dexie {
 
 const db = new ChatDatabase();
 
+/** 导出数据库实例，供跨窗口 hook 直接访问 */
+export { db as chatDb };
+
 // ========== 工具函数 ==========
 
 /** 生成唯一 ID */
@@ -51,8 +54,10 @@ function createConversation(title?: string): Conversation {
 // ========== Store 类型定义 ==========
 
 interface ChatState {
-  /** 当前对话 ID */
+  /** 当前对话 ID（主窗口使用） */
   currentConversationId: string | null;
+  /** PDF 窗口对话 ID（跨窗口共享） */
+  pdfConversationId: string | null;
   /** 当前对话的消息列表 */
   messages: Message[];
   /** 对话列表（缓存，用于快速访问） */
@@ -72,6 +77,9 @@ interface ChatState {
   // 消息管理
   addMessage: (role: 'user' | 'assistant', content: string, metadata?: Record<string, unknown>) => Promise<void>;
   clearMessages: () => Promise<void>;
+
+  // PDF 窗口操作
+  setPdfConversationId: (id: string | null) => void;
 }
 
 // ========== Zustand Store ==========
@@ -79,6 +87,7 @@ interface ChatState {
 export const useChatStore = create<ChatState>((set, get) => ({
   // 初始状态
   currentConversationId: null,
+  pdfConversationId: null,
   messages: [],
   conversations: [],
   isLoading: false,
@@ -297,6 +306,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       logger.error('清空消息失败', error);
       throw error;
     }
+  },
+
+  /**
+   * 设置 PDF 窗口的对话 ID
+   * 用于跨窗口状态同步：PDF 窗口和主窗口共享同一个 Dexie 数据库
+   */
+  setPdfConversationId: (id: string | null) => {
+    set({ pdfConversationId: id });
+    logger.info('设置 PDF 对话 ID', { id });
   },
 }));
 
