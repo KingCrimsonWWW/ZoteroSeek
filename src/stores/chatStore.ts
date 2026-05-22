@@ -1,6 +1,7 @@
 /**
  * Chat Store - 对话状态管理
  * 使用 Zustand 管理状态，Dexie 持久化到 IndexedDB
+ * 当 IndexedDB 不可用时（如 Zotero 9 sandbox），自动降级为内存存储
  */
 
 import { create } from 'zustand';
@@ -9,6 +10,11 @@ import type { Conversation, ConversationMeta, Message } from '@/typings';
 import { createLogger } from '@/utils/logger';
 
 const logger = createLogger('chatStore');
+
+// ========== IndexedDB 可用性检测 ==========
+
+/** IndexedDB 是否可用（UI 可据此显示警告） */
+export let isDexieAvailable = true;
 
 // ========== Dexie 数据库定义 ==========
 
@@ -27,7 +33,68 @@ class ChatDatabase extends Dexie {
   }
 }
 
-const db = new ChatDatabase();
+// ========== 内存降级存储 ==========
+
+/** 当 IndexedDB 不可用时，使用内存 Map 存储对话数据 */
+const memoryConversations = new Map<string, Conversation>();
+
+/**
+ * 创建内存对话表，模拟 Dexie EntityTable 的关键方法
+ * 仅供内部使用，当 IndexedDB 不可用时作为降级方案
+ */
+function createMemoryConversationsTable() {
+  const getSorted = () =>
+    Array.from(memoryConversations.values()).sort(
+      (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+    );
+
+  return {
+    add(item: Conversation) {
+      memoryConversations.set(item.id, structuredClone(item));
+      return Promise.resolve(item.id);
+    },
+    delete(id: string) {
+      memoryConversations.delete(id);
+      return Promise.resolve();
+    },
+    update(id: string, changes: Partial<Conversation>) {
+      const existing = memoryConversations.get(id);
+      if (existing) {
+        memoryConversations.set(id, { ...existing, ...changes } as Conversation);
+      }
+      return Promise.resolve();
+    },
+    get(id: string) {
+      return Promise.resolve(memoryConversations.get(id));
+    },
+    orderBy(_field: string) {
+      return {
+        reverse: () => ({
+          first: () => Promise.resolve(getSorted()[0]),
+          toArray: () => Promise.resolve(getSorted()),
+        }),
+      };
+    },
+  };
+}
+
+// ========== 数据库初始化 ==========
+
+let db: ChatDatabase;
+
+try {
+  db = new ChatDatabase();
+} catch (error) {
+  isDexieAvailable = false;
+  logger.warn(
+    '[ZoteroSeek] IndexedDB not available, using in-memory storage',
+    error,
+  );
+
+  // 构建内存降级对象，模拟 ChatDatabase 的结构
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db = { conversations: createMemoryConversationsTable() } as any;
+}
 
 /** 导出数据库实例，供跨窗口 hook 直接访问 */
 export { db as chatDb };

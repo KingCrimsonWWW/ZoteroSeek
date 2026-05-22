@@ -78,14 +78,18 @@ if (!basicTool.getGlobal('Zotero')[config.addonInstance]) {
   _globalThis.Zotero = basicTool.getGlobal('Zotero');
   _globalThis.ZoteroPane = basicTool.getGlobal('ZoteroPane');
   _globalThis.Zotero_Tabs = basicTool.getGlobal('Zotero_Tabs');
-  _globalThis.window = basicTool.getGlobal('window');
+  const win = basicTool.getGlobal('window');
+  _globalThis.window = win;
   _globalThis.document = basicTool.getGlobal('document');
-  _globalThis.URL = basicTool.getGlobal('window').URL;
-  _globalThis.setTimeout = basicTool.getGlobal('window').setTimeout;
-  _globalThis.URLSearchParams = basicTool.getGlobal('window').URLSearchParams;
-  _globalThis.Headers = basicTool.getGlobal('window').Headers;
-  _globalThis.AbortSignal = basicTool.getGlobal('window').AbortSignal;
-  _globalThis.Request = basicTool.getGlobal('window').Request;
+  _globalThis.URL = win.URL;
+  _globalThis.setTimeout = win.setTimeout.bind(win);
+  _globalThis.setInterval = win.setInterval.bind(win);
+  _globalThis.clearTimeout = win.clearTimeout.bind(win);
+  _globalThis.clearInterval = win.clearInterval.bind(win);
+  _globalThis.URLSearchParams = win.URLSearchParams;
+  _globalThis.Headers = win.Headers;
+  _globalThis.AbortSignal = win.AbortSignal;
+  _globalThis.Request = win.Request;
 
   // Polyfill AbortSignal.timeout if not available
   if (!_globalThis.AbortSignal.timeout) {

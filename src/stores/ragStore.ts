@@ -1,12 +1,18 @@
 /**
  * RAG Store - 向量存储管理
  * 使用 Dexie 持久化文档块及其嵌入向量到 IndexedDB
+ * 当 IndexedDB 不可用时（如 Zotero 9 sandbox），自动降级为内存存储
  */
 
 import Dexie, { type EntityTable } from 'dexie';
 import { createLogger } from '@/utils/logger';
 
 const logger = createLogger('ragStore');
+
+// ========== IndexedDB 可用性检测 ==========
+
+/** IndexedDB 是否可用 */
+export let isDexieAvailable = true;
 
 // ========== 类型定义 ==========
 
@@ -47,7 +53,72 @@ class RagDatabase extends Dexie {
   }
 }
 
-const db = new RagDatabase();
+// ========== 内存降级存储 ==========
+
+const memoryChunks: RagChunk[] = [];
+let memoryProgress: RagProgress = { id: 'global', indexedItemIds: [], totalItems: 0 };
+
+function createMemoryChunksTable() {
+  let nextId = 1;
+  return {
+    bulkAdd(items: RagChunk[]) {
+      for (const item of items) {
+        memoryChunks.push({ ...item, id: nextId++ });
+      }
+      return Promise.resolve();
+    },
+    where(_field: string) {
+      return {
+        equals(value: number) {
+          return {
+            toArray: () =>
+              Promise.resolve(memoryChunks.filter((c) => c.itemId === value)),
+          };
+        },
+      };
+    },
+    toArray() {
+      return Promise.resolve([...memoryChunks]);
+    },
+    clear() {
+      memoryChunks.length = 0;
+      return Promise.resolve();
+    },
+  };
+}
+
+function createMemoryProgressTable() {
+  return {
+    get(_id: string) {
+      return Promise.resolve(memoryProgress);
+    },
+    put(item: RagProgress) {
+      memoryProgress = { ...item };
+      return Promise.resolve();
+    },
+    clear() {
+      memoryProgress = { id: 'global', indexedItemIds: [], totalItems: 0 };
+      return Promise.resolve();
+    },
+  };
+}
+
+// ========== 数据库初始化 ==========
+
+let db: RagDatabase;
+
+try {
+  db = new RagDatabase();
+} catch (error) {
+  isDexieAvailable = false;
+  logger.warn(
+    '[ZoteroSeek] IndexedDB not available, using in-memory storage for RAG',
+    error,
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db = { chunks: createMemoryChunksTable(), progress: createMemoryProgressTable() } as any;
+}
 
 // ========== 导出函数 ==========
 
