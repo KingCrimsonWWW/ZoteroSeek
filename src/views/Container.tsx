@@ -20,7 +20,7 @@ export function Container() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>('chat');
-  const { isDragging, position, handleMouseDown } = useDragging();
+  const { isDragging, handleMouseDown } = useDragging();
 
   const togglePanel = useCallback(() => {
     setIsOpen((prev) => !prev);
@@ -44,11 +44,7 @@ export function Container() {
 
   return (
     <div
-      className="fixed z-50 flex h-[600px] w-[600px] flex-col rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 shadow-2xl"
-      style={{
-        left: position.x,
-        top: position.y,
-      }}
+      className="z-50 flex h-full w-full flex-col rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 shadow-2xl"
     >
       {/* Header with drag handle */}
       <Header

@@ -1,6 +1,6 @@
-<vbox id="zotero-prefpane-zoteroseek" onload="Zotero.ZoteroSeek.hooks.onPrefsLoad(window)">
+<vbox id="zotero-prefpane-zoteroseek">
   <groupbox>
-    <label><html:h2 data-l10n-id="prefs-title"></html:h2></label>
+    <label><html:h2>ZoteroSeek</html:h2></label>
     <hbox>
       <label value="API Key:"/>
       <html:input id="zoteroseek-api-key" type="text" flex="1"/>
@@ -14,4 +14,5 @@
       <html:input id="zoteroseek-base-url" type="text" flex="1"/>
     </hbox>
   </groupbox>
+  <html:script src="chrome://zoteroseek/content/preferences.js"/>
 </vbox>
