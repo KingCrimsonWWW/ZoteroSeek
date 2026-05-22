@@ -44,7 +44,7 @@ export function Container() {
 
   return (
     <div
-      className="z-50 flex h-full w-full flex-col rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 shadow-2xl"
+      className="z-50 flex h-[600px] w-[600px] flex-col rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 shadow-2xl"
     >
       {/* Header with drag handle */}
       <Header
