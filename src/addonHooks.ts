@@ -11,6 +11,7 @@ import { initLocale } from './utils/locale';
 import { registerMenus } from './modules/menu';
 import { registerShortcuts } from './modules/shortcut';
 import { registerPrefs } from './modules/preferences';
+import { initChatStore } from './stores/chatStore';
 
 // Track React roots for cleanup
 let reactRoot: any = null;
@@ -45,6 +46,10 @@ async function onStartup() {
   // Register preferences pane
   registerPrefs();
   Zotero.log('[ZoteroSeek] Preferences registered');
+
+  // Initialize chat store (load conversation list)
+  await initChatStore();
+  Zotero.log('[ZoteroSeek] Chat store initialized');
 
   // Expose showPanel/togglePanel on the addon instance
   addon.showPanel = () => showPanel();

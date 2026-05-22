@@ -7,7 +7,15 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useModelStore } from '@/stores/modelStore';
 
 export function SettingsPanel() {
-  const { currentConfig, presetModels, setCurrentConfig } = useModelStore();
+  const {
+    currentConfig,
+    presetModels,
+    savedConfigs,
+    setCurrentConfig,
+    addSavedConfig,
+    deleteSavedConfig,
+    loadSavedConfig,
+  } = useModelStore();
 
   // 表单本地状态
   const [apiKey, setApiKey] = useState(currentConfig.apiKey);
@@ -23,6 +31,10 @@ export function SettingsPanel() {
   });
   const [validationError, setValidationError] = useState('');
   const [saved, setSaved] = useState(false);
+
+  // 保存配置管理
+  const [configName, setConfigName] = useState('');
+  const [selectedSavedName, setSelectedSavedName] = useState('');
 
   // 当 currentConfig 变化时同步表单状态
   useEffect(() => {
@@ -72,6 +84,37 @@ export function SettingsPanel() {
     // 2 秒后恢复按钮状态
     setTimeout(() => setSaved(false), 2000);
   }, [apiKey, baseUrl, selectedPresetIndex, presetModels, setCurrentConfig]);
+
+  // 保存为新配置
+  const handleSaveAsNew = useCallback(() => {
+    const trimmedName = configName.trim();
+    if (!trimmedName) return;
+
+    const preset = presetModels[selectedPresetIndex];
+    const config = {
+      provider: preset.provider,
+      model: preset.model,
+      apiKey: apiKey.trim(),
+      baseUrl: baseUrl.trim() || undefined,
+    };
+
+    addSavedConfig(trimmedName, config);
+    setConfigName('');
+    setSelectedSavedName(trimmedName);
+  }, [configName, apiKey, baseUrl, selectedPresetIndex, presetModels, addSavedConfig]);
+
+  // 加载已保存配置
+  const handleLoadConfig = useCallback(() => {
+    if (!selectedSavedName) return;
+    loadSavedConfig(selectedSavedName);
+  }, [selectedSavedName, loadSavedConfig]);
+
+  // 删除已保存配置
+  const handleDeleteConfig = useCallback(() => {
+    if (!selectedSavedName) return;
+    deleteSavedConfig(selectedSavedName);
+    setSelectedSavedName('');
+  }, [selectedSavedName, deleteSavedConfig]);
 
   // 当前选中的预设
   const currentPreset = presetModels[selectedPresetIndex];
@@ -161,6 +204,73 @@ export function SettingsPanel() {
       >
         {saved ? '已保存 ✓' : '保存设置'}
       </button>
+
+      {/* 保存的配置管理 */}
+      <div className="border-t border-gray-200 pt-4">
+        <h3 className="mb-3 text-sm font-medium text-gray-700">保存的配置</h3>
+
+        {/* 配置名称输入 + 保存按钮 */}
+        <div className="flex gap-2">
+          <input
+            id="config-name"
+            type="text"
+            value={configName}
+            onChange={(e) => setConfigName(e.target.value)}
+            placeholder="配置名称"
+            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button
+            onClick={handleSaveAsNew}
+            disabled={!configName.trim()}
+            className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50"
+          >
+            保存为新
+          </button>
+        </div>
+
+        {/* 已保存配置选择器 */}
+        {savedConfigs.length > 0 && (
+          <>
+            <label
+              htmlFor="saved-config-select"
+              className="mb-1 mt-3 block text-sm font-medium text-gray-700"
+            >
+              已保存的配置
+            </label>
+            <select
+              id="saved-config-select"
+              value={selectedSavedName}
+              onChange={(e) => setSelectedSavedName(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">选择配置...</option>
+              {savedConfigs.map((sc) => (
+                <option key={sc.name} value={sc.name}>
+                  {sc.name} ({sc.provider} · {sc.model})
+                </option>
+              ))}
+            </select>
+
+            {/* 加载 / 删除按钮 */}
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={handleLoadConfig}
+                disabled={!selectedSavedName}
+                className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                加载
+              </button>
+              <button
+                onClick={handleDeleteConfig}
+                disabled={!selectedSavedName}
+                className="flex-1 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                删除
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
