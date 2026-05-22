@@ -3,13 +3,14 @@
  */
 
 import { config } from '../../package.json';
-import { getString } from '../utils/locale';
 
 export function registerPrefs(): void {
+  // Use hardcoded label — getString requires Fluent which may not
+  // be initialized when registerPrefs() runs during onStartup()
   const prefPane = {
     pluginID: config.addonID,
     src: `chrome://${config.addonRef}/content/preferences.xhtml`,
-    label: getString('prefs-title'),
+    label: 'ZoteroSeek',
     image: `chrome://${config.addonRef}/content/icons/icon.png`,
   };
 
