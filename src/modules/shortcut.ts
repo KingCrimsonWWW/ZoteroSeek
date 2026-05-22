@@ -20,7 +20,11 @@ export function registerShortcuts(): void {
       if (data.keyboard.equals('accel,shift,a')) {
         const items = Zotero.getActiveZoteroPane().getSelectedItems();
         if (items.length > 0) {
-          Zotero.log('[ZoteroSeek] analyzeItems not implemented yet');
+          try {
+            addon.togglePanel();
+          } catch (error) {
+            Zotero.log(`[ZoteroSeek] Error toggling panel: ${error}`);
+          }
         }
       }
     }

@@ -49,7 +49,4 @@ AGENTS.md
 *.tgz
 .cache
 
-#reference projects
-.reference-ai-ra/
-.reference-papersgpt/
-.reference-zotero-gpt/
+

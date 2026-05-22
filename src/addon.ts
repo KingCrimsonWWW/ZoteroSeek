@@ -61,10 +61,6 @@ class Addon {
     }
   }
 
-  analyzeItems(_items: any[]): void {
-    // Stub - 功能未实现
-    Zotero.log('[ZoteroSeek] analyzeItems not implemented yet');
-  }
 }
 
 // Initialize global variables (only once)

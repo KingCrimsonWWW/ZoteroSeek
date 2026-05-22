@@ -1,7 +1,0 @@
-<!-- ZoteroSeek Locale - Chinese -->
-<!ENTITY zoteroseek.menu.tools "ZoteroSeek 智能助手">
-<!ENTITY zoteroseek.menu.analyze "使用 ZoteroSeek 分析">
-<!ENTITY zoteroseek.prefs.title "ZoteroSeek 设置">
-<!ENTITY zoteroseek.prefs.apiKey "API Key">
-<!ENTITY zoteroseek.prefs.model "模型">
-<!ENTITY zoteroseek.prefs.theme "主题">

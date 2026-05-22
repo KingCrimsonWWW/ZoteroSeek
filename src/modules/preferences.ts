@@ -12,6 +12,7 @@ export function registerPrefs(): void {
     src: `chrome://${config.addonRef}/content/preferences.xhtml`,
     label: getString('prefs-title'),
     image: `chrome://${config.addonRef}/content/icons/icon.png`,
+    scripts: [`chrome://${config.addonRef}/content/preferences.js`],
   };
 
   Zotero.PreferencePanes.register(prefPane);

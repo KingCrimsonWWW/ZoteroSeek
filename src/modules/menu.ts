@@ -33,7 +33,7 @@ export function registerMenus(): void {
     commandListener: async (_ev: Event) => {
       const items = Zotero.getActiveZoteroPane().getSelectedItems();
       if (items.length > 0) {
-        Zotero.log('[ZoteroSeek] analyzeItems not implemented yet');
+        await addon.showPanel();
       }
     },
   });

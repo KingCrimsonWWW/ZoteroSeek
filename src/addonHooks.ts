@@ -18,7 +18,7 @@ let reactContainer: HTMLElement | null = null;
 
 /**
  * Called when the plugin starts up.
- * Only registers menus/shortcuts/prefs (lightweight, no React).
+ * Registers menus/shortcuts/prefs and auto-shows the React panel.
  */
 async function onStartup() {
   Zotero.log('[ZoteroSeek] onStartup called');
@@ -49,6 +49,9 @@ async function onStartup() {
   // Expose showPanel/togglePanel on the addon instance
   addon.showPanel = () => showPanel();
   addon.togglePanel = () => togglePanel();
+  
+  // Auto-show the React panel on startup
+  await showPanel();
   
   Zotero.log('[ZoteroSeek] onStartup complete');
 }

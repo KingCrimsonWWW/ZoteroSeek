@@ -84,10 +84,7 @@ export class Logger {
     try {
       Zotero.log(`${prefix} ${args.map(a => String(a)).join(' ')}`);
     } catch {
-      // 测试环境或其他环境回退
-      if (typeof console !== 'undefined') {
-        console.log(prefix, ...args);
-      }
+      // Zotero.log 失败时静默忽略（Zotero 环境中 console 不可用）
     }
   }
 
