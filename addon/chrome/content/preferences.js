@@ -11,6 +11,8 @@
     var PREFS_KEY = 'extensions.zotero.zoteroseek.model.currentConfig';
     var doc = window.document;
 
+    Zotero.log('[ZoteroSeek] Preferences pane loaded');
+
     var apiKeyField = doc.getElementById('zoteroseek-api-key');
     var modelField = doc.getElementById('zoteroseek-model');
     var baseUrlField = doc.getElementById('zoteroseek-base-url');
