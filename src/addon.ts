@@ -101,6 +101,14 @@ if (!basicTool.getGlobal('Zotero')[config.addonInstance]) {
   globalThis.clearTimeout = boundClearTimeout;
   globalThis.clearInterval = boundClearInterval;
 
+  // Zotero 9 sandbox: React DOM needs navigator for feature detection.
+  // Polyfill it on both globalThis and _globalThis.
+  if (typeof globalThis.navigator === 'undefined') {
+    const nav = { onLine: true, userAgent: 'Zotero/9.0' } as unknown as Navigator;
+    _globalThis.navigator = nav;
+    (globalThis as any).navigator = nav;
+  }
+
   _globalThis.URL = win.URL;
   _globalThis.URLSearchParams = win.URLSearchParams;
   _globalThis.Headers = win.Headers;
