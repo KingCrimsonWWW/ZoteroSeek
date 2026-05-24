@@ -56,7 +56,7 @@ export function Container({ onContainerHide }: ContainerProps) {
   return (
     <div
       className="z-50 flex h-[600px] w-[600px] flex-col rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 shadow-2xl"
-      style={{ display: 'flex', flexDirection: 'column', width: '600px', height: '600px', zIndex: 50 }}
+      style={{ display: 'flex', flexDirection: 'column', width: '600px', height: '600px', zIndex: 50, background: 'linear-gradient(to bottom right, #eff6ff, #f5f3ff)' }}
     >
       {/* Header with drag handle */}
       <Header
