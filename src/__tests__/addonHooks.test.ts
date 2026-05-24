@@ -112,11 +112,12 @@ describe('addonHooks', () => {
       expect(initChatStore).toHaveBeenCalledTimes(1);
     });
 
-    it('应在初始化后调用 showPanel（通过 Zotero.getMainWindow 被调用验证）', async () => {
+    it('不应在启动时自动调用 showPanel（用户需手动触发）', async () => {
       await hooks.onStartup();
 
-      // showPanel 内部第一行就是 Zotero.getMainWindow()
-      expect(Zotero.getMainWindow).toHaveBeenCalled();
+      // showPanel 不应在 onStartup 中被调用（已移除自动显示）
+      // showPanel 内部会调用 Zotero.getMainWindow，所以如果被调用了则测试失败
+      expect(Zotero.getMainWindow).not.toHaveBeenCalled();
     });
 
     it('应在 addon 上暴露 showPanel 和 togglePanel', async () => {

@@ -120,6 +120,11 @@ vi.mock("@/apis/llm/anthropic", () => ({
   },
 }));
 
+// --- RAG integration mock ---
+vi.mock("@/services/rag/chatIntegration", () => ({
+  augmentMessage: vi.fn().mockResolvedValue({ context: "", sources: [] }),
+}));
+
 // =============================================================================
 // Helpers
 // =============================================================================

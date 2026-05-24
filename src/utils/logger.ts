@@ -82,7 +82,12 @@ export class Logger {
     const prefix = formatMessage(this.module, level);
     // Zotero 环境中使用 Zotero.log，回退到 console
     try {
-      Zotero.log(`${prefix} ${args.map(a => String(a)).join(' ')}`);
+      Zotero.log(`${prefix} ${args.map(a => {
+        if (typeof a === 'object' && a !== null) {
+          try { return JSON.stringify(a); } catch { return String(a); }
+        }
+        return String(a);
+      }).join(' ')}`);
     } catch {
       // Zotero.log 失败时静默忽略（Zotero 环境中 console 不可用）
     }

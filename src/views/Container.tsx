@@ -5,17 +5,21 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { ChatPanel } from '../components/chat/ChatPanel';
-import { ConversationList } from '../components/chat/ConversationList';
-import { SettingsPanel } from '../components/settings/SettingsPanel';
-import { KnowledgePanel } from '../components/knowledge/KnowledgePanel';
-import { Header } from '../components/Header';
-import { useDragging } from '../hooks/useDragging';
+import { ChatPanel } from '@/components/chat/ChatPanel';
+import { ConversationList } from '@/components/chat/ConversationList';
+import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { KnowledgePanel } from '@/components/knowledge/KnowledgePanel';
+import { Header } from '@/components/Header';
+import { useDragging } from '@/hooks/useDragging';
 import './styles/globals.css';
 
 type ActiveView = 'chat' | 'knowledge';
 
-export function Container() {
+interface ContainerProps {
+  onContainerHide?: () => void;
+}
+
+export function Container({ onContainerHide }: ContainerProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -23,8 +27,15 @@ export function Container() {
   const { isDragging, handleMouseDown } = useDragging();
 
   const togglePanel = useCallback(() => {
-    setIsOpen((prev) => !prev);
-  }, []);
+    setIsOpen((prev) => {
+      const next = !prev;
+      // When closing, notify external container to hide the outer div
+      if (!next && onContainerHide) {
+        onContainerHide();
+      }
+      return next;
+    });
+  }, [onContainerHide]);
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen((prev) => !prev);
@@ -45,6 +56,7 @@ export function Container() {
   return (
     <div
       className="z-50 flex h-[600px] w-[600px] flex-col rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 shadow-2xl"
+      style={{ display: 'flex', flexDirection: 'column', width: '600px', height: '600px', zIndex: 50 }}
     >
       {/* Header with drag handle */}
       <Header

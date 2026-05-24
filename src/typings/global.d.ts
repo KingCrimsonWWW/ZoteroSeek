@@ -62,8 +62,12 @@ declare const ztoolkit: {
   Menu: {
     register(menu: string, options: any): void;
   };
+  /** @deprecated Use Keyboard instead (Zotero 9 removed Shortcut API) */
   Shortcut: {
     register(type: string, options: any): void;
+  };
+  Keyboard: {
+    register(handler: (ev: KeyboardEvent, data: { type: string; keyboard?: any }) => void): void;
   };
   basicOptions: {
     log: {

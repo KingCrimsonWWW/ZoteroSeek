@@ -7,7 +7,7 @@
 
 import { BasicTool, ZoteroToolkit } from 'zotero-plugin-toolkit';
 import { config } from '../package.json';
-import hooks from './addonHooks';
+import hooks from '@/addonHooks';
 import { openPdfChatWindow } from './modules/pdfChatWindow';
 
 const basicTool = new BasicTool();
@@ -36,30 +36,6 @@ class Addon {
     };
     this.hooks = hooks;
     this.api = {};
-  }
-
-  showPanel(): void {
-    const win = Zotero.getMainWindow();
-    const container = win?.document.getElementById('zoteroseek-container');
-    if (container) {
-      container.style.display = 'block';
-    }
-  }
-
-  togglePanel(): void {
-    const win = Zotero.getMainWindow();
-    const container = win?.document.getElementById('zoteroseek-container');
-    if (container) {
-      container.style.display = container.style.display === 'none' ? 'block' : 'none';
-    }
-  }
-
-  hidePanel(): void {
-    const win = Zotero.getMainWindow();
-    const container = win?.document.getElementById('zoteroseek-container');
-    if (container) {
-      container.style.display = 'none';
-    }
   }
 
   /**
@@ -104,7 +80,8 @@ if (!basicTool.getGlobal('Zotero')[config.addonInstance]) {
   // Zotero 9 sandbox: React DOM needs navigator for feature detection.
   // Polyfill it on both globalThis and _globalThis.
   if (typeof globalThis.navigator === 'undefined') {
-    const nav = { onLine: true, userAgent: 'Zotero/9.0' } as unknown as Navigator;
+    // Use real onLine value from the XUL window if available; default to true.
+    const nav = { onLine: win.navigator?.onLine ?? true, userAgent: 'Zotero/9.0' } as unknown as Navigator;
     _globalThis.navigator = nav;
     (globalThis as any).navigator = nav;
   }

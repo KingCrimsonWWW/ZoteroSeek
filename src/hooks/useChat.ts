@@ -6,10 +6,9 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useChatStore } from '@/stores/chatStore';
 import { useModelStore } from '@/stores/modelStore';
-import { OpenAIAdapter } from '@/apis/llm/openai';
-import { AnthropicAdapter } from '@/apis/llm/anthropic';
-import type { LLMAdapter, ChatMessage, Message, ModelConfig } from '@/typings';
+import type { ChatMessage, Message } from '@/typings';
 import { createLogger } from '@/utils/logger';
+import { createAdapter } from '@/utils/adapter';
 import { augmentMessage } from '@/services/rag/chatIntegration';
 
 const logger = createLogger('useChat');
@@ -23,20 +22,6 @@ interface UseChatReturn {
   sendMessage: (content: string) => Promise<void>;
   stopGeneration: () => void;
   clearMessages: () => Promise<void>;
-}
-
-/**
- * 根据模型配置创建对应的 LLM 适配器
- */
-function createAdapter(config: ModelConfig): LLMAdapter {
-  switch (config.provider) {
-    case 'openai':
-      return new OpenAIAdapter(config.apiKey, config.baseUrl, config.model);
-    case 'anthropic':
-      return new AnthropicAdapter(config);
-    default:
-      throw new Error(`不支持的 LLM 供应商: ${config.provider}`);
-  }
 }
 
 export function useChat(): UseChatReturn {

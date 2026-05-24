@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import Dexie, { type EntityTable } from 'dexie';
 import type { Conversation, ConversationMeta, Message } from '@/typings';
 import { createLogger } from '@/utils/logger';
+import { generateId } from '@/utils/id';
 
 const logger = createLogger('chatStore');
 
@@ -111,11 +112,6 @@ if (typeof indexedDB === 'undefined') {
 export { db as chatDb };
 
 // ========== 工具函数 ==========
-
-/** 生成唯一 ID */
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
 
 /** 创建新的空对话 */
 function createConversation(title?: string): Conversation {
@@ -293,6 +289,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const conversation = await db.conversations.get(id);
       if (!conversation) {
         logger.warn('对话不存在', { id });
+        set({ isLoading: false });
         return;
       }
 
@@ -315,12 +312,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
    * 如果没有当前对话，自动创建一个
    */
   addMessage: async (role: 'user' | 'assistant', content: string, metadata?: Record<string, unknown>) => {
-    const { currentConversationId } = get();
-
     // 如果没有当前对话，先创建一个
-    let conversationId = currentConversationId;
+    let conversationId = get().currentConversationId;
     if (!conversationId) {
-      conversationId = await get().addConversation();
+      await get().addConversation();
+      // 重新读取，避免 TOCTOU 竞态（并发调用可能已创建对话）
+      conversationId = get().currentConversationId;
     }
 
     const message: Message = {

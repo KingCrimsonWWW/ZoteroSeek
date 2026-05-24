@@ -30,27 +30,6 @@ export interface ZoteroHTTPRequestOptions {
 }
 
 /**
- * 测试 openai 包在当前环境中是否可用
- * @returns 如果 openai 包可用返回 true，否则返回 false
- */
-export async function testOpenAIPackage(): Promise<boolean> {
-  try {
-    // 尝试动态导入 openai 包
-    const openai = await import("openai");
-    // 验证 OpenAI 类是否存在
-    if (openai && openai.default) {
-      ztoolkit.log("[http] openai 包可用");
-      return true;
-    }
-    ztoolkit.log("[http] openai 包导入成功但缺少默认导出");
-    return false;
-  } catch (error) {
-    ztoolkit.log("[http] openai 包不可用:", error);
-    return false;
-  }
-}
-
-/**
  * 创建 OpenAI 客户端
  * @param apiKey - API 密钥
  * @param baseURL - 可选的基础 URL（用于 DeepSeek、MiMo 等兼容 API）
@@ -176,30 +155,4 @@ export function parseSSEStream(
   return chunks;
 }
 
-/**
- * 使用 Zotero.HTTP 发送流式请求并解析 SSE
- * 注意：Zotero.HTTP.request 可能不支持真正的流式传输，
- * 此函数会等待完整响应后解析
- * @param method - HTTP 方法（通常是 POST）
- * @param url - 请求 URL
- * @param body - 请求体
- * @param headers - 请求头
- * @returns 解析后的 SSE 数据块数组
- */
-export async function fetchAndParseSSE(
-  method: string,
-  url: string,
-  body: Record<string, unknown>,
-  headers: Record<string, string> = {},
-): Promise<SSEChunk[]> {
-  const response = await zoteroHTTPRequest(method, url, {
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      ...headers,
-    },
-    body: JSON.stringify(body),
-  });
 
-  return parseSSEStream(response);
-}

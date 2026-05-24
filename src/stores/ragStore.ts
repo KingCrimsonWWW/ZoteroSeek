@@ -72,7 +72,7 @@ function createMemoryChunksTable() {
         equals(value: number) {
           return {
             toArray: () =>
-              Promise.resolve(memoryChunks.filter((c) => c.itemId === value)),
+              Promise.resolve(memoryChunks.filter((c) => (c as any)[_field] === value)),
           };
         },
       };

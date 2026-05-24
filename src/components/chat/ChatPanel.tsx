@@ -7,7 +7,7 @@ import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { MessageList } from './MessageList';
 import { InputBox } from './InputBox';
 import { ErrorBoundary } from '../ErrorBoundary';
-import { useChat } from '../../hooks/useChat';
+import { useChat } from '@/hooks/useChat';
 
 /**
  * 离线状态提示横幅

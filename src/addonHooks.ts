@@ -7,15 +7,17 @@
  */
 
 import { config } from '../package.json';
-import { initLocale } from './utils/locale';
-import { registerMenus } from './modules/menu';
-import { registerShortcuts } from './modules/shortcut';
-import { registerPrefs } from './modules/preferences';
+import { initLocale } from '@/utils/locale';
+import { registerMenus } from '@/modules/menu';
+import { registerShortcuts } from '@/modules/shortcut';
+import { registerPrefs } from '@/modules/preferences';
 import { initChatStore } from './stores/chatStore';
 
 // Track React roots for cleanup
 let reactRoot: any = null;
 let reactContainer: HTMLElement | null = null;
+let isLoadingReact = false;
+let userDismissed = false;
 
 /**
  * Called when the plugin starts up.
@@ -54,9 +56,6 @@ async function onStartup() {
   // Expose showPanel/togglePanel on the addon instance
   addon.showPanel = () => showPanel();
   addon.togglePanel = () => togglePanel();
-  
-  // Auto-show the React panel on startup
-  await showPanel();
   
   Zotero.log('[ZoteroSeek] onStartup complete');
 }
@@ -134,6 +133,7 @@ function createLightweightUI(window: Window): HTMLElement {
   const closeBtn = header.querySelector(`#${config.addonRef}-close`);
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
+      userDismissed = true;
       container.style.display = 'none';
     });
   }
@@ -162,7 +162,11 @@ function createLightweightUI(window: Window): HTMLElement {
  * Load React app asynchronously (non-blocking)
  */
 async function loadReactApp(window: Window): Promise<void> {
+  // Guard: prevent duplicate loading
+  if (reactContainer || isLoadingReact) return;
+
   try {
+    isLoadingReact = true;
     Zotero.log('[ZoteroSeek] Loading React app asynchronously...');
     
     // Use setTimeout to defer loading to next tick
@@ -189,7 +193,11 @@ async function loadReactApp(window: Window): Promise<void> {
     
     // Create React root and render
     reactRoot = createRoot(container);
-    reactRoot.render(React.createElement(Container));
+    reactRoot.render(React.createElement(Container, {
+      onContainerHide: () => {
+        if (reactContainer) reactContainer.style.display = 'none';
+      },
+    }));
     reactContainer = container;
     
     // Hide the lightweight UI
@@ -201,6 +209,8 @@ async function loadReactApp(window: Window): Promise<void> {
     Zotero.log('[ZoteroSeek] React app loaded successfully');
   } catch (error) {
     Zotero.log(`[ZoteroSeek] Error loading React app: ${error}`);
+  } finally {
+    isLoadingReact = false;
   }
 }
 
@@ -208,6 +218,9 @@ async function loadReactApp(window: Window): Promise<void> {
  * Show the panel
  */
 async function showPanel(): Promise<void> {
+  // If user explicitly dismissed, don't re-show
+  if (userDismissed) return;
+
   const win = Zotero.getMainWindow();
   if (!win) {
     Zotero.log('[ZoteroSeek] No main window available');
@@ -245,6 +258,9 @@ async function togglePanel(): Promise<void> {
   // Check React container first
   if (reactContainer) {
     reactContainer.style.display = reactContainer.style.display === 'none' ? 'block' : 'none';
+    if (reactContainer.style.display === 'block') {
+      userDismissed = false;
+    }
     return;
   }
 
@@ -252,8 +268,9 @@ async function togglePanel(): Promise<void> {
   const lightweightUI = win.document.getElementById(`${config.addonRef}-container`);
   if (lightweightUI) {
     lightweightUI.style.display = lightweightUI.style.display === 'none' ? 'block' : 'none';
+    // Reset userDismissed when user explicitly re-opens
     if (lightweightUI.style.display === 'block') {
-      loadReactApp(win);
+      userDismissed = false;
     }
     return;
   }
@@ -301,67 +318,9 @@ function onMainWindowUnload(window: Window): void {
   reactContainer = null;
 }
 
-/**
- * Preferences pane load handler.
- * Called via onload on the vbox element in preferences.xhtml.
- * Receives the preferences window and initializes form fields.
- */
-function onPrefsLoad(prefsWindow: Window): void {
-  Zotero.log('[ZoteroSeek] Preferences pane loaded');
-  try {
-    const doc = prefsWindow.document;
-    const apiKeyField = doc.getElementById('zoteroseek-api-key') as HTMLInputElement | null;
-    const modelField = doc.getElementById('zoteroseek-model') as HTMLInputElement | null;
-    const baseUrlField = doc.getElementById('zoteroseek-base-url') as HTMLInputElement | null;
-
-    if (!apiKeyField && !modelField && !baseUrlField) {
-      Zotero.log('[ZoteroSeek] Preferences pane fields not found', 'warn');
-      return;
-    }
-
-    const PREFS_KEY = 'extensions.zotero.zoteroseek.model.currentConfig';
-
-    function loadConfig() {
-      try {
-        const raw = Zotero.Prefs.get(PREFS_KEY, true);
-        if (raw) {
-          const config = JSON.parse(raw);
-          if (apiKeyField) { apiKeyField.value = config.apiKey || ''; }
-          if (modelField) { modelField.value = config.model || ''; }
-          if (baseUrlField) { baseUrlField.value = config.baseUrl || ''; }
-        }
-      } catch (e) {
-        Zotero.log('[ZoteroSeek] Failed to load prefs: ' + e, 'error');
-      }
-    }
-
-    function saveConfig() {
-      try {
-        let currentConfig: Record<string, any> = {};
-        const raw = Zotero.Prefs.get(PREFS_KEY, true);
-        if (raw) { currentConfig = JSON.parse(raw); }
-        currentConfig.apiKey = apiKeyField ? apiKeyField.value : '';
-        currentConfig.model = modelField ? modelField.value : '';
-        currentConfig.baseUrl = baseUrlField ? baseUrlField.value || undefined : undefined;
-        Zotero.Prefs.set(PREFS_KEY, JSON.stringify(currentConfig), true);
-      } catch (e) {
-        Zotero.log('[ZoteroSeek] Failed to save prefs: ' + e, 'error');
-      }
-    }
-
-    loadConfig();
-    if (apiKeyField) { apiKeyField.addEventListener('change', saveConfig); }
-    if (modelField) { modelField.addEventListener('change', saveConfig); }
-    if (baseUrlField) { baseUrlField.addEventListener('change', saveConfig); }
-  } catch (e) {
-    Zotero.log('[ZoteroSeek] Error initializing preferences: ' + e, 'error');
-  }
-}
-
 export default {
   onStartup,
   onShutdown,
   onMainWindowLoad,
   onMainWindowUnload,
-  onPrefsLoad,
 };

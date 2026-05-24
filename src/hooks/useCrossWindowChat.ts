@@ -11,10 +11,10 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useChatStore, chatDb } from '@/stores/chatStore';
 import { useModelStore } from '@/stores/modelStore';
-import { OpenAIAdapter } from '@/apis/llm/openai';
-import { AnthropicAdapter } from '@/apis/llm/anthropic';
-import type { LLMAdapter, ChatMessage, Message, ModelConfig } from '@/typings';
+import type { ChatMessage, Message } from '@/typings';
 import { createLogger } from '@/utils/logger';
+import { generateId } from '@/utils/id';
+import { createAdapter } from '@/utils/adapter';
 
 const logger = createLogger('useCrossWindowChat');
 
@@ -28,25 +28,6 @@ interface UseCrossWindowChatReturn {
   stopGeneration: () => void;
   pdfConversationId: string | null;
   setPdfConversationId: (id: string | null) => void;
-}
-
-/** 生成唯一 ID（与 chatStore 保持一致） */
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-/**
- * 根据模型配置创建对应的 LLM 适配器
- */
-function createAdapter(config: ModelConfig): LLMAdapter {
-  switch (config.provider) {
-    case 'openai':
-      return new OpenAIAdapter(config.apiKey, config.baseUrl, config.model);
-    case 'anthropic':
-      return new AnthropicAdapter(config);
-    default:
-      throw new Error(`不支持的 LLM 供应商: ${config.provider}`);
-  }
 }
 
 export function useCrossWindowChat(): UseCrossWindowChatReturn {
