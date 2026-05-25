@@ -31,7 +31,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: build/*.xpi
+          files: .scaffold/build/*.xpi
           generate_release_notes: true
           draft: false
           prerelease: false

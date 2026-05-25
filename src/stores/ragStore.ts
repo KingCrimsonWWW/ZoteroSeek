@@ -114,7 +114,6 @@ if (typeof indexedDB === 'undefined') {
     '[ZoteroSeek] IndexedDB not available, using in-memory storage for RAG',
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db = { chunks: createMemoryChunksTable(), progress: createMemoryProgressTable() } as any;
 } else {
   try {
@@ -126,7 +125,6 @@ if (typeof indexedDB === 'undefined') {
       error,
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     db = { chunks: createMemoryChunksTable(), progress: createMemoryProgressTable() } as any;
   }
 }

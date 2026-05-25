@@ -5,7 +5,6 @@
  * FTL files are located at addon/locale/{locale}/addon.ftl
  */
 
-/* eslint-disable no-undef */
 import { config } from '../../package.json';
 
 export { initLocale, getString };

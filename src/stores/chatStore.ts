@@ -90,7 +90,6 @@ if (typeof indexedDB === 'undefined') {
     '[ZoteroSeek] IndexedDB not available, using in-memory storage',
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db = { conversations: createMemoryConversationsTable() } as any;
 } else {
   try {
@@ -103,7 +102,6 @@ if (typeof indexedDB === 'undefined') {
     );
 
     // 构建内存降级对象，模拟 ChatDatabase 的结构
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     db = { conversations: createMemoryConversationsTable() } as any;
   }
 }

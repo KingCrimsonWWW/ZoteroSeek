@@ -18,6 +18,19 @@ import { storeChunks, getProgress, setProgress, type RagChunk } from '@/stores/r
 const logger = createLogger('rag-indexer');
 
 // ============================================================================
+// 类型定义
+// ============================================================================
+
+/** Zotero 条目的最小接口（用于索引器） */
+interface ZoteroItem {
+  id: number;
+  parentID?: number;
+  attachmentContentType?: string;
+  isAttachment?: () => boolean;
+  getField?: (field: string) => string;
+}
+
+// ============================================================================
 // 模块级状态
 // ============================================================================
 
@@ -125,27 +138,28 @@ async function createEmbeddingsWithRetry(
 // ============================================================================
 
 /** 获取所有 PDF 附件类型的 Zotero 条目 */
-function getPdfAttachmentItems(): any[] {
+function getPdfAttachmentItems(): ZoteroItem[] {
   // Zotero.Items 类型定义未包含 getAll，运行时存在此方法
-  const allItems: any[] = (Zotero.Items as any).getAll();
-  return allItems.filter((item: any) => {
+  const allItems = (Zotero.Items as unknown as { getAll: () => ZoteroItem[] }).getAll();
+  return allItems.filter((item) => {
     try {
       return item.isAttachment?.() && item.attachmentContentType === 'application/pdf';
-    } catch {
+    } catch (error) {
+      logger.debug('检查条目类型失败', { itemId: item.id, error });
       return false;
     }
   });
 }
 
 /** 获取条目的显示标题（优先使用父条目标题） */
-function getItemTitle(attachmentItem: any): string {
+function getItemTitle(attachmentItem: ZoteroItem): string {
   try {
     if (attachmentItem.parentID) {
       const parentMeta = getItemMetadata(attachmentItem.parentID);
       if (parentMeta.title) return parentMeta.title;
     }
-  } catch {
-    // 获取父条目信息失败，使用附件自身标题
+  } catch (error) {
+    logger.debug('获取父条目信息失败，使用附件自身标题', { itemId: attachmentItem.id, error });
   }
   return attachmentItem.getField?.('title') || `Item ${attachmentItem.id}`;
 }
@@ -202,7 +216,7 @@ export async function startIndexing(
 
     // 1. 获取所有 PDF 附件条目
     const pdfItems = getPdfAttachmentItems();
-    const allItemIds = pdfItems.map((item: any) => item.id);
+    const allItemIds = pdfItems.map((item) => item.id);
     logger.info(`找到 ${pdfItems.length} 个 PDF 附件`);
 
     // 2. 获取已索引的条目列表
@@ -210,7 +224,7 @@ export async function startIndexing(
     const indexedIds = new Set(progress.indexedItemIds);
 
     // 3. 筛选未索引的条目
-    const toIndex = pdfItems.filter((item: any) => !indexedIds.has(item.id));
+    const toIndex = pdfItems.filter((item) => !indexedIds.has(item.id));
     const total = toIndex.length;
 
     // 更新进度：设置总数，保持已索引列表不变

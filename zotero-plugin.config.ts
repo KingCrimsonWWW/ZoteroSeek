@@ -41,6 +41,16 @@ export default defineConfig({
         target: "firefox115",
         outfile: `.scaffold/build/addon/chrome/content/scripts/${pkg.config.addonRef}.js`,
       },
+      // Web Worker entry — runs Dexie off main thread
+      {
+        entryPoints: ["src/workers/dbWorkers.ts"],
+        define: {
+          __env__: `"${process.env.NODE_ENV}"`,
+        },
+        bundle: true,
+        target: "firefox115",
+        outfile: `.scaffold/build/addon/chrome/content/scripts/dbWorkers.js`,
+      },
     ],
   },
 })

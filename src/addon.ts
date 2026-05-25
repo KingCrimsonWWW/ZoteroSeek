@@ -5,9 +5,10 @@
  * Follows the Zotero plugin scaffold pattern.
  */
 
-import { BasicTool, ZoteroToolkit } from 'zotero-plugin-toolkit';
+import { BasicTool } from 'zotero-plugin-toolkit';
 import { config } from '../package.json';
 import hooks from '@/addonHooks';
+import { CustomToolkit } from '@/toolkit';
 import { openPdfChatWindow } from './modules/pdfChatWindow';
 
 const basicTool = new BasicTool();
@@ -16,7 +17,7 @@ class Addon {
   public data: {
     alive: boolean;
     env: 'development' | 'production';
-    ztoolkit: ZoteroToolkit;
+    ztoolkit: CustomToolkit;
     locale?: {
       current: any;
     };
@@ -32,7 +33,7 @@ class Addon {
     this.data = {
       alive: true,
       env: __env__,
-      ztoolkit: new ZoteroToolkit(),
+      ztoolkit: new CustomToolkit(),
     };
     this.hooks = hooks;
     this.api = {};

@@ -31,6 +31,8 @@ export default [
         _globalThis: 'writable',
         addon: 'readonly',
         __env__: 'readonly',
+        // Fluent API globals
+        Localization: 'readonly',
       },
     },
     plugins: {

@@ -46,41 +46,7 @@ declare const Zotero: {
   isMac: boolean;
 };
 
-declare const ztoolkit: {
-  [key: string]: any;
-  UI: {
-    [key: string]: any;
-    basicOptions: {
-      ui: {
-        enableElementJSONLog: boolean;
-        enableElementDOMLog: boolean;
-      };
-    };
-    createElement(doc: Document, tag: string, options?: any): HTMLElement;
-    appendElement(options: any, container: any): HTMLElement;
-  };
-  Menu: {
-    register(menu: string, options: any): void;
-  };
-  /** @deprecated Use Keyboard instead (Zotero 9 removed Shortcut API) */
-  Shortcut: {
-    register(type: string, options: any): void;
-  };
-  Keyboard: {
-    register(handler: (ev: KeyboardEvent, data: { type: string; keyboard?: any }) => void): void;
-  };
-  basicOptions: {
-    log: {
-      prefix: string;
-      disableConsole: boolean;
-    };
-    debug: {
-      disableDebugBridgePassword: boolean;
-    };
-  };
-  unregisterAll(): void;
-  log(...args: any[]): void;
-};
+declare const ztoolkit: import('../toolkit').CustomToolkit;
 
 declare const Zotero_Tabs: {
   selectedIndex: number;

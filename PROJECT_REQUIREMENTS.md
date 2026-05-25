@@ -33,8 +33,8 @@ ZoteroSeek 是一个专为 Zotero 设计的 AI 智能体插件，旨在通过大
 状态管理:    Zustand
 本地存储:    Dexie (IndexedDB 封装)
 构建工具:    esbuild + zotero-plugin-scaffold
-LLM 抽象层:  自定义 Adapter 模式
-RAG 方案:    LangChain.js + ChromaDB
+LLM 抽象层:  自定义 Adapter 模式（OpenAI Compatible + Anthropic）
+RAG 方案:    自定义索引器 + 语义检索（纯内存向量存储）
 Markdown:    react-markdown + remark-gfm
 ```
 
@@ -70,10 +70,10 @@ Markdown:    react-markdown + remark-gfm
 │  └─────────────────────────────────────────────────────┘   │
 │                           ↕                                 │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │              RAG & Memory Layer                      │   │
+│  │              RAG Layer                               │   │
 │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐            │   │
-│  │  │VectorStore│ │  Graph   │ │Conversa- │            │   │
-│  │  │ ChromaDB │ │   RAG    │ │tionMemory│            │   │
+│  │  │ Indexer  │ │Retriever │ │  Chat    │            │   │
+│  │  │  索引器   │ │  检索器   │ │ 集成服务  │            │   │
 │  │  └──────────┘ └──────────┘ └──────────┘            │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                           ↕                                 │
@@ -96,84 +96,54 @@ ZoteroSeek/
 │   └── workflows/
 │       ├── build.yml          # CI 构建
 │       └── release.yml        # 自动发布
-├── addon/                     # Zotero 插件静态资源
+├── addon/                     # Zotero 插件资源（manifest、bootstrap、locale、icons）
 │   ├── chrome/
 │   │   ├── content/
 │   │   │   ├── icons/         # 图标资源
-│   │   │   ├── locale/        # 国际化文件
-│   │   │   └── zoteroseek.xhtml
+│   │   │   ├── locale/        # 国际化文件（Fluent .ftl）
+│   │   │   └── popup.xhtml    # 独立窗口模板
 │   │   └── manifest.json
-│   ├── install.rdf
+│   ├── bootstrap.js
 │   └── update.json
 ├── src/                       # 源代码
+│   ├── __tests__/             # 测试文件（Vitest）
+│   ├── addon.ts               # Addon 类（插件实例）
+│   ├── addonHooks.ts          # 生命周期 hooks
 │   ├── apis/                  # 外部 API 调用
 │   │   ├── llm/               # LLM 适配器
 │   │   │   ├── adapter.ts     # 适配器接口
-│   │   │   ├── openai.ts      # OpenAI 适配器
-│   │   │   ├── deepseek.ts    # DeepSeek 适配器
-│   │   │   └── mimo.ts        # MiMo 适配器
+│   │   │   ├── openai.ts      # OpenAI 兼容适配器
+│   │   │   └── anthropic.ts   # Anthropic 适配器
 │   │   └── zotero/            # Zotero API 封装
-│   │       ├── item.ts
-│   │       ├── note.ts
-│   │       └── search.ts
 │   ├── components/            # React 组件
-│   │   ├── chat/              # 对话相关组件
-│   │   │   ├── ChatPanel.tsx
-│   │   │   ├── MessageList.tsx
-│   │   │   ├── MessageItem.tsx
-│   │   │   └── InputBox.tsx
-│   │   ├── history/           # 历史记录组件
-│   │   │   ├── HistoryPanel.tsx
-│   │   │   └── ConversationItem.tsx
-│   │   ├── settings/          # 设置组件
-│   │   │   └── SettingsPanel.tsx
-│   │   ├── knowledge/         # 知识库组件
-│   │   │   └── KnowledgePanel.tsx
-│   │   └── common/            # 通用组件
-│   │       ├── Button.tsx
-│   │       ├── Modal.tsx
-│   │       └── Loading.tsx
-│   ├── hooks/                 # React Hooks
-│   │   ├── useChat.ts
-│   │   ├── useConversation.ts
-│   │   ├── useKnowledge.ts
-│   │   └── useSettings.ts
+│   │   ├── chat/              # 对话组件（ChatPanel、ConversationList、MessageList、InputBox）
+│   │   ├── knowledge/         # 知识库组件（KnowledgePanel）
+│   │   ├── pdf-chat/          # PDF 聊天组件（PdfChatPanel）
+│   │   ├── settings/          # 设置组件（SettingsPanel）
+│   │   ├── ErrorBoundary.tsx
+│   │   └── Header.tsx
+│   ├── hooks/                 # React Hooks（useChat、useDragging、useCrossWindowChat）
+│   ├── modules/               # 功能模块（menu、shortcut、preferences、pdfChatWindow）
+│   ├── services/              # 业务逻辑
+│   │   ├── pdf/               # PDF 文本提取（extractor）
+│   │   └── rag/               # 知识库 RAG（indexer、retriever、chatIntegration）
 │   ├── stores/                # Zustand 状态管理
-│   │   ├── chatStore.ts
-│   │   ├── modelStore.ts
-│   │   └── knowledgeStore.ts
-│   ├── services/              # 业务逻辑服务
-│   │   ├── rag/               # RAG 相关
-│   │   │   ├── vectorStore.ts # 向量存储
-│   │   │   ├── embedder.ts    # 文本嵌入
-│   │   │   └── retriever.ts   # 检索器
-│   │   ├── memory/            # 记忆系统
-│   │   │   └── conversationMemory.ts
-│   │   └── agent/             # 智能体逻辑
-│   │       └── agent.ts
-│   ├── utils/                 # 工具函数
-│   │   ├── markdown.ts
-│   │   ├── pdf.ts
-│   │   └── storage.ts
-│   ├── views/                 # 视图层
-│   │   ├── Container.tsx      # 主容器
-│   │   ├── Providers.tsx      # Context Providers
-│   │   └── styles/
-│   │       └── globals.css
+│   │   ├── chatStore.ts       # 对话状态（Dexie 持久化）
+│   │   ├── modelStore.ts      # 模型状态（Zotero.Prefs 持久化）
+│   │   └── ragStore.ts        # 知识库状态
 │   ├── typings/               # TypeScript 类型定义
-│   │   ├── llm.ts
-│   │   ├── conversation.ts
-│   │   └── knowledge.ts
-│   ├── hooks.ts               # 插件生命周期
-│   └── index.ts               # 入口文件
+│   ├── utils/                 # 工具函数（logger、locale、prefs、http）
+│   └── views/                 # 视图层
+│       ├── Container.tsx      # 主容器
+│       ├── PdfChatApp.tsx     # PDF 聊天独立窗口
+│       └── styles/
+│           └── globals.css
+├── zotero-plugin.config.ts    # zotero-plugin-scaffold 配置
 ├── scripts/                   # 构建脚本
-│   ├── build.mjs
-│   └── start.mjs
-├── tests/                     # 测试文件
+├── typings/                   # 全局类型声明（自动生成）
 ├── package.json
 ├── tsconfig.json
-├── tailwind.config.js
-└── README.md
+└── tailwind.config.js
 ```
 
 ---
@@ -316,7 +286,7 @@ ZoteroSeek/
 
 ### 4.2 兼容性要求
 
-- Zotero 7.0+
+- Zotero 9.0+
 - Windows / macOS / Linux
 - 无外部依赖（纯浏览器环境）
 
@@ -527,8 +497,8 @@ addon/chrome/locale/
    - 构建对话记忆系统，支持上下文感知
 
 2. **RAG 检索增强生成**
-   - 使用 LangChain.js 构建完整的 RAG 流程
-   - ChromaDB 本地向量数据库，保护用户隐私
+   - 自定义索引器 + 检索器实现完整的 RAG 流程
+   - 纯内存向量存储，保护用户隐私
    - 文档分块、嵌入、检索全链路优化
 
 3. **React 组件化架构**
@@ -545,7 +515,7 @@ addon/chrome/locale/
 
 **面试场景 1：介绍一下这个项目？**
 
-> ZoteroSeek 是一个基于大语言模型的 Zotero 智能研究助手插件。它采用 React + TypeScript 技术栈，通过 Adapter 模式支持多种 LLM（OpenAI、DeepSeek、MiMo），并使用 LangChain.js + ChromaDB 实现 RAG 检索增强生成。用户可以与文献进行自然语言对话，实现智能问答、知识检索等功能。
+> ZoteroSeek 是一个基于大语言模型的 Zotero 智能研究助手插件。它采用 React + TypeScript 技术栈，通过 Adapter 模式支持多种 LLM（OpenAI 兼容接口 + Anthropic），并实现自定义 RAG 检索增强生成。用户可以与文献进行自然语言对话，实现智能问答、知识检索等功能。
 
 **面试场景 2：你是怎么设计多模型支持的？**
 
@@ -557,8 +527,8 @@ addon/chrome/locale/
 **面试场景 3：RAG 是怎么实现的？**
 
 > RAG 流程分为三个阶段：
-> 1. **索引阶段**：将文献文本分块（Chunking），通过 Embedding 模型转换为向量，存储到 ChromaDB
-> 2. **检索阶段**：用户提问时，将问题向量化，在 ChromaDB 中检索最相似的文档块
+> 1. **索引阶段**：将文献文本分块（Chunking），通过 Embedding 模型转换为向量，存储到内存向量索引
+> 2. **检索阶段**：用户提问时，将问题向量化，在索引中检索最相似的文档块
 > 3. **生成阶段**：将检索到的文档块作为上下文，与用户问题一起发送给 LLM 生成答案
 
 **面试场景 4：遇到了什么技术挑战？**
@@ -597,7 +567,7 @@ addon/chrome/locale/
 - [ ] 语义检索实现
 
 **Phase 3：知识库（2 周）**
-- [ ] ChromaDB 集成
+- [ ] 语义检索实现
 - [ ] 批量索引功能
 - [ ] 知识库管理界面
 - [ ] 检索优化
@@ -624,8 +594,7 @@ addon/chrome/locale/
 
 - [Zotero 插件开发文档](https://www.zotero.org/support/dev/zotero_7_for_developers)
 - [React 官方文档](https://react.dev/)
-- [LangChain.js 文档](https://js.langchain.com/)
-- [ChromaDB 文档](https://docs.trychroma.com/)
+- [Zotero 插件开发文档（Zotero 9）](https://www.zotero.org/support/dev/zotero_9_for_developers)
 
 ### 10.3 术语表
 
@@ -640,5 +609,5 @@ addon/chrome/locale/
 ---
 
 **文档版本**：v1.0.0  
-**最后更新**：2026-05-20  
+**最后更新**：2026-05-25  
 **作者**：ZoteroSeek Team
