@@ -54,6 +54,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/lodash": "^4.17.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
@@ -71,6 +74,7 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.34.0",
     "fake-indexeddb": "^6.2.5",
+    "jsdom": "^29.1.1",
     "postcss": "^8.4.49",
     "prettier": "^3.3.0",
     "prettier-plugin-tailwindcss": "^0.6.0",

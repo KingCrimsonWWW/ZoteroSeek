@@ -6,6 +6,12 @@
 
 import { vi } from 'vitest';
 
+// Polyfill `self` — Worker global not available in Node.js test environment
+// Must be set BEFORE any module that references `self` at top level
+if (typeof globalThis.self === 'undefined') {
+  (globalThis as any).self = globalThis;
+}
+
 // Mock Zotero.getMainWindow() — must be set BEFORE React import
 // The postinstall script patches node_modules/react to use Zotero.getMainWindow().require('react')
 // In tests, we need to return the actual React module from this mock
