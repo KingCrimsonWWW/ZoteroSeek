@@ -1,21 +1,27 @@
 /**
  * useChatBase - 共享聊天逻辑 hook
  *
- * 从 useChat 和 useCrossWindowChat 提取的公共逻辑：
+ * 支持两种运行模式：
+ * - chat 模式：调用者提供 messages 和 onAddMessage，用于主窗口对话
+ * - pdf 模式：内部管理消息状态和 Dexie 持久化，用于 PDF 窗口对话
+ *
+ * 公共逻辑：
  * - AbortController 管理（中断控制）
  * - SSE 流式响应处理（token-by-token 更新）
  * - 错误处理（AbortError、网络错误、API 错误）
- * - RAG 增强（chatIntegration 调用）
+ * - RAG 增强（chatIntegration 调用，仅 chat 模式）
  * - 消息发送防抖
  * - 对话切换时取消活跃流
- *
- * 调用者通过参数注入自己的 store 逻辑，实现解耦。
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import type { ChatMessage, LLMAdapter, Message } from '@/typings';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import type { ChatMessage, Conversation, LLMAdapter, Message } from '@/typings';
 import { createLogger } from '@/utils/logger';
 import { augmentMessage } from '@/services/rag/chatIntegration';
+import { useChatStore, chatDb } from '@/stores/chatStore';
+import { useModelStore } from '@/stores/modelStore';
+import { generateId } from '@/utils/id';
+import { createAdapter } from '@/utils/adapter';
 
 const logger = createLogger('useChatBase');
 
@@ -35,21 +41,23 @@ export interface RagConfig {
  * useChatBase 选项
  */
 export interface UseChatBaseOptions {
-  /** 当前消息列表（来自 store 或本地状态） */
-  messages: Message[];
-  /** 添加消息的回调（调用者处理持久化） */
-  onAddMessage: (
+  /** 运行模式：'chat'（主窗口）或 'pdf'（PDF 窗口），默认 'chat' */
+  mode?: 'chat' | 'pdf';
+  /** LLM 适配器（chat 模式必须提供，pdf 模式自动创建） */
+  adapter?: LLMAdapter | null;
+  /** API Key（chat 模式必须提供，pdf 模式从 store 读取） */
+  apiKey?: string;
+  /** 当前消息列表（chat 模式必须提供） */
+  messages?: Message[];
+  /** 添加消息的回调（chat 模式必须提供） */
+  onAddMessage?: (
     role: 'user' | 'assistant',
     content: string,
     metadata?: Record<string, unknown>,
   ) => Promise<void>;
-  /** LLM 适配器 */
-  adapter: LLMAdapter | null;
-  /** API Key（用于验证） */
-  apiKey?: string;
-  /** 当前对话 ID（用于变化检测） */
-  conversationId: string | null;
-  /** RAG 配置（可选，启用 RAG 增强） */
+  /** 当前对话 ID（chat 模式用于变化检测） */
+  conversationId?: string | null;
+  /** RAG 配置（可选，chat 模式启用 RAG 增强） */
   ragConfig?: RagConfig;
 }
 
@@ -65,27 +73,146 @@ export interface UseChatBaseReturn {
   isLoading: boolean;
   /** 是否正在流式传输 */
   isStreaming: boolean;
+  /** 当前流式内容（用于构建 displayMessages） */
+  streamingContent: string | null;
   /** 错误信息 */
   error: string | null;
+  /** 显示消息列表（含流式消息） */
+  messages: Message[];
+  /** PDF 对话 ID（仅 pdf 模式） */
+  pdfConversationId?: string | null;
+  /** 设置 PDF 对话 ID（仅 pdf 模式） */
+  setPdfConversationId?: (id: string | null) => void;
 }
 
 /**
  * 共享聊天逻辑 hook
  *
  * @param options - 配置选项
- * @returns sendMessage, stopGeneration, isLoading, isStreaming, error
+ * @returns sendMessage, stopGeneration, isLoading, isStreaming, error, messages
  */
 export function useChatBase(options: UseChatBaseOptions): UseChatBaseReturn {
-  const {
-    messages,
-    onAddMessage,
-    adapter,
-    apiKey,
-    conversationId,
-    ragConfig,
-  } = options;
+  const { mode = 'chat' } = options;
 
-  // Local streaming state
+  // ========== PDF 模式：内部状态管理 ==========
+  const storePdfConversationId = useChatStore((s) => s.pdfConversationId);
+  const storeSetPdfConversationId = useChatStore((s) => s.setPdfConversationId);
+  const listConversations = useChatStore((s) => s.listConversations);
+  const currentConfig = useModelStore((s) => s.currentConfig);
+
+  const [pdfMessages, setPdfMessages] = useState<Message[]>([]);
+
+  // PDF 模式：加载对话消息
+  useEffect(() => {
+    if (mode !== 'pdf') return;
+    if (storePdfConversationId) {
+      chatDb.conversations.get(storePdfConversationId).then((conversation: Conversation | undefined) => {
+        if (conversation) {
+          setPdfMessages(conversation.messages);
+          logger.info('PDF 窗口加载对话', {
+            id: storePdfConversationId,
+            messageCount: conversation.messages.length,
+          });
+        } else {
+          setPdfMessages([]);
+          logger.warn('PDF 对话不存在', { id: storePdfConversationId });
+        }
+      });
+    } else {
+      setPdfMessages([]);
+    }
+  }, [mode, storePdfConversationId]);
+
+  // PDF 模式：确保存在对话
+  const ensureConversation = useCallback(async (): Promise<string> => {
+    const currentPdfId = useChatStore.getState().pdfConversationId;
+    if (currentPdfId) {
+      const existing = await chatDb.conversations.get(currentPdfId);
+      if (existing) return currentPdfId;
+    }
+    const now = new Date();
+    const id = generateId();
+    await chatDb.conversations.add({
+      id,
+      title: 'PDF 对话',
+      messages: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+    storeSetPdfConversationId(id);
+    await listConversations();
+    logger.info('创建 PDF 对话', { id });
+    return id;
+  }, [storeSetPdfConversationId, listConversations]);
+
+  // PDF 模式：添加消息回调
+  const pdfOnAddMessage = useCallback(
+    async (
+      role: 'user' | 'assistant',
+      content: string,
+      metadata?: Record<string, unknown>,
+    ) => {
+      const message: Message = {
+        id: generateId(),
+        role,
+        content,
+        timestamp: new Date(),
+        ...(metadata ? { metadata } : {}),
+      };
+
+      const currentPdfId = useChatStore.getState().pdfConversationId;
+
+      // 错误消息且无对话时：仅添加到本地状态
+      if (metadata?.isError && !currentPdfId) {
+        setPdfMessages((prev) => [...prev, message]);
+        return;
+      }
+
+      // 正常流程：确保存在对话并持久化
+      const conversationId = await ensureConversation();
+      const updatedMessages = [...pdfMessages, message];
+      setPdfMessages(updatedMessages);
+
+      await chatDb.conversations.update(conversationId, {
+        messages: updatedMessages,
+        updatedAt: new Date(),
+      });
+
+      // Update title from first user message
+      if (role === 'user' && pdfMessages.length === 0) {
+        const title =
+          content.slice(0, 50) + (content.length > 50 ? '...' : '');
+        await chatDb.conversations.update(conversationId, { title });
+        await listConversations();
+      }
+    },
+    [pdfMessages, ensureConversation, listConversations],
+  );
+
+  // ========== 解析模式参数 ==========
+  const messages = mode === 'pdf' ? pdfMessages : (options.messages ?? []);
+  const onAddMessage =
+    mode === 'pdf' ? pdfOnAddMessage : options.onAddMessage!;
+  const conversationId =
+    mode === 'pdf' ? storePdfConversationId : (options.conversationId ?? null);
+  const ragConfig = mode === 'pdf' ? undefined : options.ragConfig;
+
+  // PDF 模式自动创建适配器
+  const resolvedAdapter = useMemo(() => {
+    if (mode === 'pdf') {
+      try {
+        return createAdapter(currentConfig);
+      } catch {
+        return null;
+      }
+    }
+    return options.adapter ?? null;
+  }, [mode, options.adapter, currentConfig]);
+
+  const resolvedApiKey =
+    mode === 'pdf' ? currentConfig.apiKey : options.apiKey;
+
+  // ========== 公共流式/中断/防抖逻辑 ==========
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +259,7 @@ export function useChatBase(options: UseChatBaseOptions): UseChatBaseReturn {
       lastSendTimeRef.current = now;
 
       // Validate adapter
-      if (!adapter) {
+      if (!resolvedAdapter) {
         logger.warn('LLM 适配器未配置');
         await onAddMessage('assistant', '❌ LLM 适配器未配置，请检查设置', {
           isError: true,
@@ -141,7 +268,7 @@ export function useChatBase(options: UseChatBaseOptions): UseChatBaseReturn {
       }
 
       // Validate API key
-      if (!apiKey?.trim()) {
+      if (!resolvedApiKey?.trim()) {
         logger.warn('API Key 未配置');
         await onAddMessage('assistant', '❌ 请先在设置中配置 API Key', {
           isError: true,
@@ -173,7 +300,7 @@ export function useChatBase(options: UseChatBaseOptions): UseChatBaseReturn {
           content: m.content,
         }));
 
-        // RAG: 检索相关文献并注入上下文
+        // RAG: 检索相关文献并注入上下文（仅 chat 模式）
         if (ragConfig) {
           try {
             const { context } = await augmentMessage(
@@ -190,13 +317,16 @@ export function useChatBase(options: UseChatBaseOptions): UseChatBaseReturn {
               });
             }
           } catch (ragError) {
-            logger.warn('RAG 增强失败，使用普通对话', (ragError as Error).message);
+            logger.warn(
+              'RAG 增强失败，使用普通对话',
+              (ragError as Error).message,
+            );
           }
         }
 
         let fullContent = '';
 
-        for await (const token of adapter.chat(chatMessages)) {
+        for await (const token of resolvedAdapter.chat(chatMessages)) {
           if (controller.signal.aborted) break;
           fullContent += token;
           setStreamingContent(fullContent);
@@ -227,14 +357,44 @@ export function useChatBase(options: UseChatBaseOptions): UseChatBaseReturn {
         abortControllerRef.current = null;
       }
     },
-    [messages, onAddMessage, adapter, apiKey, conversationId, ragConfig, stopGeneration],
+    [
+      messages,
+      onAddMessage,
+      resolvedAdapter,
+      resolvedApiKey,
+      conversationId,
+      ragConfig,
+      stopGeneration,
+    ],
   );
+
+  // 构建显示消息（原始消息 + 流式消息）
+  const displayMessages = useMemo(() => {
+    if (streamingContent !== null) {
+      const streamingMessage: Message = {
+        id: 'streaming',
+        role: 'assistant',
+        content: streamingContent,
+        timestamp: new Date(),
+      };
+      return [...messages, streamingMessage];
+    }
+    return messages;
+  }, [messages, streamingContent]);
 
   return {
     sendMessage,
     stopGeneration,
     isLoading,
     isStreaming: streamingContent !== null,
+    streamingContent,
     error,
+    messages: displayMessages,
+    ...(mode === 'pdf'
+      ? {
+          pdfConversationId: storePdfConversationId,
+          setPdfConversationId: storeSetPdfConversationId,
+        }
+      : {}),
   };
 }

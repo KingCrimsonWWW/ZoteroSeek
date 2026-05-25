@@ -242,7 +242,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         .toArray();
 
       // 转换为 ConversationMeta（不含 messages）
-      const metas: ConversationMeta[] = conversations.map((c) => ({
+      const metas: ConversationMeta[] = conversations.map((c: Conversation) => ({
         id: c.id,
         title: c.title,
         createdAt: c.createdAt,

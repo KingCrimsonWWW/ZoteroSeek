@@ -81,11 +81,17 @@ const mockChatStoreState: {
   currentConversationId: string | null;
   addMessage: ReturnType<typeof vi.fn>;
   clearMessages: ReturnType<typeof vi.fn>;
+  pdfConversationId: string | null;
+  setPdfConversationId: ReturnType<typeof vi.fn>;
+  listConversations: ReturnType<typeof vi.fn>;
 } = {
   messages: [],
   currentConversationId: "test-conv-id",
   addMessage: mockAddMessage,
   clearMessages: mockClearMessages,
+  pdfConversationId: null,
+  setPdfConversationId: vi.fn(),
+  listConversations: vi.fn(),
 };
 
 vi.mock("@/stores/chatStore", () => ({
@@ -94,6 +100,13 @@ vi.mock("@/stores/chatStore", () => ({
       selector(mockChatStoreState),
     { getState: () => mockChatStoreState },
   ),
+  chatDb: {
+    conversations: {
+      get: vi.fn(async () => undefined),
+      add: vi.fn(async () => {}),
+      update: vi.fn(async () => {}),
+    },
+  },
 }));
 
 vi.mock("@/stores/modelStore", () => ({
@@ -199,7 +212,8 @@ describe("useChat", () => {
       expect(mockAddMessage).toHaveBeenCalledWith("assistant", "你好，世界");
 
       // Assert: 加载状态变化（setIsLoading(true) → setIsLoading(false)）
-      const setIsLoading = stateSetters[0];
+      // useChat 委托 useChatBase，useState 索引: [pdfMessages(0), isLoading(1), streamingContent(2), error(3)]
+      const setIsLoading = stateSetters[1];
       expect(setIsLoading).toHaveBeenCalledWith(true);
       expect(setIsLoading).toHaveBeenLastCalledWith(false);
     });
@@ -275,11 +289,11 @@ describe("useChat", () => {
       await sendPromise;
 
       // Assert: 流式内容被重置为 null
-      const setStreamingContent = stateSetters[1];
+      const setStreamingContent = stateSetters[2];
       expect(setStreamingContent).toHaveBeenCalledWith(null);
 
       // Assert: 加载状态最后为 false
-      const setIsLoading = stateSetters[0];
+      const setIsLoading = stateSetters[1];
       expect(setIsLoading).toHaveBeenLastCalledWith(false);
     });
   });
@@ -300,7 +314,7 @@ describe("useChat", () => {
       expect(mockClearMessages).toHaveBeenCalled();
 
       // Assert: 触发了 stopGeneration（通过 setIsLoading(false) 间接验证）
-      const setIsLoading = stateSetters[0];
+      const setIsLoading = stateSetters[1];
       expect(setIsLoading).toHaveBeenCalledWith(false);
     });
   });

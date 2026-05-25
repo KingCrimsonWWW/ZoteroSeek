@@ -1,10 +1,10 @@
 /**
  * PDF 对话集成测试
  *
- * 测试 useCrossWindowChat hook 的核心功能（跨窗口 PDF 对话）：
+ * 测试 useChatBase（pdf 模式）的核心功能（跨窗口 PDF 对话）：
  * 消息发送、流式响应、停止生成，以及 PDF 文本提取。
  *
- * useCrossWindowChat 与 useChat 的关键区别：
+ * useChatBase pdf 模式与 chat 模式的关键区别：
  * - 使用 pdfConversationId 而非 currentConversationId
  * - 直接读写 Dexie（chatDb 实例）
  * - 管理本地 messages 状态而非通过 store.addMessage
@@ -158,7 +158,7 @@ async function* createAsyncGenerator(
 // Import after mocks
 // =============================================================================
 
-import { useCrossWindowChat } from "@/hooks/useCrossWindowChat";
+import { useChatBase } from "@/hooks/useChatBase";
 import { extractText } from "@/services/pdf/extractor";
 import { chatDb } from "@/stores/chatStore";
 
@@ -166,7 +166,7 @@ import { chatDb } from "@/stores/chatStore";
 // Tests
 // =============================================================================
 
-describe("useCrossWindowChat — PDF 对话集成测试", () => {
+describe("useChatBase pdf 模式 — PDF 对话集成测试", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -204,7 +204,7 @@ describe("useCrossWindowChat — PDF 对话集成测试", () => {
     it("应创建 PDF 对话并流式返回助手回复", async () => {
       // Arrange: adapter 返回流式 tokens
       mockChat.mockReturnValue(createAsyncGenerator(["你好", "，", "世界"]));
-      const hook = useCrossWindowChat();
+      const hook = useChatBase({ mode: "pdf" });
 
       // Act
       await hook.sendMessage("测试消息");
@@ -247,7 +247,7 @@ describe("useCrossWindowChat — PDF 对话集成测试", () => {
       );
 
       // Assert: 加载状态变化（setIsLoading(true) → setIsLoading(false)）
-      // useCrossWindowChat 中 useState 索引: [messages(0), isLoading(1), streamingContent(2)]
+      // useChatBase pdf 模式 useState 索引: [pdfMessages(0), isLoading(1), streamingContent(2), error(3)]
       const setIsLoading = stateSetters[1];
       expect(setIsLoading).toHaveBeenCalledWith(true);
       expect(setIsLoading).toHaveBeenLastCalledWith(false);
@@ -256,7 +256,7 @@ describe("useCrossWindowChat — PDF 对话集成测试", () => {
     it("API Key 为空时应显示错误消息且不调用 LLM", async () => {
       // Arrange: 空 API Key
       mockCurrentConfig.apiKey = "";
-      const hook = useCrossWindowChat();
+      const hook = useChatBase({ mode: "pdf" });
 
       // Act
       await hook.sendMessage("测试消息");
@@ -287,7 +287,7 @@ describe("useCrossWindowChat — PDF 对话集成测试", () => {
       // Arrange: 模拟离线状态 + adapter 抛出错误
       (globalThis as any).navigator.onLine = false;
       mockChat.mockRejectedValue(new Error("Network failure"));
-      const hook = useCrossWindowChat();
+      const hook = useChatBase({ mode: "pdf" });
 
       // Act
       await hook.sendMessage("测试消息");
@@ -317,7 +317,7 @@ describe("useCrossWindowChat — PDF 对话集成测试", () => {
     it("应中断活跃流并重置加载状态", async () => {
       // Arrange
       mockChat.mockReturnValue(createAsyncGenerator(["回复"]));
-      const hook = useCrossWindowChat();
+      const hook = useChatBase({ mode: "pdf" });
 
       // Act: 先发送消息（内部创建 AbortController），然后立即停止
       const sendPromise = hook.sendMessage("测试");
@@ -325,7 +325,7 @@ describe("useCrossWindowChat — PDF 对话集成测试", () => {
       await sendPromise;
 
       // Assert: 流式内容被重置为 null
-      // useState 索引: [messages(0), isLoading(1), streamingContent(2)]
+      // useChatBase pdf 模式 useState 索引: [pdfMessages(0), isLoading(1), streamingContent(2), error(3)]
       const setStreamingContent = stateSetters[2];
       expect(setStreamingContent).toHaveBeenCalledWith(null);
 
@@ -344,9 +344,9 @@ describe("useCrossWindowChat — PDF 对话集成测试", () => {
 
   describe("setPdfConversationId", () => {
     it("应更新 store 中的 pdfConversationId", () => {
-      const hook = useCrossWindowChat();
+      const hook = useChatBase({ mode: "pdf" });
 
-      hook.setPdfConversationId("test-pdf-id");
+      hook.setPdfConversationId!("test-pdf-id");
 
       expect(mockChatStoreState.setPdfConversationId).toHaveBeenCalledWith(
         "test-pdf-id",
@@ -357,11 +357,11 @@ describe("useCrossWindowChat — PDF 对话集成测试", () => {
     it("设置为 null 时应更新 store", () => {
       // Arrange: 先设置为一个值
       mockChatStoreState.pdfConversationId = "some-id";
-      const hook = useCrossWindowChat();
+      const hook = useChatBase({ mode: "pdf" });
       vi.clearAllMocks();
 
       // Act
-      hook.setPdfConversationId(null);
+      hook.setPdfConversationId!(null);
 
       // Assert
       expect(mockChatStoreState.setPdfConversationId).toHaveBeenCalledWith(null);
@@ -369,7 +369,7 @@ describe("useCrossWindowChat — PDF 对话集成测试", () => {
     });
 
     it("从 hook 返回的 setPdfConversationId 即是 store action", () => {
-      const hook = useCrossWindowChat();
+      const hook = useChatBase({ mode: "pdf" });
 
       // hook.setPdfConversationId 应该引用 store 的 setPdfConversationId
       expect(hook.setPdfConversationId).toBe(

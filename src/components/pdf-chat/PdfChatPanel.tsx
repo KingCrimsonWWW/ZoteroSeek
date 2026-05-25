@@ -2,7 +2,7 @@
  * PdfChatPanel — PDF 对话面板
  *
  * 独立的 PDF 对话窗口主界面，包含 PDF 选择和对话功能。
- * 复用 MessageList 和 InputBox 组件，通过 useCrossWindowChat hook
+ * 复用 MessageList 和 InputBox 组件，通过 useChatBase（pdf 模式）
  * 管理 PDF 窗口专属的对话状态。
  */
 
@@ -10,7 +10,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import { MessageList } from '@/components/chat/MessageList';
 import { InputBox } from '@/components/chat/InputBox';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { useCrossWindowChat } from '@/hooks/useCrossWindowChat';
+import { useChatBase } from '@/hooks/useChatBase';
 import { getSelectedItems, getItemMetadata } from '@/apis/zotero';
 import { createLogger } from '@/utils/logger';
 
@@ -42,7 +42,7 @@ function StopButton({ onClick }: { onClick: () => void }) {
 }
 
 export function PdfChatPanel() {
-  const { messages, isLoading, sendMessage, stopGeneration } = useCrossWindowChat();
+  const { messages, isLoading, sendMessage, stopGeneration } = useChatBase({ mode: 'pdf' });
   const [pdfInfo, setPdfInfo] = useState<PdfInfo | null>(null);
   const [selecting, setSelecting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);

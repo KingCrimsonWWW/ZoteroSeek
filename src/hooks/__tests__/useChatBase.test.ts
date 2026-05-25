@@ -67,6 +67,56 @@ vi.mock("@/services/rag/chatIntegration", () => ({
   augmentMessage: (...args: unknown[]) => mockAugmentMessage(...args),
 }));
 
+// --- Chat store mock（避免 zustand 依赖 React.useCallback） ---
+const mockChatStoreState: {
+  pdfConversationId: string | null;
+  setPdfConversationId: ReturnType<typeof vi.fn>;
+  listConversations: ReturnType<typeof vi.fn>;
+} = {
+  pdfConversationId: null,
+  setPdfConversationId: vi.fn((id: string | null) => {
+    mockChatStoreState.pdfConversationId = id;
+  }),
+  listConversations: vi.fn(),
+};
+
+vi.mock("@/stores/chatStore", () => ({
+  useChatStore: Object.assign(
+    (selector: (s: typeof mockChatStoreState) => unknown) =>
+      selector(mockChatStoreState),
+    { getState: () => mockChatStoreState },
+  ),
+  chatDb: {
+    conversations: {
+      get: vi.fn(async () => undefined),
+      add: vi.fn(async () => {}),
+      update: vi.fn(async () => {}),
+    },
+  },
+}));
+
+// --- Model store mock ---
+vi.mock("@/stores/modelStore", () => ({
+  useModelStore: (selector: (s: { currentConfig: Record<string, unknown> }) => unknown) =>
+    selector({
+      currentConfig: {
+        provider: "openai",
+        apiKey: "test-api-key",
+        model: "gpt-4",
+      },
+    }),
+}));
+
+// --- ID utils mock ---
+vi.mock("@/utils/id", () => ({
+  generateId: () => "test-id-" + Math.random().toString(36).slice(2, 9),
+}));
+
+// --- Adapter utils mock ---
+vi.mock("@/utils/adapter", () => ({
+  createAdapter: vi.fn(() => null),
+}));
+
 // =============================================================================
 // Helpers
 // =============================================================================
@@ -161,7 +211,8 @@ describe("useChatBase", () => {
       expect(mockAddMessage).toHaveBeenCalledWith("assistant", "你好，世界");
 
       // Assert: 加载状态变化（setIsLoading(true) → setIsLoading(false)）
-      const setIsLoading = stateSetters[0];
+      // useChatBase useState 索引: [pdfMessages(0), isLoading(1), streamingContent(2), error(3)]
+      const setIsLoading = stateSetters[1];
       expect(setIsLoading).toHaveBeenCalledWith(true);
       expect(setIsLoading).toHaveBeenLastCalledWith(false);
     });
@@ -302,11 +353,11 @@ describe("useChatBase", () => {
       await sendPromise;
 
       // Assert: 流式内容被重置为 null
-      const setStreamingContent = stateSetters[1];
+      const setStreamingContent = stateSetters[2];
       expect(setStreamingContent).toHaveBeenCalledWith(null);
 
       // Assert: 加载状态最后为 false
-      const setIsLoading = stateSetters[0];
+      const setIsLoading = stateSetters[1];
       expect(setIsLoading).toHaveBeenLastCalledWith(false);
     });
   });
@@ -463,8 +514,8 @@ describe("useChatBase", () => {
       // Act
       await hook.sendMessage("测试消息");
 
-      // Assert: error setter 被调用（useState[2] = error）
-      const setError = stateSetters[2];
+      // Assert: error setter 被调用（useState[3] = error）
+      const setError = stateSetters[3];
       expect(setError).toHaveBeenCalledWith(expect.stringContaining("API error"));
     });
   });
