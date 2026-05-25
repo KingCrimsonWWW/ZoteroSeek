@@ -55,6 +55,7 @@ export function Header({
         {/* Sidebar toggle */}
         {onToggleSidebar && (
           <button
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onToggleSidebar();
@@ -71,6 +72,7 @@ export function Header({
         {/* Knowledge toggle */}
         {onToggleKnowledge && (
           <button
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onToggleKnowledge();
@@ -92,6 +94,7 @@ export function Header({
         {/* Settings toggle */}
         {onToggleSettings && (
           <button
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onToggleSettings();
@@ -108,6 +111,7 @@ export function Header({
 
         {/* Close button */}
         <button
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onClose();
