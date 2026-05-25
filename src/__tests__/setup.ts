@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Vitest 全局测试设置
  * Mock Zotero 全局对象和 ztoolkit

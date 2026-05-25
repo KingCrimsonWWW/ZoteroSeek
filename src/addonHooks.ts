@@ -303,14 +303,14 @@ function onShutdown(): void {
 /**
  * Called when the main window loads.
  */
-function onMainWindowLoad(window: Window): void {
+function onMainWindowLoad(_window: Window): void {
   Zotero.log('[ZoteroSeek] onMainWindowLoad called (no-op)');
 }
 
 /**
  * Called when the main window unloads.
  */
-function onMainWindowUnload(window: Window): void {
+function onMainWindowUnload(_window: Window): void {
   if (reactRoot) {
     reactRoot.unmount();
     reactRoot = null;

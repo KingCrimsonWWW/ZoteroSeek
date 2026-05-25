@@ -52,7 +52,7 @@ export default [
     },
     settings: {
       react: {
-        version: 'detect',
+        version: '18.3.1',
       },
     },
   },
@@ -64,6 +64,8 @@ export default [
       'addon/',
       '.reference-*/',
       '.scaffold/',
+      '.sisyphus/',
+      'patches/',
       '*.config.js',
       '*.config.mjs',
       'src/typings/',
