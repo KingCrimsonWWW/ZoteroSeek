@@ -133,7 +133,7 @@ async function* createAsyncGenerator(
 /** 异步生成器：抛出错误 */
 async function* createErrorGenerator(error: Error): AsyncGenerator<string> {
   throw error;
-  yield ""; // unreachable, but satisfies TypeScript
+  yield ""; // eslint-disable-line no-unreachable -- satisfies TypeScript async generator type
 }
 
 /** 创建 mock LLM adapter */
