@@ -1,93 +1,132 @@
 /**
  * Chat Store - 对话状态管理
- * 使用 Zustand 管理状态，Dexie 持久化到 IndexedDB
- * 当 IndexedDB 不可用时（如 Zotero 9 sandbox），自动降级为内存存储
+ * 使用 Zustand 管理状态，通过 Worker 客户端持久化到 IndexedDB
+ * 当 Worker 不可用时（如测试环境或 Zotero 9 sandbox），自动降级为内存存储
  */
 
 import { create } from 'zustand';
-import Dexie, { type EntityTable } from 'dexie';
 import type { Conversation, ConversationMeta, Message } from '@/typings';
 import { createLogger } from '@/utils/logger';
 import { generateId } from '@/utils/id';
-import { createDexieOrFallback } from '@/db/fallback';
+import * as dbClient from '@/db/client';
+import type { ConversationDBSchema } from '@/db/db';
 
 const logger = createLogger('chatStore');
 
-// ========== Dexie 数据库定义 ==========
+// ========== 内存降级存储 ==========
 
-/**
- * ZoteroSeek 对话数据库
- * 存储完整的对话数据（包含消息历史）
- */
-class ChatDatabase extends Dexie {
-  conversations!: EntityTable<Conversation, 'id'>;
+/** 当 Worker 不可用时，使用内存 Map 存储对话数据 */
+const memoryConversations = new Map<string, Conversation>();
 
-  constructor() {
-    super('ZoteroSeekChat');
-    this.version(1).stores({
-      conversations: 'id, title, updatedAt, createdAt',
-    });
+function memoryAdd(conv: Conversation) {
+  memoryConversations.set(conv.id, JSON.parse(JSON.stringify(conv)));
+}
+
+function memoryDelete(id: string) {
+  memoryConversations.delete(id);
+}
+
+function memoryGet(id: string): Conversation | undefined {
+  return memoryConversations.get(id);
+}
+
+function memoryUpdate(id: string, changes: Partial<Conversation>) {
+  const existing = memoryConversations.get(id);
+  if (existing) {
+    memoryConversations.set(id, { ...existing, ...changes } as Conversation);
   }
 }
 
-// ========== 内存降级存储 ==========
-
-/** 当 IndexedDB 不可用时，使用内存 Map 存储对话数据 */
-const memoryConversations = new Map<string, Conversation>();
-
-/**
- * 创建内存对话表，模拟 Dexie EntityTable 的关键方法
- * 仅供内部使用，当 IndexedDB 不可用时作为降级方案
- */
-function createMemoryConversationsTable() {
-  const getSorted = () =>
-    Array.from(memoryConversations.values()).sort(
-      (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
-    );
-
-  return {
-    add(item: Conversation) {
-      memoryConversations.set(item.id, JSON.parse(JSON.stringify(item)));
-      return Promise.resolve(item.id);
-    },
-    delete(id: string) {
-      memoryConversations.delete(id);
-      return Promise.resolve();
-    },
-    update(id: string, changes: Partial<Conversation>) {
-      const existing = memoryConversations.get(id);
-      if (existing) {
-        memoryConversations.set(id, { ...existing, ...changes } as Conversation);
-      }
-      return Promise.resolve();
-    },
-    get(id: string) {
-      return Promise.resolve(memoryConversations.get(id));
-    },
-    orderBy(_field: string) {
-      return {
-        reverse: () => ({
-          first: () => Promise.resolve(getSorted()[0]),
-          toArray: () => Promise.resolve(getSorted()),
-        }),
-      };
-    },
-  };
+function memoryListSorted(): Conversation[] {
+  return Array.from(memoryConversations.values()).sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+  );
 }
 
-// ========== 数据库初始化 ==========
+/**
+ * 清空内存降级存储（测试用）
+ */
+export function clearMemoryStore() {
+  memoryConversations.clear();
+}
 
-const { db, isAvailable: isDexieAvailable } = createDexieOrFallback({
-  dbConstructor: ChatDatabase,
-  fallbackDb: { conversations: createMemoryConversationsTable() } as any,
-  storeName: 'Chat',
-});
+// ========== Worker 可用性 ==========
 
-/** IndexedDB 是否可用（UI 可据此显示警告） */
-export { isDexieAvailable };
+let workerAvailable: boolean | null = null;
 
-/** 导出数据库实例，供跨窗口 hook 直接访问 */
-export { db as chatDb };
+async function ensureWorkerChecked(): Promise<boolean> {
+  if (workerAvailable !== null) return workerAvailable;
+  try {
+    await dbClient.getConversations();
+    workerAvailable = true;
+    logger.info('DB Worker 可用');
+  } catch {
+    workerAvailable = false;
+    logger.warn('DB Worker 不可用，使用内存降级存储');
+  }
+  return workerAvailable;
+}
+
+/** Worker/IndexedDB 是否可用（UI 可据此显示警告） */
+export function isDexieAvailable(): boolean {
+  return workerAvailable === true;
+}
+
+// ========== chatDb 兼容层 ==========
+// 为 useChatBase.ts 等外部消费者提供 Dexie 风格的 API
+
+export const chatDb = {
+  conversations: {
+    async get(id: string): Promise<Conversation | undefined> {
+      if (await ensureWorkerChecked()) {
+        const conv = await dbClient.getConversation(id);
+        if (!conv) return undefined;
+        const messages = await dbClient.getMessages(id);
+        return { ...conv, messages } as Conversation;
+      }
+      return memoryGet(id);
+    },
+
+    async add(conv: Conversation): Promise<string> {
+      if (await ensureWorkerChecked()) {
+        const { messages, ...meta } = conv;
+        await dbClient.upsertConversation(meta as ConversationDBSchema);
+        if (messages?.length) {
+          await dbClient.upsertMessages(
+            messages.map((m) => ({ ...m, conversationId: conv.id })),
+          );
+        }
+      } else {
+        memoryAdd(conv);
+      }
+      return conv.id;
+    },
+
+    async update(id: string, changes: Partial<Conversation>): Promise<void> {
+      if (await ensureWorkerChecked()) {
+        const existing = await dbClient.getConversation(id);
+        if (existing) {
+          const { messages, ...metaChanges } = changes;
+          await dbClient.upsertConversation({
+            ...existing,
+            ...metaChanges,
+            updatedAt: metaChanges.updatedAt ?? new Date(),
+          } as ConversationDBSchema);
+          if (messages) {
+            await dbClient.clearMessagesForConversation(id);
+            if (messages.length > 0) {
+              await dbClient.upsertMessages(
+                messages.map((m) => ({ ...m, conversationId: id })),
+              );
+            }
+          }
+        }
+      } else {
+        memoryUpdate(id, changes);
+      }
+    },
+  },
+};
 
 // ========== 工具函数 ==========
 
@@ -100,6 +139,16 @@ function createConversation(title?: string): Conversation {
     messages: [],
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+/** 将 ConversationDBSchema 转换为 ConversationMeta */
+function toMeta(c: ConversationDBSchema): ConversationMeta {
+  return {
+    id: c.id,
+    title: c.title,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
   };
 }
 
@@ -153,7 +202,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const conversation = createConversation(title);
 
     try {
-      await db.conversations.add(conversation);
+      if (await ensureWorkerChecked()) {
+        await dbClient.upsertConversation({
+          id: conversation.id,
+          title: conversation.title,
+          createdAt: conversation.createdAt,
+          updatedAt: conversation.updatedAt,
+        });
+      } else {
+        memoryAdd(conversation);
+      }
+
       logger.info('创建对话', { id: conversation.id, title: conversation.title });
 
       // 更新状态
@@ -178,28 +237,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
    */
   deleteConversation: async (id: string) => {
     try {
-      await db.conversations.delete(id);
+      if (await ensureWorkerChecked()) {
+        await dbClient.deleteConversation(id);
+      } else {
+        memoryDelete(id);
+      }
+
       logger.info('删除对话', { id });
 
       const { currentConversationId } = get();
 
       // 如果删除的是当前对话，切换到最近的对话
       if (currentConversationId === id) {
-        const remaining = await db.conversations
-          .orderBy('updatedAt')
-          .reverse()
-          .first();
-
-        if (remaining) {
-          set({
-            currentConversationId: remaining.id,
-            messages: remaining.messages,
-          });
+        if (await ensureWorkerChecked()) {
+          const convs = await dbClient.getConversations();
+          if (convs.length > 0) {
+            const top = convs[0];
+            const messages = await dbClient.getMessages(top.id);
+            set({ currentConversationId: top.id, messages });
+          } else {
+            set({ currentConversationId: null, messages: [] });
+          }
         } else {
-          set({
-            currentConversationId: null,
-            messages: [],
-          });
+          const sorted = memoryListSorted();
+          if (sorted.length > 0) {
+            set({
+              currentConversationId: sorted[0].id,
+              messages: sorted[0].messages,
+            });
+          } else {
+            set({ currentConversationId: null, messages: [] });
+          }
         }
       }
 
@@ -216,10 +284,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
    */
   renameConversation: async (id: string, title: string) => {
     try {
-      await db.conversations.update(id, {
-        title,
-        updatedAt: new Date(),
-      });
+      const updatedAt = new Date();
+      if (await ensureWorkerChecked()) {
+        const conv = await dbClient.getConversation(id);
+        if (conv) {
+          await dbClient.upsertConversation({ ...conv, title, updatedAt });
+        }
+      } else {
+        memoryUpdate(id, { title, updatedAt });
+      }
+
       logger.info('重命名对话', { id, title });
 
       // 刷新对话列表
@@ -236,18 +310,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
    */
   listConversations: async () => {
     try {
-      const conversations = await db.conversations
-        .orderBy('updatedAt')
-        .reverse()
-        .toArray();
+      let metas: ConversationMeta[];
 
-      // 转换为 ConversationMeta（不含 messages）
-      const metas: ConversationMeta[] = conversations.map((c: Conversation) => ({
-        id: c.id,
-        title: c.title,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
-      }));
+      if (await ensureWorkerChecked()) {
+        const convs = await dbClient.getConversations();
+        metas = convs.map(toMeta);
+      } else {
+        metas = memoryListSorted().map((c) => ({
+          id: c.id,
+          title: c.title,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+        }));
+      }
 
       set({ conversations: metas });
     } catch (error) {
@@ -258,13 +333,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   /**
    * 切换当前对话
-   * 从 IndexedDB 加载完整对话数据
+   * 从持久化层加载完整对话数据
    */
   setCurrentConversation: async (id: string) => {
     try {
       set({ isLoading: true });
 
-      const conversation = await db.conversations.get(id);
+      let conversation: Conversation | undefined;
+
+      if (await ensureWorkerChecked()) {
+        const conv = await dbClient.getConversation(id);
+        if (conv) {
+          const messages = await dbClient.getMessages(id);
+          conversation = { ...conv, messages } as Conversation;
+        }
+      } else {
+        conversation = memoryGet(id);
+      }
+
       if (!conversation) {
         logger.warn('对话不存在', { id });
         set({ isLoading: false });
@@ -307,28 +393,62 @@ export const useChatStore = create<ChatState>((set, get) => ({
     };
 
     try {
-      // 获取当前对话
-      const conversation = await db.conversations.get(conversationId!);
-      if (!conversation) {
-        logger.error('对话不存在', { id: conversationId });
-        return;
-      }
+      if (await ensureWorkerChecked()) {
+        // 检查已有消息数量（用于判断是否为第一条消息）
+        const existingMessages = await dbClient.getMessages(conversationId!);
 
-      // 更新对话：添加消息 + 更新时间
-      const updatedMessages = [...conversation.messages, message];
-      await db.conversations.update(conversationId!, {
-        messages: updatedMessages,
-        updatedAt: new Date(),
-      });
+        // 保存消息到 messages 表
+        await dbClient.upsertMessage({
+          ...message,
+          conversationId: conversationId!,
+        });
 
-      // 更新状态
-      set({ messages: updatedMessages });
+        // 更新对话元数据
+        const conv = await dbClient.getConversation(conversationId!);
+        if (conv) {
+          const updates: Partial<ConversationDBSchema> = { updatedAt: new Date() };
+          // 如果是第一条用户消息，用它生成对话标题
+          if (role === 'user' && existingMessages.length === 0) {
+            updates.title = content.slice(0, 50) + (content.length > 50 ? '...' : '');
+          }
+          await dbClient.upsertConversation({
+            ...conv,
+            ...updates,
+          } as ConversationDBSchema);
+        }
 
-      // 如果是第一条用户消息，用它生成对话标题
-      if (role === 'user' && conversation.messages.length === 0) {
-        const title = content.slice(0, 50) + (content.length > 50 ? '...' : '');
-        await db.conversations.update(conversationId!, { title });
-        await get().listConversations();
+        // 重新加载消息列表
+        const allMessages = await dbClient.getMessages(conversationId!);
+        set({ messages: allMessages });
+
+        // 如果标题更新了，刷新对话列表
+        if (role === 'user' && existingMessages.length === 0) {
+          await get().listConversations();
+        }
+      } else {
+        // 内存降级路径
+        const conversation = memoryGet(conversationId!);
+        if (!conversation) {
+          logger.error('对话不存在', { id: conversationId });
+          return;
+        }
+
+        // 更新对话：添加消息 + 更新时间
+        const updatedMessages = [...conversation.messages, message];
+        memoryUpdate(conversationId!, {
+          messages: updatedMessages,
+          updatedAt: new Date(),
+        });
+
+        // 更新状态
+        set({ messages: updatedMessages });
+
+        // 如果是第一条用户消息，用它生成对话标题
+        if (role === 'user' && conversation.messages.length === 0) {
+          const title = content.slice(0, 50) + (content.length > 50 ? '...' : '');
+          memoryUpdate(conversationId!, { title });
+          await get().listConversations();
+        }
       }
 
       logger.debug('添加消息', { conversationId, role, messageLength: content.length });
@@ -348,10 +468,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     try {
-      await db.conversations.update(currentConversationId, {
-        messages: [],
-        updatedAt: new Date(),
-      });
+      if (await ensureWorkerChecked()) {
+        await dbClient.clearMessagesForConversation(currentConversationId);
+        // 更新对话时间戳
+        const conv = await dbClient.getConversation(currentConversationId);
+        if (conv) {
+          await dbClient.upsertConversation({ ...conv, updatedAt: new Date() });
+        }
+      } else {
+        memoryUpdate(currentConversationId, {
+          messages: [],
+          updatedAt: new Date(),
+        });
+      }
 
       set({ messages: [] });
       logger.info('清空消息', { conversationId: currentConversationId });
@@ -363,7 +492,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   /**
    * 设置 PDF 窗口的对话 ID
-   * 用于跨窗口状态同步：PDF 窗口和主窗口共享同一个 Dexie 数据库
+   * 用于跨窗口状态同步
    */
   setPdfConversationId: (id: string | null) => {
     set({ pdfConversationId: id });

@@ -15,17 +15,23 @@ vi.mock('@/utils/logger', () => ({
   }),
 }));
 
-import { useChatStore } from '@/stores/chatStore';
+// Mock db client (Worker 不可用，测试走内存降级路径)
+vi.mock('@/db/client', () => ({
+  getConversations: vi.fn().mockRejectedValue(new Error('Worker not available')),
+  getConversation: vi.fn().mockRejectedValue(new Error('Worker not available')),
+  upsertConversation: vi.fn().mockRejectedValue(new Error('Worker not available')),
+  deleteConversation: vi.fn().mockRejectedValue(new Error('Worker not available')),
+  upsertMessage: vi.fn().mockRejectedValue(new Error('Worker not available')),
+  getMessages: vi.fn().mockRejectedValue(new Error('Worker not available')),
+  clearMessagesForConversation: vi.fn().mockRejectedValue(new Error('Worker not available')),
+}));
+
+import { useChatStore, clearMemoryStore } from '@/stores/chatStore';
 
 describe('chatStore', () => {
   beforeEach(async () => {
-    // 清空 IndexedDB（ChatDatabase 单例在模块加载时创建，测试间会残留数据）
-    await new Promise<void>((resolve) => {
-      const req = indexedDB.deleteDatabase('ZoteroSeekChat');
-      req.onsuccess = () => resolve();
-      req.onerror = () => resolve();
-      req.onblocked = () => resolve();
-    });
+    // 清空内存降级存储（Worker 不可用时使用内存 Map）
+    clearMemoryStore();
 
     // 重置 store 状态
     useChatStore.setState({

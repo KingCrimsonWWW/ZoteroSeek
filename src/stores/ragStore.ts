@@ -1,18 +1,25 @@
 /**
  * RAG Store - 向量存储管理
- * 使用 Dexie 持久化文档块及其嵌入向量到 IndexedDB
- * 当 IndexedDB 不可用时（如 Zotero 9 sandbox），自动降级为内存存储
+ * 通过 Web Worker 持久化文档块及其嵌入向量到 IndexedDB
+ * 当 Worker 不可用时（如测试环境），自动降级为内存存储
  */
 
-import Dexie, { type EntityTable } from 'dexie';
 import { createLogger } from '@/utils/logger';
-import { createDexieOrFallback } from '@/db/fallback';
+import {
+  upsertChunks as workerUpsertChunks,
+  getChunksByItem as workerGetChunksByItem,
+  getAllChunks as workerGetAllChunks,
+  clearAllChunks as workerClearAllChunks,
+  getProgress as workerGetProgress,
+  upsertProgress as workerUpsertProgress,
+  clearAllProgress as workerClearAllProgress,
+} from '@/db/client';
 
 const logger = createLogger('ragStore');
 
 // ========== 类型定义 ==========
 
-/** 文档块定义（对应 Dexie chunks 表） */
+/** 文档块定义（对应 IndexedDB chunks 表） */
 export interface RagChunk {
   id?: number;
   itemId: number;
@@ -23,95 +30,46 @@ export interface RagChunk {
   createdAt: Date;
 }
 
-/** 索引进度定义（对应 Dexie progress 表） */
+/** 索引进度定义（对应 IndexedDB progress 表） */
 export interface RagProgress {
   id: string;
   indexedItemIds: number[];
   totalItems: number;
 }
 
-// ========== Dexie 数据库定义 ==========
-
-/**
- * ZoteroSeek RAG 数据库
- * 存储文档块、嵌入向量和索引进度
- */
-class RagDatabase extends Dexie {
-  chunks!: EntityTable<RagChunk, 'id'>;
-  progress!: EntityTable<RagProgress, 'id'>;
-
-  constructor() {
-    super('ZoteroSeekRAG');
-    this.version(1).stores({
-      chunks: '++id, itemId, chunkIndex',
-      progress: 'id',
-    });
-  }
-}
-
 // ========== 内存降级存储 ==========
 
 const memoryChunks: RagChunk[] = [];
+let nextChunkId = 1;
 let memoryProgress: RagProgress = { id: 'global', indexedItemIds: [], totalItems: 0 };
 
-function createMemoryChunksTable() {
-  let nextId = 1;
-  return {
-    bulkAdd(items: RagChunk[]) {
-      for (const item of items) {
-        memoryChunks.push({ ...item, id: nextId++ });
-      }
-      return Promise.resolve();
-    },
-    where(_field: string) {
-      return {
-        equals(value: number) {
-          return {
-            toArray: () =>
-              Promise.resolve(memoryChunks.filter((c) => (c as any)[_field] === value)),
-          };
-        },
-      };
-    },
-    toArray() {
-      return Promise.resolve([...memoryChunks]);
-    },
-    clear() {
-      memoryChunks.length = 0;
-      return Promise.resolve();
-    },
-  };
+// ========== Worker 可用性检测 ==========
+
+let workerAvailable: boolean | null = null;
+
+/**
+ * 检测 Worker 是否可用（懒初始化，仅首次调用执行探测）
+ * Worker 可用 → 使用 IndexedDB 持久化
+ * Worker 不可用 → 降级为内存存储
+ */
+async function ensureWorker(): Promise<boolean> {
+  if (workerAvailable !== null) return workerAvailable;
+  try {
+    // 使用轻量级调用探测 Worker 是否存活
+    await workerGetAllChunks();
+    workerAvailable = true;
+    isDexieAvailable = true;
+    logger.info('RAG: Worker 可用，使用 Worker 持久化');
+  } catch {
+    workerAvailable = false;
+    isDexieAvailable = false;
+    logger.warn('RAG: Worker 不可用，使用内存降级存储');
+  }
+  return workerAvailable;
 }
 
-function createMemoryProgressTable() {
-  return {
-    get(_id: string) {
-      return Promise.resolve(memoryProgress);
-    },
-    put(item: RagProgress) {
-      memoryProgress = { ...item };
-      return Promise.resolve();
-    },
-    clear() {
-      memoryProgress = { id: 'global', indexedItemIds: [], totalItems: 0 };
-      return Promise.resolve();
-    },
-  };
-}
-
-// ========== 数据库初始化 ==========
-
-const { db, isAvailable: isDexieAvailable } = createDexieOrFallback({
-  dbConstructor: RagDatabase,
-  fallbackDb: {
-    chunks: createMemoryChunksTable(),
-    progress: createMemoryProgressTable(),
-  } as any,
-  storeName: 'RAG',
-});
-
-/** IndexedDB 是否可用 */
-export { isDexieAvailable };
+/** IndexedDB（通过 Worker）是否可用 */
+export let isDexieAvailable = true;
 
 // ========== 导出函数 ==========
 
@@ -121,7 +79,13 @@ export { isDexieAvailable };
  */
 export async function storeChunks(chunks: RagChunk[]): Promise<void> {
   try {
-    await db.chunks.bulkAdd(chunks);
+    if (await ensureWorker()) {
+      await workerUpsertChunks(chunks);
+    } else {
+      for (const chunk of chunks) {
+        memoryChunks.push({ ...chunk, id: nextChunkId++ });
+      }
+    }
     logger.info('存储文档块', { count: chunks.length });
   } catch (error) {
     logger.error('存储文档块失败', error);
@@ -136,7 +100,12 @@ export async function storeChunks(chunks: RagChunk[]): Promise<void> {
  */
 export async function getChunksByItemId(itemId: number): Promise<RagChunk[]> {
   try {
-    const chunks = await db.chunks.where('itemId').equals(itemId).toArray();
+    let chunks: RagChunk[];
+    if (await ensureWorker()) {
+      chunks = await workerGetChunksByItem(itemId);
+    } else {
+      chunks = memoryChunks.filter((c) => c.itemId === itemId);
+    }
     logger.debug('获取文档块', { itemId, count: chunks.length });
     return chunks;
   } catch (error) {
@@ -151,7 +120,12 @@ export async function getChunksByItemId(itemId: number): Promise<RagChunk[]> {
  */
 export async function getAllChunks(): Promise<RagChunk[]> {
   try {
-    const chunks = await db.chunks.toArray();
+    let chunks: RagChunk[];
+    if (await ensureWorker()) {
+      chunks = await workerGetAllChunks();
+    } else {
+      chunks = [...memoryChunks];
+    }
     logger.debug('获取全部文档块', { count: chunks.length });
     return chunks;
   } catch (error) {
@@ -165,8 +139,13 @@ export async function getAllChunks(): Promise<RagChunk[]> {
  */
 export async function clearIndex(): Promise<void> {
   try {
-    await db.chunks.clear();
-    await db.progress.clear();
+    if (await ensureWorker()) {
+      await workerClearAllChunks();
+      await workerClearAllProgress();
+    } else {
+      memoryChunks.length = 0;
+      memoryProgress = { id: 'global', indexedItemIds: [], totalItems: 0 };
+    }
     logger.info('清除索引完成');
   } catch (error) {
     logger.error('清除索引失败', error);
@@ -180,11 +159,12 @@ export async function clearIndex(): Promise<void> {
  */
 export async function getProgress(): Promise<RagProgress> {
   try {
-    const progress = await db.progress.get('global');
-    if (progress) {
-      return progress;
+    if (await ensureWorker()) {
+      const progress = await workerGetProgress('global');
+      if (progress) return progress;
+      return { id: 'global', indexedItemIds: [], totalItems: 0 };
     }
-    return { id: 'global', indexedItemIds: [], totalItems: 0 };
+    return memoryProgress;
   } catch (error) {
     logger.error('获取索引进度失败', error);
     throw error;
@@ -197,10 +177,12 @@ export async function getProgress(): Promise<RagProgress> {
  */
 export async function setProgress(progress: { indexedItemIds: number[]; totalItems: number }): Promise<void> {
   try {
-    await db.progress.put({
-      id: 'global',
-      ...progress,
-    });
+    const fullProgress: RagProgress = { id: 'global', ...progress };
+    if (await ensureWorker()) {
+      await workerUpsertProgress(fullProgress);
+    } else {
+      memoryProgress = { ...fullProgress };
+    }
     logger.info('更新索引进度', {
       indexedCount: progress.indexedItemIds.length,
       totalItems: progress.totalItems,
@@ -210,5 +192,3 @@ export async function setProgress(progress: { indexedItemIds: number[]; totalIte
     throw error;
   }
 }
-
-export default db;

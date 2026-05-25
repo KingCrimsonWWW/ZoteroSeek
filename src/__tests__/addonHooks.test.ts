@@ -4,7 +4,7 @@
  * 测试 onStartup / onShutdown 生命周期钩子的调用顺序和清理行为
  */
 
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // 对 addonHooks.ts 中所有非全局依赖使用 vi.mock
@@ -30,6 +30,18 @@ vi.mock('@/stores/chatStore', () => ({
   initChatStore: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock ReactRoot — 避免真实 UI 注册
+const mockLaunchApp = vi.fn();
+const mockToggleApp = vi.fn();
+
+vi.mock('@/views/root', () => {
+  const MockReactRoot = vi.fn().mockImplementation(function (this: any) {
+    this.launchApp = mockLaunchApp;
+    this.toggleApp = mockToggleApp;
+  });
+  return { ReactRoot: MockReactRoot };
+});
+
 // ---------------------------------------------------------------------------
 // 导入被测试模块
 // ---------------------------------------------------------------------------
@@ -39,6 +51,7 @@ import { registerMenus } from '@/modules/menu';
 import { registerShortcuts } from '@/modules/shortcut';
 import { registerPrefs } from '@/modules/preferences';
 import { initChatStore } from '@/stores/chatStore';
+import { ReactRoot } from '@/views/root';
 import hooks from '@/addonHooks';
 
 describe('addonHooks', () => {
@@ -49,29 +62,9 @@ describe('addonHooks', () => {
     (globalThis as any).Zotero.unlockPromise = Promise.resolve();
     (globalThis as any).Zotero.uiReadyPromise = Promise.resolve();
 
-    // 模拟 getMainWindow —— 返回足够让 createLightweightUI 无异常跑完的 window 对象
-    const createMockElement = () => ({
-      style: {} as Record<string, string>,
-      id: '',
-      appendChild: vi.fn(),
-      addEventListener: vi.fn(),
-      querySelector: vi.fn(() => null),
-      innerHTML: '',
-    });
-
-    (globalThis as any).Zotero.getMainWindow = vi.fn(() => ({
-      document: {
-        createElement: vi.fn(createMockElement),
-        getElementById: vi.fn(() => null),
-        addEventListener: vi.fn(),
-        documentElement: {
-          appendChild: vi.fn(),
-        },
-      },
-    }));
-
-    // 补充 ztoolkit 方法
+    // 补充 ztoolkit 方法和属性
     (globalThis as any).ztoolkit.unregisterAll = vi.fn();
+    (globalThis as any).ztoolkit.Keyboard = {};
 
     // 补充 addon 全局对象
     (globalThis as any).addon = {
@@ -92,16 +85,6 @@ describe('addonHooks', () => {
   // -----------------------------------------------------------------------
 
   describe('onStartup', () => {
-    beforeEach(() => {
-      // 阻止 loadReactApp 内部的 setTimeout 实际触发，避免动态 import
-      // 污染后续测试
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
     it('应依次调用所有注册函数：initLocale、registerMenus、registerShortcuts、registerPrefs、initChatStore', async () => {
       await hooks.onStartup();
 
@@ -112,12 +95,11 @@ describe('addonHooks', () => {
       expect(initChatStore).toHaveBeenCalledTimes(1);
     });
 
-    it('不应在启动时自动调用 showPanel（用户需手动触发）', async () => {
+    it('不应在启动时自动创建 ReactRoot 或调用 getMainWindow', async () => {
       await hooks.onStartup();
 
-      // showPanel 不应在 onStartup 中被调用（已移除自动显示）
-      // showPanel 内部会调用 Zotero.getMainWindow，所以如果被调用了则测试失败
-      expect(Zotero.getMainWindow).not.toHaveBeenCalled();
+      // onStartup 不应触发 ReactRoot 创建
+      expect(ReactRoot).not.toHaveBeenCalled();
     });
 
     it('应在 addon 上暴露 showPanel 和 togglePanel', async () => {
@@ -129,6 +111,50 @@ describe('addonHooks', () => {
 
       expect((globalThis as any).addon.showPanel).toBeInstanceOf(Function);
       expect((globalThis as any).addon.togglePanel).toBeInstanceOf(Function);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // showPanel / togglePanel
+  // -----------------------------------------------------------------------
+
+  describe('showPanel / togglePanel', () => {
+    beforeEach(async () => {
+      await hooks.onStartup();
+    });
+
+    it('showPanel 应创建 ReactRoot 并调用 launchApp', () => {
+      (globalThis as any).addon.showPanel();
+
+      expect(ReactRoot).toHaveBeenCalledTimes(1);
+      expect(ReactRoot).toHaveBeenCalledWith(
+        expect.anything(),
+        { skipShortcut: true },
+      );
+      expect(mockLaunchApp).toHaveBeenCalledTimes(1);
+    });
+
+    it('togglePanel 应复用已创建的 ReactRoot 并调用 toggleApp', () => {
+      // reactRoot 已在上一个测试中创建
+      const reactRootCallsBefore = (ReactRoot as any).mock.calls.length;
+
+      (globalThis as any).addon.togglePanel();
+
+      // 不应再创建新的 ReactRoot
+      expect((ReactRoot as any).mock.calls.length).toBe(reactRootCallsBefore);
+      expect(mockToggleApp).toHaveBeenCalledTimes(1);
+    });
+
+    it('多次调用 showPanel 应复用同一个 ReactRoot 实例', () => {
+      // reactRoot 已在上一个测试中创建
+      const reactRootCallsBefore = (ReactRoot as any).mock.calls.length;
+
+      (globalThis as any).addon.showPanel();
+      (globalThis as any).addon.showPanel();
+
+      // 不应再创建新的 ReactRoot
+      expect((ReactRoot as any).mock.calls.length).toBe(reactRootCallsBefore);
+      expect(mockLaunchApp).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -154,8 +180,8 @@ describe('addonHooks', () => {
       expect((globalThis as any).Zotero.ZoteroSeek).toBeUndefined();
     });
 
-    it('reactRoot 为 null 时不应抛异常', () => {
-      // reactRoot 模块级变量默认为 null，onShutdown 应静默处理
+    it('未创建 ReactRoot 时不应抛异常', () => {
+      // reactRoot 模块级变量默认为 null，onShutdown 不应访问它
       expect(() => hooks.onShutdown()).not.toThrow();
     });
   });

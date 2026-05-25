@@ -33,12 +33,14 @@ export class ReactRoot {
   private dialog?: Window;
   private reactRoot?: ReturnType<typeof createRoot>;
 
-  constructor(Keyboard: KeyboardManager) {
+  constructor(Keyboard: KeyboardManager, options?: { skipShortcut?: boolean }) {
     this.base = new BasicTool();
     this.ui = new UITool(this.base);
     this.document = this.base.getGlobal('document');
     this.registerToolbar();
-    this.registerShortcut(Keyboard);
+    if (!options?.skipShortcut) {
+      this.registerShortcut(Keyboard);
+    }
   }
 
   // ── Toolbar button ──────────────────────────────────────────────────────
@@ -57,8 +59,8 @@ export class ReactRoot {
         {
           type: 'click',
           listener: () => {
-            if (this.dialog && !this.dialog.closed) {
-              this.dialog.focus();
+            if (this.isOpen()) {
+              this.dialog!.focus();
             } else {
               this.launchApp();
             }
@@ -75,7 +77,21 @@ export class ReactRoot {
 
   // ── Popup window management ─────────────────────────────────────────────
 
-  private launchApp(): void {
+  /** Whether the popup dialog is currently open */
+  isOpen(): boolean {
+    return !!this.dialog && !this.dialog.closed;
+  }
+
+  /** Toggle popup: focus if open, launch if closed */
+  toggleApp(): void {
+    if (this.isOpen()) {
+      this.dialog!.focus();
+    } else {
+      this.launchApp();
+    }
+  }
+
+  launchApp(): void {
     const windowArgs = {
       _initPromise: Zotero.Promise.defer(),
     };
@@ -138,8 +154,8 @@ export class ReactRoot {
     Keyboard.register((_ev: Event, data: { type: string; keyboard?: any }) => {
       if (data.type === 'keyup' && data.keyboard) {
         if (data.keyboard.equals('accel,shift,s')) {
-          if (this.dialog && !this.dialog.closed) {
-            this.dialog.focus();
+          if (this.isOpen()) {
+            this.dialog!.focus();
           } else {
             this.launchApp();
           }
