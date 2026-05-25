@@ -5,8 +5,18 @@
 
 import { vi } from 'vitest';
 
-// Mock Zotero 全局对象
+// Mock Zotero.getMainWindow() — must be set BEFORE React import
+// The postinstall script patches node_modules/react to use Zotero.getMainWindow().require('react')
+// In tests, we need to return the actual React module from this mock
 (globalThis as any).Zotero = {
+  getMainWindow: () => ({
+    require: (id: string) => {
+      if (id === 'react') return require('react');
+      if (id === 'react-dom') return require('react-dom');
+      throw new Error(`Unknown module: ${id}`);
+    },
+  }),
+
   Prefs: {
     get: vi.fn(),
     set: vi.fn(),

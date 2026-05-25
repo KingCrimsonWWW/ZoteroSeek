@@ -23,7 +23,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
     "typecheck": "tsc --noEmit",
     "release": "zotero-plugin release",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "node -e \"require('fs').cpSync('patches/react', 'node_modules/react', {recursive:true, force:true}); require('fs').cpSync('patches/react-dom', 'node_modules/react-dom', {recursive:true, force:true})\""
   },
   "repository": {
     "type": "git",

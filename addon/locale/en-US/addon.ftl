@@ -4,3 +4,5 @@ prefs-title = ZoteroSeek Settings
 prefs-api-key = API Key
 prefs-model = Model
 prefs-theme = Theme
+zoteroseek-dialog =
+  .title = ZoteroSeek: AI Research Assistant

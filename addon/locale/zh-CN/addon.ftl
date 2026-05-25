@@ -4,3 +4,5 @@ prefs-title = ZoteroSeek 设置
 prefs-api-key = API Key
 prefs-model = 模型
 prefs-theme = 主题
+zoteroseek-dialog =
+  .title = ZoteroSeek：AI 研究助手
