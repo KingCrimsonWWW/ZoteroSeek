@@ -6,13 +6,9 @@
 
 import Dexie, { type EntityTable } from 'dexie';
 import { createLogger } from '@/utils/logger';
+import { createDexieOrFallback } from '@/db/fallback';
 
 const logger = createLogger('ragStore');
-
-// ========== IndexedDB 可用性检测 ==========
-
-/** IndexedDB 是否可用 */
-export let isDexieAvailable = true;
 
 // ========== 类型定义 ==========
 
@@ -105,29 +101,17 @@ function createMemoryProgressTable() {
 
 // ========== 数据库初始化 ==========
 
-let db: RagDatabase;
+const { db, isAvailable: isDexieAvailable } = createDexieOrFallback({
+  dbConstructor: RagDatabase,
+  fallbackDb: {
+    chunks: createMemoryChunksTable(),
+    progress: createMemoryProgressTable(),
+  } as any,
+  storeName: 'RAG',
+});
 
-if (typeof indexedDB === 'undefined') {
-  // Zotero 9 sandbox: IndexedDB not available in privileged context
-  isDexieAvailable = false;
-  logger.warn(
-    '[ZoteroSeek] IndexedDB not available, using in-memory storage for RAG',
-  );
-
-  db = { chunks: createMemoryChunksTable(), progress: createMemoryProgressTable() } as any;
-} else {
-  try {
-    db = new RagDatabase();
-  } catch (error) {
-    isDexieAvailable = false;
-    logger.warn(
-      '[ZoteroSeek] IndexedDB not available, using in-memory storage for RAG',
-      error,
-    );
-
-    db = { chunks: createMemoryChunksTable(), progress: createMemoryProgressTable() } as any;
-  }
-}
+/** IndexedDB 是否可用 */
+export { isDexieAvailable };
 
 // ========== 导出函数 ==========
 

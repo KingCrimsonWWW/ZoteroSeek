@@ -9,13 +9,9 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { Conversation, ConversationMeta, Message } from '@/typings';
 import { createLogger } from '@/utils/logger';
 import { generateId } from '@/utils/id';
+import { createDexieOrFallback } from '@/db/fallback';
 
 const logger = createLogger('chatStore');
-
-// ========== IndexedDB 可用性检测 ==========
-
-/** IndexedDB 是否可用（UI 可据此显示警告） */
-export let isDexieAvailable = true;
 
 // ========== Dexie 数据库定义 ==========
 
@@ -81,30 +77,14 @@ function createMemoryConversationsTable() {
 
 // ========== 数据库初始化 ==========
 
-let db: ChatDatabase;
+const { db, isAvailable: isDexieAvailable } = createDexieOrFallback({
+  dbConstructor: ChatDatabase,
+  fallbackDb: { conversations: createMemoryConversationsTable() } as any,
+  storeName: 'Chat',
+});
 
-if (typeof indexedDB === 'undefined') {
-  // Zotero 9 sandbox: IndexedDB not available in privileged context
-  isDexieAvailable = false;
-  logger.warn(
-    '[ZoteroSeek] IndexedDB not available, using in-memory storage',
-  );
-
-  db = { conversations: createMemoryConversationsTable() } as any;
-} else {
-  try {
-    db = new ChatDatabase();
-  } catch (error) {
-    isDexieAvailable = false;
-    logger.warn(
-      '[ZoteroSeek] IndexedDB not available, using in-memory storage',
-      error,
-    );
-
-    // 构建内存降级对象，模拟 ChatDatabase 的结构
-    db = { conversations: createMemoryConversationsTable() } as any;
-  }
-}
+/** IndexedDB 是否可用（UI 可据此显示警告） */
+export { isDexieAvailable };
 
 /** 导出数据库实例，供跨窗口 hook 直接访问 */
 export { db as chatDb };
