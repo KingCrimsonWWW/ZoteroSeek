@@ -31,17 +31,17 @@ export function Header({
 }: HeaderProps) {
   return (
     <div
-      className={`flex cursor-move items-center justify-between bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-3 text-white ${
+      className={`flex cursor-move items-center justify-between bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-2.5 text-white ${
         isDragging ? 'opacity-80' : ''
       }`}
       onMouseDown={onMouseDown}
     >
       <div className="flex items-center space-x-2">
-        <Icon name="logo" className="h-5 w-5" />
+        <Icon name="logo" className="h-7 w-7" />
         <span className="font-semibold">ZoteroSeek</span>
       </div>
 
-      <div className="flex items-center space-x-1">
+      <div className="flex items-center space-x-2">
         {/* Sidebar toggle */}
         {onToggleSidebar && (
           <XulButton
@@ -53,7 +53,7 @@ export function Header({
             className={`rounded-full p-1 hover:bg-white/20 ${isSidebarOpen ? 'bg-white/20' : ''}`}
             title="Toggle Conversations"
           >
-            <Icon name="menu" className="h-4 w-4" />
+            <Icon name="menu" className="h-5 w-5" />
           </XulButton>
         )}
 
@@ -68,7 +68,7 @@ export function Header({
             className={`rounded-full p-1 hover:bg-white/20 ${isKnowledgeOpen ? 'bg-white/20' : ''}`}
             title="Knowledge Base"
           >
-            <Icon name="book" className="h-4 w-4" />
+            <Icon name="book" className="h-5 w-5" />
           </XulButton>
         )}
 
@@ -83,7 +83,7 @@ export function Header({
             className={`rounded-full p-1 hover:bg-white/20 ${isSettingsOpen ? 'bg-white/20' : ''}`}
             title="Settings"
           >
-            <Icon name="gear" className="h-4 w-4" />
+            <Icon name="gear" className="h-5 w-5" />
           </XulButton>
         )}
 
@@ -97,7 +97,7 @@ export function Header({
           className="rounded-full p-1 hover:bg-white/20"
           title="Close"
         >
-          <Icon name="close" className="h-4 w-4" />
+          <Icon name="close" className="h-5 w-5" />
         </XulButton>
       </div>
     </div>

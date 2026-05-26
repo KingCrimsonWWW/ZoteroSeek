@@ -55,7 +55,7 @@ export function Container({ onContainerHide }: ContainerProps) {
 
   return (
     <div
-      className="flex h-full w-full flex-col bg-gradient-to-br from-blue-50 to-purple-50"
+      className="flex min-h-screen w-full flex-col overflow-hidden bg-gradient-to-br from-blue-50 to-purple-50"
     >
       {/* Header with drag handle */}
       <Header
@@ -74,13 +74,13 @@ export function Container({ onContainerHide }: ContainerProps) {
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar - Conversation List */}
         {isSidebarOpen && (
-          <div className="w-[200px] flex-shrink-0 border-r border-gray-200 bg-white/80">
+          <div className="w-[200px] flex-shrink-0 border-r border-gray-200 bg-white/90">
             <ConversationList />
           </div>
         )}
 
         {/* Main panel - Chat / Knowledge / Settings */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden bg-white">
           {isSettingsOpen ? (
             <SettingsPanel />
           ) : activeView === 'knowledge' ? (

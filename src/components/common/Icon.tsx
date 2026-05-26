@@ -19,7 +19,7 @@ export function Icon({ name, className, alt }: IconProps) {
       src={`chrome://zoteroseek/content/icons/${name}.svg`}
       className={className}
       alt={alt || ''}
-      style={{ display: 'inline-block' }}
+      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
     />
   );
 }

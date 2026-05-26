@@ -22,7 +22,7 @@ function isError(message: Message): boolean {
 export function MessageList({ messages, isLoading }: MessageListProps) {
   if (messages.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-gray-400">
+      <div className="flex h-full items-center justify-center text-gray-500">
         <div className="text-center">
           <Icon name="chat" className="mx-auto mb-4 h-12 w-12" />
           <p className="text-sm">Start a conversation with ZoteroSeek</p>
