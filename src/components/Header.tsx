@@ -1,5 +1,6 @@
 /**
  * Header component for ZoteroSeek panel
+ * Minimal frosted glass header with accent color.
  */
 
 import React from 'react';
@@ -7,41 +8,32 @@ import { XulButton } from '@/components/common/XulButton';
 import { Icon } from '@/components/common/Icon';
 
 interface HeaderProps {
-  onMouseDown: (e: React.MouseEvent) => void;
   onClose: () => void;
   onToggleSidebar?: () => void;
   onToggleSettings?: () => void;
   onToggleKnowledge?: () => void;
-  isDragging: boolean;
   isSidebarOpen?: boolean;
   isSettingsOpen?: boolean;
   isKnowledgeOpen?: boolean;
 }
 
 export function Header({
-  onMouseDown,
   onClose,
   onToggleSidebar,
   onToggleSettings,
   onToggleKnowledge,
-  isDragging,
   isSidebarOpen,
-  isSettingsOpen,
   isKnowledgeOpen,
 }: HeaderProps) {
   return (
-    <div
-      className={`flex cursor-move items-center justify-between bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-2.5 text-white ${
-        isDragging ? 'opacity-80' : ''
-      }`}
-      onMouseDown={onMouseDown}
-    >
-      <div className="flex items-center space-x-2">
-        <Icon name="logo" className="h-7 w-7" />
-        <span className="font-semibold">ZoteroSeek</span>
+    <div className="flex h-14 items-center justify-between bg-zs-bg-header backdrop-blur-xl border-b border-zs-border px-4">
+      <div className="flex items-center gap-2">
+        <Icon name="logo" className="h-5 w-5" />
+        <span className="text-sm font-medium text-zs-text-primary">ZoteroSeek</span>
+        <span className="ml-2 text-xs text-zs-accent">AI Ready</span>
       </div>
 
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center gap-2">
         {/* Sidebar toggle */}
         {onToggleSidebar && (
           <XulButton
@@ -50,10 +42,10 @@ export function Header({
               e.stopPropagation();
               onToggleSidebar();
             }}
-            className={`rounded-full p-1 hover:bg-white/20 ${isSidebarOpen ? 'bg-white/20' : ''}`}
+            className={`rounded-lg p-1.5 text-zs-text-secondary hover:text-zs-text-primary transition-colors ${isSidebarOpen ? 'text-zs-accent' : ''}`}
             title="Toggle Conversations"
           >
-            <Icon name="menu" className="h-5 w-5" />
+            <Icon name="menu" className="h-[18px] w-[18px]" />
           </XulButton>
         )}
 
@@ -65,10 +57,10 @@ export function Header({
               e.stopPropagation();
               onToggleKnowledge();
             }}
-            className={`rounded-full p-1 hover:bg-white/20 ${isKnowledgeOpen ? 'bg-white/20' : ''}`}
+            className={`rounded-lg p-1.5 text-zs-text-secondary hover:text-zs-text-primary transition-colors ${isKnowledgeOpen ? 'text-zs-accent' : ''}`}
             title="Knowledge Base"
           >
-            <Icon name="book" className="h-5 w-5" />
+            <Icon name="book" className="h-[18px] w-[18px]" />
           </XulButton>
         )}
 
@@ -80,10 +72,10 @@ export function Header({
               e.stopPropagation();
               onToggleSettings();
             }}
-            className={`rounded-full p-1 hover:bg-white/20 ${isSettingsOpen ? 'bg-white/20' : ''}`}
+            className="rounded-lg p-1.5 text-zs-text-secondary hover:text-zs-text-primary transition-colors"
             title="Settings"
           >
-            <Icon name="gear" className="h-5 w-5" />
+            <Icon name="gear" className="h-[18px] w-[18px]" />
           </XulButton>
         )}
 
@@ -94,10 +86,10 @@ export function Header({
             e.stopPropagation();
             onClose();
           }}
-          className="rounded-full p-1 hover:bg-white/20"
+          className="rounded-lg p-1.5 text-zs-text-secondary hover:text-zs-text-primary transition-colors"
           title="Close"
         >
-          <Icon name="close" className="h-5 w-5" />
+          <Icon name="close" className="h-[18px] w-[18px]" />
         </XulButton>
       </div>
     </div>

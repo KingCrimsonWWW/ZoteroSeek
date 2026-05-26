@@ -1,16 +1,15 @@
 /**
  * Main container component for ZoteroSeek
  *
- * This is the root React component that renders the chat interface.
+ * Three-section layout: Header → body row (Sidebar + Chat) → Input
+ * Dark theme using zs-* design tokens.
  */
 
 import React, { useState, useCallback } from 'react';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { ConversationList } from '@/components/chat/ConversationList';
-import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { KnowledgePanel } from '@/components/knowledge/KnowledgePanel';
 import { Header } from '@/components/Header';
-import { useDragging } from '@/hooks/useDragging';
 import './styles/globals.css';
 
 type ActiveView = 'chat' | 'knowledge';
@@ -22,14 +21,11 @@ interface ContainerProps {
 export function Container({ onContainerHide }: ContainerProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>('chat');
-  const { isDragging, handleMouseDown } = useDragging();
 
   const togglePanel = useCallback(() => {
     setIsOpen((prev) => {
       const next = !prev;
-      // When closing, notify external container to hide the outer div
       if (!next && onContainerHide) {
         onContainerHide();
       }
@@ -41,10 +37,6 @@ export function Container({ onContainerHide }: ContainerProps) {
     setIsSidebarOpen((prev) => !prev);
   }, []);
 
-  const toggleSettings = useCallback(() => {
-    setIsSettingsOpen((prev) => !prev);
-  }, []);
-
   const toggleKnowledge = useCallback(() => {
     setActiveView((prev) => (prev === 'knowledge' ? 'chat' : 'knowledge'));
   }, []);
@@ -54,40 +46,28 @@ export function Container({ onContainerHide }: ContainerProps) {
   }
 
   return (
-    <div
-      className="flex min-h-screen w-full flex-col overflow-hidden bg-gradient-to-br from-blue-50 to-purple-50"
-    >
-      {/* Header with drag handle */}
+    <div className="flex h-full w-full flex-col bg-zs-bg-primary text-zs-text-primary overflow-hidden">
+      {/* Header — fixed at top */}
       <Header
-        onMouseDown={handleMouseDown}
         onClose={togglePanel}
         onToggleSidebar={toggleSidebar}
-        onToggleSettings={toggleSettings}
         onToggleKnowledge={toggleKnowledge}
-        isDragging={isDragging}
         isSidebarOpen={isSidebarOpen}
-        isSettingsOpen={isSettingsOpen}
         isKnowledgeOpen={activeView === 'knowledge'}
       />
 
-      {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar - Conversation List */}
+      {/* Body — sidebar + main content */}
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar */}
         {isSidebarOpen && (
-          <div className="w-[200px] flex-shrink-0 border-r border-gray-200 bg-white/90">
+          <div className="w-[280px] flex-shrink-0 border-r border-zs-border bg-zs-bg-secondary">
             <ConversationList />
           </div>
         )}
 
-        {/* Main panel - Chat / Knowledge / Settings */}
-        <div className="flex-1 overflow-hidden bg-white">
-          {isSettingsOpen ? (
-            <SettingsPanel />
-          ) : activeView === 'knowledge' ? (
-            <KnowledgePanel />
-          ) : (
-            <ChatPanel />
-          )}
+        {/* Main content */}
+        <div className="flex-1 min-h-0 bg-zs-bg-primary">
+          {activeView === 'knowledge' ? <KnowledgePanel /> : <ChatPanel />}
         </div>
       </div>
     </div>

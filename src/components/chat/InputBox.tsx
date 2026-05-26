@@ -54,10 +54,10 @@ export function InputBox({ onSend, isLoading, disabled = false }: InputBoxProps)
     ? '网络连接已断开...'
     : isLoading
       ? '正在生成回复...'
-      : 'Ask a question...';
+      : 'Ask a question about your research...';
 
   return (
-    <div className="flex items-end space-x-2">
+    <div className="flex items-center gap-2 bg-zs-bg-tertiary rounded-xl border border-zs-border px-3 py-2 focus-within:border-zs-accent transition-colors">
       <textarea
         ref={textareaRef}
         value={input}
@@ -65,13 +65,13 @@ export function InputBox({ onSend, isLoading, disabled = false }: InputBoxProps)
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={isDisabled}
-        className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex-1 resize-none bg-transparent text-zs-text-primary placeholder:text-zs-text-secondary text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
         rows={1}
       />
       <XulButton
         onClick={handleSubmit}
         disabled={isDisabled || !input.trim()}
-        className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="bg-zs-accent text-white rounded-full w-8 h-8 flex items-center justify-center hover:opacity-90 transition-opacity flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Icon name="send" className="h-4 w-4" />
       </XulButton>

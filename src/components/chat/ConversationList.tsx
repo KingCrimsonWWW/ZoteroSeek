@@ -103,10 +103,10 @@ function ConversationItem({
 
   return (
     <div
-      className={`group relative flex items-center rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+      className={`group relative flex items-center px-3 py-2 rounded-lg cursor-pointer transition-colors ${
         isActive
-          ? 'bg-blue-50 text-blue-700'
-          : 'text-gray-700 hover:bg-gray-100'
+          ? 'bg-zs-accent text-white'
+          : 'hover:bg-zs-accent-subtle transition-colors text-zs-text-primary'
       }`}
       onClick={() => onSelect(conversation.id)}
       onDoubleClick={handleDoubleClick}
@@ -129,8 +129,8 @@ function ConversationItem({
           />
         ) : (
           <>
-            <p className="truncate text-sm font-medium">{conversation.title}</p>
-            <p className={`text-xs ${isActive ? 'text-blue-500' : 'text-gray-400'}`}>
+            <p className="truncate text-sm">{conversation.title}</p>
+            <p className={`text-xs ${isActive ? 'text-white/70' : 'text-zs-text-secondary'}`}>
               {formatTime(conversation.updatedAt)}
             </p>
           </>
@@ -139,10 +139,10 @@ function ConversationItem({
 
       {/* Action buttons */}
       {!isEditing && (
-        <div className="ml-2 flex flex-shrink-0 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="ml-2 flex flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <XulButton
             onClick={handleDelete}
-            className="rounded p-1 text-gray-400 hover:text-red-500 hover:bg-red-50"
+            className="rounded p-1 text-zs-text-secondary hover:text-red-400"
             title="Delete"
           >
             <Icon name="trash" className="h-3.5 w-3.5" />
@@ -211,10 +211,10 @@ export function ConversationList({ onSelect }: ConversationListProps) {
     <div className="flex h-full flex-col">
       {/* Header with new conversation button */}
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-        <h3 className="text-sm font-semibold text-gray-700">Conversations</h3>
+        <h3 className="text-sm font-medium text-zs-text-primary">Conversations</h3>
         <XulButton
           onClick={handleNewConversation}
-          className="flex items-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+          className="bg-zs-accent text-white rounded-lg px-3 py-2 text-sm w-full hover:opacity-90 transition-opacity"
         >
           <Icon name="plus" className="mr-1 h-3.5 w-3.5" />
           New

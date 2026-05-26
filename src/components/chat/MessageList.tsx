@@ -22,11 +22,10 @@ function isError(message: Message): boolean {
 export function MessageList({ messages, isLoading }: MessageListProps) {
   if (messages.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-gray-500">
+      <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <Icon name="chat" className="mx-auto mb-4 h-12 w-12" />
-          <p className="text-sm">Start a conversation with ZoteroSeek</p>
-          <p className="mt-1 text-xs">Ask questions about your research</p>
+          <Icon name="chat" className="mx-auto mb-4 h-12 w-12 text-zs-text-secondary" />
+          <p className="text-base text-zs-text-secondary">Ask ZoteroSeek about your papers, notes, and research.</p>
         </div>
       </div>
     );
@@ -43,19 +42,19 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] rounded-lg px-4 py-2 ${
+              className={`max-w-[80%] rounded-2xl px-4 py-2 ${
                 isErrorMessage
                   ? 'border border-red-200 bg-red-50 text-red-700'
                   : message.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-800'
+                    ? 'bg-zs-accent-subtle text-zs-text-primary'
+                    : 'bg-zs-bg-secondary text-zs-text-primary'
               }`}
             >
               {/* 错误消息显示图标 */}
               {isErrorMessage && (
                 <Icon name="error" className="mb-1 inline-block h-4 w-4 text-red-500" />
               )}
-              <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+              <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{message.content}</p>
               <p className="mt-1 text-xs opacity-70">
                 {new Date(message.timestamp).toLocaleTimeString()}
               </p>

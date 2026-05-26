@@ -92,7 +92,7 @@ export function ChatPanel() {
         {isLoading && <StopButton onClick={stopGeneration} />}
 
         {/* Input area */}
-        <div className="border-t border-gray-200 bg-white p-3">
+        <div className="border-t border-zs-border bg-zs-bg-primary p-3">
           <InputBox onSend={handleSend} isLoading={isLoading} disabled={isOffline} />
         </div>
       </div>
