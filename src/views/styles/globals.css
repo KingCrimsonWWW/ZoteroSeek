@@ -48,3 +48,9 @@
     transform: translateY(0);
   }
 }
+
+/* Popup entry point fallback background */
+#zoteroseek-entry-point {
+  background: #eff6ff;
+  min-height: 100vh;
+}
