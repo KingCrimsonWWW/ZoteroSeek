@@ -57,7 +57,7 @@ export function InputBox({ onSend, isLoading, disabled = false }: InputBoxProps)
       : 'Ask a question about your research...';
 
   return (
-    <div className="flex items-center gap-2 bg-zs-bg-tertiary rounded-xl border border-zs-border px-3 py-2 focus-within:border-zs-accent transition-colors">
+    <div className="flex items-center gap-2 bg-zs-bg-input rounded-xl border border-zs-border px-3 py-2 focus-within:border-zs-accent transition-colors">
       <textarea
         ref={textareaRef}
         value={input}

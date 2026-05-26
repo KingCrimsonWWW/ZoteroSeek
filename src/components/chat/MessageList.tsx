@@ -47,7 +47,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                   ? 'border border-red-200 bg-red-50 text-red-700'
                   : message.role === 'user'
                     ? 'bg-zs-accent-subtle text-zs-text-primary'
-                    : 'bg-zs-bg-secondary text-zs-text-primary'
+                    : 'bg-zs-bg-card text-zs-text-primary'
               }`}
             >
               {/* 错误消息显示图标 */}

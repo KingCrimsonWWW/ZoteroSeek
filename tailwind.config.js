@@ -5,10 +5,23 @@ module.exports = {
     extend: {
       colors: {
         'zs': {
-          'bg': { 'primary': '#1a1a1a', 'secondary': '#242424', 'tertiary': '#2a2a2a', 'header': 'rgba(26,26,26,0.85)' },
-          'text': { 'primary': '#e5e5e5', 'secondary': '#888888' },
-          'accent': { 'DEFAULT': '#4F7CFF', 'subtle': 'rgba(79,124,255,0.15)' },
-          'border': '#333333',
+          'bg': {
+            'primary': '#111113',
+            'sidebar': '#18181b',
+            'card': '#1f1f23',
+            'input': '#1a1a1e',
+            'header': 'rgba(18,18,18,0.85)',
+          },
+          'text': {
+            'primary': '#ececec',
+            'secondary': '#888888',
+          },
+          'accent': {
+            'DEFAULT': '#5B7FFF',
+            'hover': '#4A6EE0',
+            'subtle': 'rgba(91,127,255,0.12)',
+          },
+          'border': 'rgba(255,255,255,0.06)',
         },
         primary: {
           50: '#eff6ff',

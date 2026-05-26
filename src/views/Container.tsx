@@ -60,7 +60,7 @@ export function Container({ onContainerHide }: ContainerProps) {
       <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
         {isSidebarOpen && (
-          <div className="w-[280px] flex-shrink-0 border-r border-zs-border bg-zs-bg-secondary">
+          <div className="w-[280px] flex-shrink-0 border-r border-zs-border bg-zs-bg-sidebar">
             <ConversationList />
           </div>
         )}
