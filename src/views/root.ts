@@ -102,12 +102,14 @@ export class ReactRoot {
     const left = win.screenX + win.outerWidth / 2 - dialogWidth / 2;
     const top = win.screenY + win.outerHeight / 2 - dialogHeight / 2;
 
-    const dialog = (win as any).openDialog(
+    const dialog = Services.ww.openWindow(
+      null,
       `chrome://${config.addonRef}/content/popup.xhtml`,
       `${config.addonRef}-window`,
       `chrome,titlebar,status,width=${dialogWidth},height=${dialogHeight},left=${left},top=${top},resizable=yes`,
       windowArgs,
     );
+    if (!dialog) return;
 
     this.dialog = dialog;
 
@@ -132,9 +134,6 @@ export class ReactRoot {
       },
       { once: true },
     );
-
-    // Force parent window repaint to clear GPU compositing artifacts
-    win.requestAnimationFrame(() => {});
 
     // Cleanup on dialog close
     dialog.addEventListener(

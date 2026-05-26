@@ -60,6 +60,20 @@ declare const Components: {
   };
 };
 
+// Mozilla Services (available in Zotero's privileged context)
+declare const Services: {
+  ww: {
+    openWindow(
+      parent: Window | null,
+      url: string,
+      name: string,
+      features: string,
+      args: any,
+    ): Window | null;
+  };
+  [key: string]: any;
+};
+
 // GlobalThis extensions for Zotero plugin context
 declare const _globalThis: typeof globalThis & {
   Zotero: typeof Zotero;
