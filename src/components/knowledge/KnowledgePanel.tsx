@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { XulButton } from '@/components/common/XulButton';
 
 /** 搜索结果条目 */
 interface SearchResult {
@@ -136,13 +137,13 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
         </div>
 
         {/* 索引按钮 */}
-        <button
+        <XulButton
           onClick={handleStartIndexing}
           disabled={isIndexing}
           className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
         >
           {isIndexing ? '索引中...' : indexProgress === 100 ? '重新索引' : '索引文献库'}
-        </button>
+        </XulButton>
       </div>
 
       {/* ═══════ 搜索 ═══════ */}
@@ -159,13 +160,13 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
             placeholder="输入搜索关键词..."
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
-          <button
+          <XulButton
             onClick={handleSearch}
             disabled={!searchQuery.trim()}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
           >
             搜索
-          </button>
+          </XulButton>
         </div>
       </div>
 
@@ -188,7 +189,7 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
           <ul className="space-y-3">
             {searchResults.map((result) => (
               <li key={result.id}>
-                <button
+                <XulButton
                   onClick={() => handleResultClick(result)}
                   className="w-full rounded-lg border border-gray-200 p-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
                 >
@@ -208,7 +209,7 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
                       ? result.snippet.slice(0, 150) + '...'
                       : result.snippet}
                   </p>
-                </button>
+                </XulButton>
               </li>
             ))}
           </ul>

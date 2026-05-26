@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { XulButton } from '@/components/common/XulButton';
 import { useModelStore } from '@/stores/modelStore';
 
 export function SettingsPanel() {
@@ -197,13 +198,13 @@ export function SettingsPanel() {
       </div>
 
       {/* 保存按钮 */}
-      <button
+      <XulButton
         onClick={handleSave}
         disabled={saved}
         className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
       >
         {saved ? '已保存 ✓' : '保存设置'}
-      </button>
+      </XulButton>
 
       {/* 保存的配置管理 */}
       <div className="border-t border-gray-200 pt-4">
@@ -219,13 +220,13 @@ export function SettingsPanel() {
             placeholder="配置名称"
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
-          <button
+          <XulButton
             onClick={handleSaveAsNew}
             disabled={!configName.trim()}
             className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50"
           >
             保存为新
-          </button>
+          </XulButton>
         </div>
 
         {/* 已保存配置选择器 */}
@@ -253,20 +254,20 @@ export function SettingsPanel() {
 
             {/* 加载 / 删除按钮 */}
             <div className="mt-2 flex gap-2">
-              <button
+              <XulButton
                 onClick={handleLoadConfig}
                 disabled={!selectedSavedName}
                 className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
               >
                 加载
-              </button>
-              <button
+              </XulButton>
+              <XulButton
                 onClick={handleDeleteConfig}
                 disabled={!selectedSavedName}
                 className="flex-1 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
               >
                 删除
-              </button>
+              </XulButton>
             </div>
           </>
         )}

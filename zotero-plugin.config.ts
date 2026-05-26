@@ -37,7 +37,6 @@ export default defineConfig({
           }),
         ],
         bundle: true,
-        external: ['react', 'react-dom'],
         target: "firefox115",
         outfile: `.scaffold/build/addon/chrome/content/scripts/${pkg.config.addonRef}.js`,
       },

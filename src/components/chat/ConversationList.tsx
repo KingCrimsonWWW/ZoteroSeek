@@ -6,6 +6,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '@/stores/chatStore';
 import type { ConversationMeta } from '@/typings';
+import { XulButton } from '@/components/common/XulButton';
+import { Icon } from '@/components/common/Icon';
 
 interface ConversationListProps {
   /** Callback when a conversation is selected */
@@ -83,18 +85,18 @@ function ConversationItem({
     }
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleDelete = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
     setShowConfirm(true);
   };
 
-  const confirmDelete = (e: React.MouseEvent) => {
+  const confirmDelete = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
     onDelete(conversation.id);
     setShowConfirm(false);
   };
 
-  const cancelDelete = (e: React.MouseEvent) => {
+  const cancelDelete = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
     setShowConfirm(false);
   };
@@ -110,19 +112,7 @@ function ConversationItem({
       onDoubleClick={handleDoubleClick}
     >
       {/* Conversation icon */}
-      <svg
-        className="mr-3 h-4 w-4 flex-shrink-0 opacity-50"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={1.5}
-          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-        />
-      </svg>
+      <Icon name="chat" className="mr-3 h-4 w-4 flex-shrink-0 opacity-50" />
 
       {/* Title and time */}
       <div className="min-w-0 flex-1">
@@ -150,21 +140,13 @@ function ConversationItem({
       {/* Action buttons */}
       {!isEditing && (
         <div className="ml-2 flex flex-shrink-0 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            type="button"
+          <XulButton
             onClick={handleDelete}
             className="rounded p-1 text-gray-400 hover:text-red-500 hover:bg-red-50"
             title="Delete"
           >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
-            </svg>
-          </button>
+            <Icon name="trash" className="h-3.5 w-3.5" />
+          </XulButton>
         </div>
       )}
 
@@ -176,20 +158,18 @@ function ConversationItem({
         >
           <p className="mb-2 text-xs text-gray-600">Delete this conversation?</p>
           <div className="flex space-x-2">
-            <button
-              type="button"
+            <XulButton
               onClick={confirmDelete}
               className="flex-1 rounded bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600"
             >
               Delete
-            </button>
-            <button
-              type="button"
+            </XulButton>
+            <XulButton
               onClick={cancelDelete}
               className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
             >
               Cancel
-            </button>
+            </XulButton>
           </div>
         </div>
       )}
@@ -232,16 +212,13 @@ export function ConversationList({ onSelect }: ConversationListProps) {
       {/* Header with new conversation button */}
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <h3 className="text-sm font-semibold text-gray-700">Conversations</h3>
-        <button
-          type="button"
+        <XulButton
           onClick={handleNewConversation}
           className="flex items-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
         >
-          <svg className="mr-1 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <Icon name="plus" className="mr-1 h-3.5 w-3.5" />
           New
-        </button>
+        </XulButton>
       </div>
 
       {/* Conversation list */}
@@ -249,19 +226,7 @@ export function ConversationList({ onSelect }: ConversationListProps) {
         {conversations.length === 0 ? (
           <div className="flex h-full items-center justify-center text-gray-400">
             <div className="text-center">
-              <svg
-                className="mx-auto mb-3 h-10 w-10"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                />
-              </svg>
+              <Icon name="chat" className="mx-auto mb-3 h-10 w-10" />
               <p className="text-xs">No conversations yet</p>
             </div>
           </div>

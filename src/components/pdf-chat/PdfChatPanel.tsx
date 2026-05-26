@@ -12,6 +12,8 @@ import { InputBox } from '@/components/chat/InputBox';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useChatBase } from '@/hooks/useChatBase';
 import { getSelectedItems, getItemMetadata } from '@/apis/zotero';
+import { XulButton } from '@/components/common/XulButton';
+import { Icon } from '@/components/common/Icon';
 import { createLogger } from '@/utils/logger';
 
 const logger = createLogger('PdfChatPanel');
@@ -28,15 +30,13 @@ interface PdfInfo {
 function StopButton({ onClick }: { onClick: () => void }) {
   return (
     <div className="flex justify-center py-2">
-      <button
+      <XulButton
         onClick={onClick}
         className="flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-1.5 text-sm text-gray-600 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
       >
-        <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-          <rect x="6" y="6" width="12" height="12" rx="2" />
-        </svg>
+        <Icon name="stop" className="h-3.5 w-3.5" />
         停止生成
-      </button>
+      </XulButton>
     </div>
   );
 }
@@ -97,13 +97,14 @@ export function PdfChatPanel() {
         <header className="border-b border-gray-200 bg-white px-4 py-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium text-gray-700">PDF 对话</h2>
-            <button
+            <XulButton
               onClick={handleSelectPdf}
               disabled={selecting}
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
             >
+              <Icon name="document" className="h-3.5 w-3.5" />
               {selecting ? '选择中...' : '选择 PDF'}
-            </button>
+            </XulButton>
           </div>
 
           {/* 已选择 PDF 的信息卡片 */}
@@ -111,19 +112,7 @@ export function PdfChatPanel() {
             <div className="mt-2 animate-fade-in rounded-lg border border-blue-100 bg-blue-50 p-3">
               <div className="flex items-start gap-2.5">
                 {/* PDF 图标 */}
-                <svg
-                  className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                  />
-                </svg>
+                <Icon name="document" className="mt-0.5 h-4 w-4 flex-shrink-0" />
 
                 <div className="min-w-0 flex-1">
                   {/* 标题 */}
@@ -158,19 +147,7 @@ export function PdfChatPanel() {
             /* 未选择 PDF 时的占位提示 */
             <div className="flex h-full items-center justify-center text-gray-400">
               <div className="text-center">
-                <svg
-                  className="mx-auto mb-4 h-12 w-12"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                  />
-                </svg>
+                <Icon name="document" className="mx-auto mb-4 h-12 w-12" />
                 <p className="text-sm">尚未选择 PDF 文档</p>
                 <p className="mt-1 text-xs">
                   请先点击「选择 PDF」按钮选择 Zotero 中的条目，然后开始对话

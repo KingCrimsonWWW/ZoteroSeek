@@ -4,6 +4,8 @@
  */
 
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Icon } from './common/Icon';
+import { XulButton } from './common/XulButton';
 
 interface ErrorBoundaryProps {
   /** 子组件 */
@@ -55,19 +57,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div className="flex h-full flex-col items-center justify-center p-6 text-center">
           {/* 错误图标 */}
-          <svg
-            className="mb-4 h-16 w-16 text-red-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-            />
-          </svg>
+          <Icon name="alert" className="mb-4 h-16 w-16 text-red-400" />
 
           {/* 错误标题 */}
           <h3 className="mb-2 text-lg font-medium text-gray-900">
@@ -83,12 +73,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           </p>
 
           {/* 重试按钮 */}
-          <button
+          <XulButton
             onClick={this.handleReset}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             重新加载
-          </button>
+          </XulButton>
         </div>
       );
     }

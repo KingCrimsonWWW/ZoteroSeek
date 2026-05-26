@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Message } from '../../typings';
+import { Icon } from '../common/Icon';
 
 interface MessageListProps {
   messages: Message[];
@@ -23,19 +24,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
     return (
       <div className="flex h-full items-center justify-center text-gray-400">
         <div className="text-center">
-          <svg
-            className="mx-auto mb-4 h-12 w-12"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-            />
-          </svg>
+          <Icon name="chat" className="mx-auto mb-4 h-12 w-12" />
           <p className="text-sm">Start a conversation with ZoteroSeek</p>
           <p className="mt-1 text-xs">Ask questions about your research</p>
         </div>
@@ -64,19 +53,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
             >
               {/* 错误消息显示图标 */}
               {isErrorMessage && (
-                <svg
-                  className="mb-1 inline-block h-4 w-4 text-red-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-                  />
-                </svg>
+                <Icon name="error" className="mb-1 inline-block h-4 w-4 text-red-500" />
               )}
               <p className="whitespace-pre-wrap text-sm">{message.content}</p>
               <p className="mt-1 text-xs opacity-70">
