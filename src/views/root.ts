@@ -72,6 +72,11 @@ export class ReactRoot {
     const toolbarNode = this.document.getElementById('zotero-tb-note-add');
     if (toolbarNode) {
       toolbarNode.after(btn);
+    } else {
+      const toolbar = this.document.getElementById('zotero-items-toolbar');
+      if (toolbar) {
+        toolbar.appendChild(btn);
+      }
     }
   }
 
