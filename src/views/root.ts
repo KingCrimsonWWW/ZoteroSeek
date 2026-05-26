@@ -133,6 +133,9 @@ export class ReactRoot {
       { once: true },
     );
 
+    // Force parent window repaint to clear GPU compositing artifacts
+    win.requestAnimationFrame(() => {});
+
     // Cleanup on dialog close
     dialog.addEventListener(
       'dialogclosing',

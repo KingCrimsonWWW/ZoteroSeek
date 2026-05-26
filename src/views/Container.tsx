@@ -55,7 +55,7 @@ export function Container({ onContainerHide }: ContainerProps) {
 
   return (
     <div
-      className="fixed inset-0 flex h-full w-full flex-col bg-gradient-to-br from-blue-50 to-purple-50"
+      className="flex h-full w-full flex-col bg-gradient-to-br from-blue-50 to-purple-50"
     >
       {/* Header with drag handle */}
       <Header
