@@ -32,6 +32,15 @@ function formatTime(date: Date): string {
   return d.toLocaleDateString();
 }
 
+/** Group label for conversations */
+function TimeGroupLabel({ label }: { label: string }) {
+  return (
+    <div className="text-[11px] text-[#888] px-3 py-2">
+      {label}
+    </div>
+  );
+}
+
 /**
  * Single conversation item component
  */
@@ -103,17 +112,14 @@ function ConversationItem({
 
   return (
     <div
-      className={`group relative flex items-center px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+      className={`group relative flex items-center h-9 px-3 text-[13px] rounded-lg mx-2 cursor-pointer transition-colors ${
         isActive
-          ? 'bg-zs-accent text-white'
-          : 'hover:bg-zs-accent-subtle transition-colors text-zs-text-primary'
+          ? 'bg-[rgba(91,127,255,0.12)] text-[#5B7FFF]'
+          : 'hover:bg-white/[0.04] text-[#ececec]'
       }`}
       onClick={() => onSelect(conversation.id)}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Conversation icon */}
-      <Icon name="chat" className="mr-3 h-4 w-4 flex-shrink-0 opacity-50" />
-
       {/* Title and time */}
       <div className="min-w-0 flex-1">
         {isEditing ? (
@@ -129,10 +135,7 @@ function ConversationItem({
           />
         ) : (
           <>
-            <p className="truncate text-sm">{conversation.title}</p>
-            <p className={`text-xs ${isActive ? 'text-white/70' : 'text-zs-text-secondary'}`}>
-              {formatTime(conversation.updatedAt)}
-            </p>
+            <p className="truncate text-[13px]">{conversation.title}</p>
           </>
         )}
       </div>
@@ -142,7 +145,7 @@ function ConversationItem({
         <div className="ml-2 flex flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <XulButton
             onClick={handleDelete}
-            className="rounded p-1 text-zs-text-secondary hover:text-red-400"
+            className="rounded p-1 text-[#888] hover:text-red-400"
             title="Delete"
           >
             <Icon name="trash" className="h-3.5 w-3.5" />
@@ -153,10 +156,10 @@ function ConversationItem({
       {/* Delete confirmation popover */}
       {showConfirm && (
         <div
-          className="absolute right-0 top-full z-10 mt-1 w-48 rounded-lg border border-gray-200 bg-white p-2 shadow-lg"
+          className="absolute right-0 top-full z-10 mt-1 w-48 rounded-lg border border-white/[0.06] bg-[#1f1f23] p-2 shadow-lg"
           onClick={(e) => e.stopPropagation()}
         >
-          <p className="mb-2 text-xs text-gray-600">Delete this conversation?</p>
+          <p className="mb-2 text-xs text-[#ececec]">Delete this conversation?</p>
           <div className="flex space-x-2">
             <XulButton
               onClick={confirmDelete}
@@ -166,7 +169,7 @@ function ConversationItem({
             </XulButton>
             <XulButton
               onClick={cancelDelete}
-              className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              className="flex-1 rounded border border-white/[0.06] px-2 py-1 text-xs text-[#888] hover:bg-white/[0.04]"
             >
               Cancel
             </XulButton>
@@ -209,38 +212,37 @@ export function ConversationList({ onSelect }: ConversationListProps) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header with new conversation button */}
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-        <h3 className="text-sm font-medium text-zs-text-primary">Conversations</h3>
-        <XulButton
-          onClick={handleNewConversation}
-          className="bg-zs-accent text-white rounded-lg px-3 py-2 text-sm w-full hover:opacity-90 transition-opacity"
-        >
-          <Icon name="plus" className="mr-1 h-3.5 w-3.5" />
-          New
-        </XulButton>
-      </div>
+      {/* New conversation button */}
+      <button
+        onClick={handleNewConversation}
+        className="mx-3 mt-3 mb-2 border border-white/[0.06] rounded-lg px-3 py-2 text-[13px] text-[#888] hover:bg-white/[0.04] w-full text-left transition-colors"
+      >
+        + New conversation
+      </button>
 
       {/* Conversation list */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-gray-400">
+          <div className="flex h-full items-center justify-center">
             <div className="text-center">
-              <Icon name="chat" className="mx-auto mb-3 h-10 w-10" />
-              <p className="text-xs">No conversations yet</p>
+              <Icon name="chat" className="mx-auto mb-3 h-10 w-10 text-[#888]" />
+              <p className="text-xs text-[#888]">No conversations yet</p>
             </div>
           </div>
         ) : (
-          conversations.map((conv) => (
-            <ConversationItem
-              key={conv.id}
-              conversation={conv}
-              isActive={conv.id === currentConversationId}
-              onSelect={handleSelect}
-              onRename={handleRename}
-              onDelete={handleDelete}
-            />
-          ))
+          <div>
+            <TimeGroupLabel label="Today" />
+            {conversations.map((conv) => (
+              <ConversationItem
+                key={conv.id}
+                conversation={conv}
+                isActive={conv.id === currentConversationId}
+                onSelect={handleSelect}
+                onRename={handleRename}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>

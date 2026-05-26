@@ -1,6 +1,6 @@
 /**
  * Header component for ZoteroSeek panel
- * Minimal frosted glass header with accent color.
+ * Compact restrained header (56px) with frosted glass effect.
  */
 
 import React from 'react';
@@ -26,14 +26,14 @@ export function Header({
   isKnowledgeOpen,
 }: HeaderProps) {
   return (
-    <div className="flex h-14 items-center justify-between bg-zs-bg-header backdrop-blur-xl border-b border-zs-border px-4">
+    <div className="flex h-14 items-center justify-between bg-[rgba(18,18,18,0.85)] backdrop-blur-md border-b border-white/[0.06] px-4">
       <div className="flex items-center gap-2">
         <Icon name="logo" className="h-5 w-5" />
-        <span className="text-sm font-medium text-zs-text-primary">ZoteroSeek</span>
-        <span className="ml-2 text-xs text-zs-accent">AI Ready</span>
+        <span className="text-sm font-semibold text-[#ececec]">ZoteroSeek</span>
+        <span className="ml-2 text-[10px] text-[#5B7FFF]">AI Ready</span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         {/* Sidebar toggle */}
         {onToggleSidebar && (
           <XulButton
@@ -42,7 +42,7 @@ export function Header({
               e.stopPropagation();
               onToggleSidebar();
             }}
-            className={`rounded-lg p-1.5 text-zs-text-secondary hover:text-zs-text-primary transition-colors ${isSidebarOpen ? 'text-zs-accent' : ''}`}
+            className={`h-8 w-8 rounded-lg text-[#888] hover:text-[#ececec] hover:bg-white/[0.04] transition-colors ${isSidebarOpen ? 'text-[#5B7FFF]' : ''}`}
             title="Toggle Conversations"
           >
             <Icon name="menu" className="h-[18px] w-[18px]" />
@@ -57,7 +57,7 @@ export function Header({
               e.stopPropagation();
               onToggleKnowledge();
             }}
-            className={`rounded-lg p-1.5 text-zs-text-secondary hover:text-zs-text-primary transition-colors ${isKnowledgeOpen ? 'text-zs-accent' : ''}`}
+            className={`h-8 w-8 rounded-lg text-[#888] hover:text-[#ececec] hover:bg-white/[0.04] transition-colors ${isKnowledgeOpen ? 'text-[#5B7FFF]' : ''}`}
             title="Knowledge Base"
           >
             <Icon name="book" className="h-[18px] w-[18px]" />
@@ -72,7 +72,7 @@ export function Header({
               e.stopPropagation();
               onToggleSettings();
             }}
-            className="rounded-lg p-1.5 text-zs-text-secondary hover:text-zs-text-primary transition-colors"
+            className="h-8 w-8 rounded-lg text-[#888] hover:text-[#ececec] hover:bg-white/[0.04] transition-colors"
             title="Settings"
           >
             <Icon name="gear" className="h-[18px] w-[18px]" />
@@ -86,7 +86,7 @@ export function Header({
             e.stopPropagation();
             onClose();
           }}
-          className="rounded-lg p-1.5 text-zs-text-secondary hover:text-zs-text-primary transition-colors"
+          className="h-8 w-8 rounded-lg text-[#888] hover:text-[#ececec] hover:bg-white/[0.04] transition-colors"
           title="Close"
         >
           <Icon name="close" className="h-[18px] w-[18px]" />

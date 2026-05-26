@@ -1,8 +1,8 @@
 /**
  * Main container component for ZoteroSeek
  *
- * Three-section layout: Header → body row (Sidebar + Chat) → Input
- * Dark theme using zs-* design tokens.
+ * Structured layout: Header → flex-1 row (Sidebar + Chat).
+ * Dark theme with raw hex values.
  */
 
 import React, { useState, useCallback } from 'react';
@@ -46,7 +46,7 @@ export function Container({ onContainerHide }: ContainerProps) {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-zs-bg-primary text-zs-text-primary overflow-hidden">
+    <div className="flex h-full w-full flex-col bg-[#111113] overflow-hidden">
       {/* Header — fixed at top */}
       <Header
         onClose={togglePanel}
@@ -60,13 +60,13 @@ export function Container({ onContainerHide }: ContainerProps) {
       <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
         {isSidebarOpen && (
-          <div className="w-[280px] flex-shrink-0 border-r border-zs-border bg-zs-bg-sidebar">
+          <div className="w-[280px] flex-shrink-0 bg-[#18181b] border-r border-white/[0.06]">
             <ConversationList />
           </div>
         )}
 
         {/* Main content */}
-        <div className="flex-1 min-h-0 bg-zs-bg-primary">
+        <div className="flex-1 min-h-0 bg-[#111113]">
           {activeView === 'knowledge' ? <KnowledgePanel /> : <ChatPanel />}
         </div>
       </div>

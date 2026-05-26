@@ -19,13 +19,33 @@ function isError(message: Message): boolean {
   return message.metadata?.isError === true;
 }
 
+/** Suggested actions for the welcome screen */
+const SUGGESTED_ACTIONS = [
+  'Summarize Papers',
+  'Find Related Work',
+  'Explain Equations',
+  'Organize Notes',
+];
+
 export function MessageList({ messages, isLoading }: MessageListProps) {
   if (messages.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <Icon name="chat" className="mx-auto mb-4 h-12 w-12 text-zs-text-secondary" />
-          <p className="text-base text-zs-text-secondary">Ask ZoteroSeek about your papers, notes, and research.</p>
+          <Icon name="chat" className="mx-auto mb-4 h-12 w-12 text-[#888]" />
+          <p className="text-[15px] text-[#888]">Ask ZoteroSeek about your papers, notes, and research.</p>
+
+          {/* Suggested action buttons */}
+          <div className="grid grid-cols-2 gap-2 mt-4 max-w-[400px] mx-auto">
+            {SUGGESTED_ACTIONS.map((action) => (
+              <button
+                key={action}
+                className="border border-white/[0.06] rounded-lg px-4 py-2 text-[13px] text-[#888] hover:bg-white/[0.04] hover:text-[#ececec] transition-colors duration-150 cursor-pointer"
+              >
+                {action}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -46,8 +66,8 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                 isErrorMessage
                   ? 'border border-red-200 bg-red-50 text-red-700'
                   : message.role === 'user'
-                    ? 'bg-zs-accent-subtle text-zs-text-primary'
-                    : 'bg-zs-bg-card text-zs-text-primary'
+                    ? 'bg-[rgba(91,127,255,0.12)] text-[#ececec]'
+                    : 'bg-[#1f1f23] text-[#ececec]'
               }`}
             >
               {/* 错误消息显示图标 */}
@@ -65,11 +85,11 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
 
       {isLoading && (
         <div className="flex justify-start">
-          <div className="rounded-lg bg-gray-100 px-4 py-2">
+          <div className="rounded-lg bg-[#1f1f23] px-4 py-2">
             <div className="flex space-x-2">
-              <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400" />
-              <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400" style={{ animationDelay: '0.1s' }} />
-              <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400" style={{ animationDelay: '0.2s' }} />
+              <div className="h-2 w-2 animate-bounce rounded-full bg-[#888]" />
+              <div className="h-2 w-2 animate-bounce rounded-full bg-[#888]" style={{ animationDelay: '0.1s' }} />
+              <div className="h-2 w-2 animate-bounce rounded-full bg-[#888]" style={{ animationDelay: '0.2s' }} />
             </div>
           </div>
         </div>

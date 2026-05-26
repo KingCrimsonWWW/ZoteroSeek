@@ -31,7 +31,7 @@ function StopButton({ onClick }: { onClick: () => void }) {
     <div className="flex justify-center py-2">
       <XulButton
         onClick={onClick}
-        className="flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-1.5 text-sm text-gray-600 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className="flex items-center gap-2 rounded-full border border-white/[0.06] bg-[#1f1f23] px-4 py-1.5 text-sm text-[#ececec] hover:bg-white/[0.04] focus:outline-none"
       >
         <Icon name="stop" className="h-3.5 w-3.5" />
         停止生成
@@ -92,7 +92,7 @@ export function ChatPanel() {
         {isLoading && <StopButton onClick={stopGeneration} />}
 
         {/* Input area */}
-        <div className="border-t border-zs-border bg-zs-bg-primary p-3">
+        <div className="border-t border-white/[0.06] bg-[#111113] p-3">
           <InputBox onSend={handleSend} isLoading={isLoading} disabled={isOffline} />
         </div>
       </div>

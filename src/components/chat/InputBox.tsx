@@ -1,6 +1,7 @@
 /**
  * Input box component for ZoteroSeek
  * 支持禁用状态（离线时）和防抖保护
+ * Round send button with clean input row.
  */
 
 import React, { useState, useRef, useCallback } from 'react';
@@ -54,27 +55,37 @@ export function InputBox({ onSend, isLoading, disabled = false }: InputBoxProps)
     ? '网络连接已断开...'
     : isLoading
       ? '正在生成回复...'
-      : 'Ask a question about your research...';
+      : 'Ask about your research...';
 
   return (
-    <div className="flex items-center gap-2 bg-zs-bg-input rounded-xl border border-zs-border px-3 py-2 focus-within:border-zs-accent transition-colors">
-      <textarea
-        ref={textareaRef}
-        value={input}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        disabled={isDisabled}
-        className="flex-1 resize-none bg-transparent text-zs-text-primary placeholder:text-zs-text-secondary text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-        rows={1}
-      />
-      <XulButton
-        onClick={handleSubmit}
-        disabled={isDisabled || !input.trim()}
-        className="bg-zs-accent text-white rounded-full w-8 h-8 flex items-center justify-center hover:opacity-90 transition-opacity flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <Icon name="send" className="h-4 w-4" />
-      </XulButton>
+    <div className="max-w-[900px] mx-auto w-full">
+      <div className="flex items-center gap-2 bg-[#1a1a1e] rounded-[14px] border border-white/[0.06] focus-within:border-[#5B7FFF] px-4 h-[52px] transition-colors duration-150">
+        {/* Attachment / plus button */}
+        <XulButton className="h-8 w-8 rounded-lg text-[#888] hover:text-[#ececec] hover:bg-white/[0.04] flex-shrink-0" title="Attach">
+          <Icon name="plus" className="h-4 w-4" />
+        </XulButton>
+
+        {/* Text input */}
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={isDisabled}
+          className="flex-1 bg-transparent text-[15px] text-[#ececec] placeholder:text-[#888] outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+          rows={1}
+        />
+
+        {/* Send button */}
+        <XulButton
+          onClick={handleSubmit}
+          disabled={isDisabled || !input.trim()}
+          className="h-10 w-10 rounded-full bg-[#5B7FFF] text-white flex items-center justify-center hover:bg-[#4A6EE0] transition-colors duration-150 flex-shrink-0 disabled:opacity-30"
+        >
+          <Icon name="send" className="h-4 w-4" />
+        </XulButton>
+      </div>
     </div>
   );
 }
