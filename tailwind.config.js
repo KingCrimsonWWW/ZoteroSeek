@@ -4,6 +4,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        'zs': {
+          'bg': { 'primary': '#1a1a1a', 'secondary': '#242424', 'tertiary': '#2a2a2a', 'header': 'rgba(26,26,26,0.85)' },
+          'text': { 'primary': '#e5e5e5', 'secondary': '#888888' },
+          'accent': { 'DEFAULT': '#4F7CFF', 'subtle': 'rgba(79,124,255,0.15)' },
+          'border': '#333333',
+        },
         primary: {
           50: '#eff6ff',
           100: '#dbeafe',
@@ -16,6 +22,9 @@ module.exports = {
           800: '#1e40af',
           900: '#1e3a8a',
         },
+      },
+      fontFamily: {
+        'sans': ['Inter', 'SF Pro', 'system-ui', 'sans-serif'],
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in-out',
