@@ -6,6 +6,7 @@
 import React from 'react';
 import { Message } from '../../typings';
 import { Icon } from '../common/Icon';
+import { XulButton } from '../common/XulButton';
 
 interface MessageListProps {
   messages: Message[];
@@ -38,12 +39,12 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
           {/* Suggested action buttons */}
           <div className="grid grid-cols-2 gap-2 mt-4 max-w-[400px] mx-auto">
             {SUGGESTED_ACTIONS.map((action) => (
-              <button
+              <XulButton
                 key={action}
                 className="border border-white/[0.06] rounded-lg px-4 py-2 text-[13px] text-[#888] hover:bg-white/[0.04] hover:text-[#ececec] transition-colors duration-150 cursor-pointer"
               >
                 {action}
-              </button>
+              </XulButton>
             ))}
           </div>
         </div>
