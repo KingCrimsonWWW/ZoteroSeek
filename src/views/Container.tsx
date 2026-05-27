@@ -10,6 +10,7 @@ import { ChatPanel } from '@/components/chat/ChatPanel';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { KnowledgePanel } from '@/components/knowledge/KnowledgePanel';
 import { Header } from '@/components/Header';
+import { ThemeProvider } from '@/hooks/useTheme';
 import './styles/globals.css';
 
 type ActiveView = 'chat' | 'knowledge';
@@ -46,6 +47,7 @@ export function Container({ onContainerHide }: ContainerProps) {
   }
 
   return (
+    <ThemeProvider>
     <div className="flex h-full w-full flex-col bg-[#111113] overflow-hidden">
       {/* Header — fixed at top */}
       <Header
@@ -71,5 +73,6 @@ export function Container({ onContainerHide }: ContainerProps) {
         </div>
       </div>
     </div>
+    </ThemeProvider>
   );
 }
