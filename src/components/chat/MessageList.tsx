@@ -31,7 +31,7 @@ const SUGGESTED_ACTIONS = [
 export function MessageList({ messages, isLoading }: MessageListProps) {
   if (messages.length === 0) {
     return (
-      <div className="flex min-h-[200px] items-start justify-center pt-6">
+      <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <Icon name="chat" className="mx-auto mb-4 h-12 w-12 text-[#888]" />
           <p className="text-[15px] text-[#888]">Ask ZoteroSeek about your papers, notes, and research.</p>
