@@ -46,7 +46,7 @@ export function Container({ onContainerHide }: ContainerProps) {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-[#111113] overflow-hidden">
+    <div className="flex min-h-0 w-full flex-col bg-[#111113] overflow-hidden">
       {/* Header — fixed at top */}
       <Header
         onClose={togglePanel}

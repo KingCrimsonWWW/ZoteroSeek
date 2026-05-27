@@ -8,6 +8,7 @@ build/
 dist/
 *.xpi
 .scaffold/
+debug/
 
 # IDE
 .idea/
