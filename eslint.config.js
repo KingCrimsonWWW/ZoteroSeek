@@ -62,6 +62,7 @@ export default [
       'build/',
       'node_modules/',
       'addon/',
+      'plugin/',
       '.reference-*/',
       '.scaffold/',
       '.sisyphus/',
