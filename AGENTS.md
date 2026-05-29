@@ -235,108 +235,6 @@ ZOTEROSEEK_PORT=20801
 
 ---
 
-## 目录结构
-
-```
-ZoteroSeek/
-├── addon/                  # Zotero 插件资源（manifest、bootstrap、locale、icons）
-│   ├── manifest.json       # 插件清单（必须包含 strict_min_version 和 strict_max_version）
-│   ├── bootstrap.js        # 插件入口（调用 hooks）
-│   └── chrome/             # Chrome 内容（locale、icons）
-├── src/
-│   ├── __tests__/          # 测试文件（Vitest）
-│   ├── addon.ts            # Addon 类（插件实例）
-│   ├── addonHooks.ts       # 生命周期 hooks（onStartup、onMainWindowLoad 等）
-│   ├── apis/               # 外部 API 调用
-│   │   ├── llm/            # LLM 适配器（OpenAI、Anthropic、embeddings）
-│   │   └── zotero/         # Zotero API 封装
-│   ├── components/         # React 组件
-│   │   ├── chat/           # 对话界面组件（ChatPanel、ConversationList、MessageList、InputBox）
-│   │   ├── knowledge/      # 知识库组件（KnowledgePanel）
-│   │   ├── pdf-chat/       # PDF 聊天组件（PdfChatPanel）
-│   │   ├── settings/       # 设置界面组件（SettingsPanel）
-│   │   ├── ErrorBoundary.tsx
-│   │   └── Header.tsx
-│   ├── hooks/              # React Hooks（useChat、useDragging、useCrossWindowChat）
-│   ├── modules/            # 功能模块（menu、shortcut、preferences、pdfChatWindow）
-│   ├── services/           # 业务逻辑
-│   │   ├── agent/          # 已移除
-│   │   ├── memory/         # 已移除
-│   │   ├── pdf/            # PDF 文本提取（extractor）
-│   │   └── rag/            # 知识库 RAG（indexer、retriever、chatIntegration）
-│   ├── stores/             # Zustand 状态管理
-│   │   ├── chatStore.ts    # 对话状态管理（Dexie 持久化）
-│   │   ├── modelStore.ts   # 模型状态管理（Zotero.Prefs 持久化）
-│   │   └── ragStore.ts     # 知识库状态管理
-│   ├── typings/            # TypeScript 类型定义
-│   ├── utils/              # 工具函数
-│   │   ├── logger.ts       # 日志系统（使用 Zotero.log，不是 console）
-│   │   ├── locale.ts       # 国际化
-│   │   ├── prefs.ts        # Zotero.Prefs 封装
-│   │   └── http.ts         # HTTP 工具
-│   └── views/              # 视图层
-│       ├── Container.tsx   # 主容器
-│       ├── PdfChatApp.tsx  # PDF 聊天独立窗口
-│       └── styles/         # 全局样式（globals.css）
-├── zotero-plugin.config.ts # zotero-plugin-scaffold 配置
-├── scripts/                # 构建脚本
-└── typings/                # 全局类型声明（自动生成）
-```
-
----
-
-## 开发命令
-
-```bash
-npm install --legacy-peer-deps   # 安装依赖
-npm start                        # 启动开发模式
-npm run build                    # 构建插件
-npm run test                     # 运行测试
-npm run lint                     # ESLint 检查
-npm run typecheck                # TypeScript 类型检查
-npm run format                   # Prettier 格式化
-```
-
----
-
-## 关键约定
-
-### 命名规范
-- 组件文件：PascalCase（`ChatPanel.tsx`）
-- Hook 文件：camelCase，use 前缀（`useChat.ts`）
-- 工具函数文件：camelCase（`locale.ts`）
-- 类型定义文件：`index.ts` 或 `global.d.ts`
-
-### 导入顺序
-1. React 相关
-2. 第三方库
-3. 项目模块（使用 `@/` 别名）
-4. 样式文件
-
-### Zotero 全局变量
-项目使用 Zotero 插件特有的全局变量，在 `src/typings/global.d.ts` 中声明：
-- `Zotero` - Zotero 主对象
-- `ztoolkit` - 插件工具库
-- `Zotero_Tabs` - 标签页管理
-- `addon` - 插件实例
-- `_globalThis` - 全局 this
-
----
-
-## 技术栈
-
-| 类别 | 技术 |
-|------|------|
-| 前端框架 | React 18 + TypeScript |
-| 样式 | Tailwind CSS |
-| 状态管理 | Zustand |
-| 本地存储 | Dexie (IndexedDB) |
-| LLM 集成 | OpenAI 兼容接口 + Anthropic |
-| 构建工具 | esbuild + zotero-plugin-scaffold |
-| 测试框架 | Vitest |
-
----
-
 ## ⚠️ 关键注意事项（Zotero 插件开发）
 
 ### 必须遵守的规则
@@ -345,7 +243,7 @@ npm run format                   # Prettier 格式化
 2. **不能使用 `localStorage`**：Zotero 不支持，必须使用 `Zotero.Prefs`
 3. **manifest.json 必须包含 `strict_max_version`**：否则 Zotero 会拒绝安装
 4. **入口文件结构**：必须使用 `addon.ts` + `addonHooks.ts` 模式，bootstrap.js 调用 `Zotero.ZoteroSeek.hooks.onStartup()`
-5. **构建配置**：必须有 `zotero-plugin.config.ts`，设置 `source: ["src", "addon"]`
+5. **构建配置**：plugin/ 目录下必须有 `zotero-plugin.config.ts`
 
 ### 已解决的关键问题
 

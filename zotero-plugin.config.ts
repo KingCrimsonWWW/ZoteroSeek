@@ -5,7 +5,7 @@ import autoprefixer from "autoprefixer"
 import pkg from "./package.json"
 
 export default defineConfig({
-  source: ["src", "addon"],
+  source: ["plugin", "plugin/src", "plugin/chrome"],
   dist: ".scaffold/build",
   name: pkg.config.addonName,
   id: pkg.config.addonID,
@@ -14,7 +14,7 @@ export default defineConfig({
   xpiDownloadLink: "https://github.com/KingCrimsonWWW/ZoteroSeek/releases/download/v{{version}}/{{xpiName}}.xpi",
 
   build: {
-    assets: ["addon/**/*.*"],
+    assets: ["plugin/chrome/**/*.*", "plugin/manifest.json"],
     define: {
       ...pkg.config,
       author: pkg.author,
@@ -25,7 +25,7 @@ export default defineConfig({
     },
     esbuildOptions: [
       {
-        entryPoints: ["src/index.ts"],
+        entryPoints: ["plugin/src/launcher.ts"],
         define: {
           __env__: `"${process.env.NODE_ENV}"`,
         },
@@ -42,7 +42,7 @@ export default defineConfig({
       },
       // Web Worker entry — runs Dexie off main thread
       {
-        entryPoints: ["src/workers/dbWorkers.ts"],
+        entryPoints: ["plugin/src/bridge.ts"],
         define: {
           __env__: `"${process.env.NODE_ENV}"`,
         },

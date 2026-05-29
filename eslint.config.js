@@ -70,6 +70,12 @@ export default [
       '*.config.mjs',
       'src/typings/',
       'typings/',
+      'backend/',
+      'frontend/',
+      'data/',
+      '.venv/',
+      '__pycache__/',
+      '*.pyc',
     ],
   },
 ];
