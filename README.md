@@ -71,7 +71,7 @@ npm run format
 
 **Step 1: Start Backend** (Terminal 1)
 ```powershell
-cd backend
+# Run from project root, NOT from backend/
 uv run python -m backend.main
 ```
 Expected: `INFO: Uvicorn running on http://0.0.0.0:20801`

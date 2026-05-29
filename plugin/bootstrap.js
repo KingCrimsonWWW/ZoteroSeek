@@ -10,14 +10,13 @@ var ZoteroSeek = {
     this.version = version;
     this.rootURI = rootURI;
     
-    // Load launcher
-    Services.scriptloader.loadSubScript(rootURI + 'src/launcher.js');
-    
-    // Start backend and open UI
-    ZoteroSeek.launcher.start();
+    // Load the bundled script (built by zotero-plugin-scaffold)
+    Services.scriptloader.loadSubScript(rootURI + 'chrome/content/scripts/zoteroseek.js');
   },
   
   shutdown({ id, version, rootURI }) {
-    ZoteroSeek.launcher.stop();
+    if (typeof ZoteroSeek !== 'undefined' && ZoteroSeek.launcher) {
+      ZoteroSeek.launcher.stop();
+    }
   },
 };

@@ -14,7 +14,7 @@ export default defineConfig({
   xpiDownloadLink: "https://github.com/KingCrimsonWWW/ZoteroSeek/releases/download/v{{version}}/{{xpiName}}.xpi",
 
   build: {
-    assets: ["plugin/chrome/**/*.*", "plugin/manifest.json"],
+    assets: ["plugin/chrome/**/*.*", "plugin/manifest.json", "plugin/bootstrap.js"],
     define: {
       ...pkg.config,
       author: pkg.author,
