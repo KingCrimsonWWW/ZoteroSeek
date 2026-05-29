@@ -113,6 +113,50 @@ curl http://localhost:20801/api/v1/health
 | API | http://localhost:20801/api/v1/health | `{"status":"ok"}` |
 | Chat | Send a message | AI streaming response |
 
+### Troubleshooting
+
+#### Backend: ModuleNotFoundError
+
+If you see `ModuleNotFoundError: No module named 'backend'`:
+```powershell
+# Wrong: running from inside backend/
+cd backend
+uv run python -m backend.main  # ❌
+
+# Correct: running from project root
+uv run python -m backend.main  # ✅
+```
+
+#### Plugin: Missing bootstrap method
+
+If Zotero shows "Plugin is missing bootstrap method 'install'":
+1. Close Zotero completely
+2. Delete old XPI from Zotero extensions folder:
+   ```
+   %APPDATA%\Zotero\Zotero\Profiles\<profile>\extensions\zoteroseek@kingcrimsonwww.github.io.xpi
+   ```
+3. Copy new XPI manually:
+   ```powershell
+   copy .scaffold\build\zoteroseek.xpi "$env:APPDATA\Zotero\Zotero\Profiles\<profile>\extensions\zoteroseek@kingcrimsonwww.github.io.xpi"
+   ```
+4. Restart Zotero
+
+#### Plugin: Not visible in Zotero
+
+If you can't find ZoteroSeek in Zotero:
+1. Go to Tools → Add-ons
+2. Check if ZoteroSeek appears in the list
+3. If not, try installing again from File
+4. Check Error Console (Tools → Developer → Error Console) for errors
+
+#### Frontend and Backend show same page
+
+This is normal behavior:
+- `http://localhost:5173` - Vite dev server (with hot reload)
+- `http://localhost:20801` - FastAPI static file server (serves built frontend)
+
+Both serve the same React app. Use 5173 for development, 20801 for production.
+
 ## Configuration
 
 After installation, configure your API keys:
