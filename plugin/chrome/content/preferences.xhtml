@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<vbox xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      xmlns:html="http://www.w3.org/1999/xhtml">
+  
+  <groupbox>
+    <label value="ZoteroSeek Settings"/>
+    
+    <hbox align="center">
+      <label value="Backend Port:"/>
+      <html:input type="number" id="zoteroseek-port" value="20801"/>
+    </hbox>
+    
+    <hbox align="center">
+      <label value="Backend Status:"/>
+      <label id="zoteroseek-status" value="Unknown"/>
+    </hbox>
+    
+    <hbox>
+      <button id="zoteroseek-open" label="Open ZoteroSeek"/>
+      <button id="zoteroseek-check" label="Check Status"/>
+    </hbox>
+  </groupbox>
+  
+</vbox>

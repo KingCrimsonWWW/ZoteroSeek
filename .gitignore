@@ -50,4 +50,14 @@ AGENTS.md
 *.tgz
 .cache
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+
+# Runtime data (SQLite, ChromaDB)
+data/
 

@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,
+  "name": "ZoteroSeek",
+  "version": "0.1.0",
+  "description": "AI Research Assistant for Zotero",
+  "homepage_url": "https://github.com/KingCrimsonWWW/ZoteroSeek",
+  "applications": {
+    "zotero": {
+      "id": "zoteroseek@example.com",
+      "update_url": "https://github.com/KingCrimsonWWW/ZoteroSeek/releases",
+      "strict_min_version": "6.99",
+      "strict_max_version": "9.*"
+    }
+  },
+  "icons": {
+    "48": "chrome/content/icons/icon.png",
+    "96": "chrome/content/icons/icon@2x.png"
+  }
+}
