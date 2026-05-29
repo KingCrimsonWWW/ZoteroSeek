@@ -65,6 +65,54 @@ npm run typecheck
 npm run format
 ```
 
+## Debugging
+
+### Quick Start
+
+**Step 1: Start Backend** (Terminal 1)
+```powershell
+cd backend
+uv run python -m backend.main
+```
+Expected: `INFO: Uvicorn running on http://0.0.0.0:20801`
+
+**Step 2: Start Frontend** (Terminal 2)
+```powershell
+cd frontend
+npm run dev
+```
+Expected: `VITE v5.x.x ready`
+
+**Step 3: Open Browser**
+- Frontend UI: http://localhost:5173
+- Backend API: http://localhost:20801
+
+### Verify API
+
+```bash
+# Health check
+curl http://localhost:20801/api/v1/health
+# Expected: {"status": "ok"}
+```
+
+### Install Plugin
+
+1. Build: `npm run build`
+2. Find XPI: `.scaffold/build/zotero-seek.xpi`
+3. In Zotero: Tools → Add-ons → ⚙️ → Install From File
+4. Select the `.xpi` file
+5. Restart Zotero
+
+### Verification Checklist
+
+| Step | Command/Action | Expected Result |
+|------|----------------|-----------------|
+| Backend | `uv run python -m backend.main` | Uvicorn running |
+| Frontend | `cd frontend && npm run dev` | VITE ready |
+| Browser | http://localhost:5173 | Chat UI visible |
+| API | http://localhost:20801/api/v1/health | `{"status":"ok"}` |
+| Chat | Send a message | AI streaming response |
+
 ## Configuration
 
 After installation, configure your API keys:
