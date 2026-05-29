@@ -8,6 +8,7 @@ import { useChatStore } from '@/stores/chatStore';
 import type { ConversationMeta } from '@/typings';
 import { XulButton } from '@/components/common/XulButton';
 import { Icon } from '@/components/common/Icon';
+import { useTheme } from '@/hooks/useTheme';
 
 interface ConversationListProps {
   /** Callback when a conversation is selected */
@@ -34,8 +35,9 @@ function formatTime(date: Date): string {
 
 /** Group label for conversations */
 function TimeGroupLabel({ label }: { label: string }) {
+  const { dark } = useTheme();
   return (
-    <div className="text-[11px] text-[#888] px-3 py-2">
+    <div className={`text-[11px] px-3 py-2 ${dark ? 'text-[#888]' : 'text-[#666]'}`}>
       {label}
     </div>
   );
@@ -63,6 +65,7 @@ function ConversationItem({
   const [editTitle, setEditTitle] = useState(conversation.title);
   const [showConfirm, setShowConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { dark } = useTheme();
 
   // Focus input when editing starts
   useEffect(() => {
@@ -115,7 +118,9 @@ function ConversationItem({
       className={`group relative flex items-center h-9 px-3 text-[13px] rounded-lg mx-2 cursor-pointer transition-colors ${
         isActive
           ? 'bg-[rgba(91,127,255,0.12)] text-[#5B7FFF]'
-          : 'hover:bg-white/[0.04] text-[#ececec]'
+          : dark
+            ? 'hover:bg-white/[0.04] text-[#ececec]'
+            : 'hover:bg-black/[0.04] text-[#1a1a1e]'
       }`}
       onClick={() => onSelect(conversation.id)}
       onDoubleClick={handleDoubleClick}
@@ -145,10 +150,10 @@ function ConversationItem({
         <div className="ml-2 flex flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <XulButton
             onClick={handleDelete}
-            className="rounded p-1 text-[#888] hover:text-red-400"
+            className={`rounded p-1 hover:text-red-400 ${dark ? 'text-[#888]' : 'text-[#666]'}`}
             title="Delete"
           >
-            <Icon name="trash" className="h-3.5 w-3.5" />
+            <Icon name="trash" className="h-3.5 w-3.5" dark={dark} />
           </XulButton>
         </div>
       )}
@@ -156,10 +161,14 @@ function ConversationItem({
       {/* Delete confirmation popover */}
       {showConfirm && (
         <div
-          className="absolute right-0 top-full z-10 mt-1 w-48 rounded-lg border border-white/[0.06] bg-[#1f1f23] p-2 shadow-lg"
+          className={`absolute right-0 top-full z-10 mt-1 w-48 rounded-lg border p-2 shadow-lg ${
+            dark
+              ? 'border-white/[0.06] bg-[#1f1f23]'
+              : 'border-black/[0.08] bg-[#f0f0f0]'
+          }`}
           onClick={(e) => e.stopPropagation()}
         >
-          <p className="mb-2 text-xs text-[#ececec]">Delete this conversation?</p>
+          <p className={`mb-2 text-xs ${dark ? 'text-[#ececec]' : 'text-[#1a1a1e]'}`}>Delete this conversation?</p>
           <div className="flex space-x-2">
             <XulButton
               onClick={confirmDelete}
@@ -169,7 +178,11 @@ function ConversationItem({
             </XulButton>
             <XulButton
               onClick={cancelDelete}
-              className="flex-1 rounded border border-white/[0.06] px-2 py-1 text-xs text-[#888] hover:bg-white/[0.04]"
+              className={`flex-1 rounded border px-2 py-1 text-xs hover:bg-white/[0.04] ${
+                dark
+                  ? 'border-white/[0.06] text-[#888]'
+                  : 'border-black/[0.08] text-[#666]'
+              }`}
             >
               Cancel
             </XulButton>
@@ -191,6 +204,7 @@ export function ConversationList({ onSelect }: ConversationListProps) {
   const setCurrentConversation = useChatStore((s) => s.setCurrentConversation);
   const renameConversation = useChatStore((s) => s.renameConversation);
   const deleteConversation = useChatStore((s) => s.deleteConversation);
+  const { dark } = useTheme();
 
   const handleSelect = async (id: string) => {
     await setCurrentConversation(id);
@@ -215,7 +229,11 @@ export function ConversationList({ onSelect }: ConversationListProps) {
       {/* New conversation button */}
       <button
         onClick={handleNewConversation}
-        className="mx-3 mt-3 mb-2 border border-white/[0.06] rounded-lg px-3 py-2 text-[13px] text-[#888] hover:bg-white/[0.04] w-full text-left transition-colors"
+        className={`mx-3 mt-3 mb-2 border rounded-lg px-3 py-2 text-[13px] w-full text-left transition-colors ${
+          dark
+            ? 'border-white/[0.06] text-[#888] hover:bg-white/[0.04]'
+            : 'border-black/[0.08] text-[#666] hover:bg-black/[0.04]'
+        }`}
       >
         + New conversation
       </button>
@@ -225,8 +243,8 @@ export function ConversationList({ onSelect }: ConversationListProps) {
         {conversations.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
-              <Icon name="chat" className="mx-auto mb-3 h-10 w-10 text-[#888]" />
-              <p className="text-xs text-[#888]">No conversations yet</p>
+              <Icon name="chat" className={`mx-auto mb-3 h-10 w-10 ${dark ? 'text-[#888]' : 'text-[#666]'}`} dark={dark} />
+              <p className={`text-xs ${dark ? 'text-[#888]' : 'text-[#666]'}`}>No conversations yet</p>
             </div>
           </div>
         ) : (

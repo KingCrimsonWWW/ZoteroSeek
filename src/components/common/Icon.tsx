@@ -31,16 +31,23 @@ interface IconProps {
   name: string;
   className?: string;
   alt?: string;
+  /** When false, invert icon colors for light backgrounds (default: true for backward compat) */
+  dark?: boolean;
 }
 
-export function Icon({ name, className, alt }: IconProps) {
+export function Icon({ name, className, alt, dark = true }: IconProps) {
   const src = SVG_MAP[name] || `chrome://zoteroseek/content/icons/${name}.svg`;
   return (
     <img
       src={src}
       className={className}
       alt={alt || ''}
-      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
+      style={{
+        display: 'inline-block',
+        verticalAlign: 'middle',
+        flexShrink: 0,
+        filter: dark ? 'none' : 'invert(1)',
+      }}
     />
   );
 }

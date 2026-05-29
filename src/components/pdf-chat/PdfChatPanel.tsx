@@ -14,6 +14,7 @@ import { useChatBase } from '@/hooks/useChatBase';
 import { getSelectedItems, getItemMetadata } from '@/apis/zotero';
 import { XulButton } from '@/components/common/XulButton';
 import { Icon } from '@/components/common/Icon';
+import { useTheme } from '@/hooks/useTheme';
 import { createLogger } from '@/utils/logger';
 
 const logger = createLogger('PdfChatPanel');
@@ -27,12 +28,16 @@ interface PdfInfo {
 }
 
 /** 停止生成按钮（与 ChatPanel 保持一致） */
-function StopButton({ onClick }: { onClick: () => void }) {
+function StopButton({ onClick, dark }: { onClick: () => void; dark: boolean }) {
   return (
     <div className="flex justify-center py-2">
       <XulButton
         onClick={onClick}
-        className="flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-1.5 text-sm text-gray-600 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className={`flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+          dark
+            ? 'border-white/[0.06] bg-[#1f1f23] text-[#888] hover:bg-white/[0.04]'
+            : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+        }`}
       >
         <Icon name="stop" className="h-3.5 w-3.5" />
         停止生成
@@ -42,6 +47,7 @@ function StopButton({ onClick }: { onClick: () => void }) {
 }
 
 export function PdfChatPanel() {
+  const { dark } = useTheme();
   const { messages, isLoading, sendMessage, stopGeneration } = useChatBase({ mode: 'pdf' });
   const [pdfInfo, setPdfInfo] = useState<PdfInfo | null>(null);
   const [selecting, setSelecting] = useState(false);
@@ -94,9 +100,9 @@ export function PdfChatPanel() {
     <ErrorBoundary>
       <div className="flex h-full flex-col">
         {/* 头部：PDF 选择按钮和信息卡片 */}
-        <header className="border-b border-gray-200 bg-white px-4 py-3">
+        <header className={`border-b px-4 py-3 ${dark ? 'border-white/[0.06] bg-[#1f1f23]' : 'border-gray-200 bg-white'}`}>
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-gray-700">PDF 对话</h2>
+            <h2 className={`text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-700'}`}>PDF 对话</h2>
             <XulButton
               onClick={handleSelectPdf}
               disabled={selecting}
@@ -116,20 +122,20 @@ export function PdfChatPanel() {
 
                 <div className="min-w-0 flex-1">
                   {/* 标题 */}
-                  <h3 className="truncate text-sm font-medium text-gray-800">
+                  <h3 className={`truncate text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-800'}`}>
                     {pdfInfo.title}
                   </h3>
 
                   {/* 作者 */}
                   {pdfInfo.creators.length > 0 && (
-                    <p className="mt-0.5 text-xs text-gray-500">
+                    <p className={`mt-0.5 text-xs ${dark ? 'text-[#888]' : 'text-gray-500'}`}>
                       {pdfInfo.creators.join(', ')}
                     </p>
                   )}
 
                   {/* 摘要（最多两行） */}
                   {pdfInfo.abstractNote && (
-                    <p className="mt-1 line-clamp-2 text-xs text-gray-500">
+                    <p className={`mt-1 line-clamp-2 text-xs ${dark ? 'text-[#888]' : 'text-gray-500'}`}>
                       {pdfInfo.abstractNote}
                     </p>
                   )}
@@ -145,7 +151,7 @@ export function PdfChatPanel() {
             <MessageList messages={messages} isLoading={isLoading} />
           ) : (
             /* 未选择 PDF 时的占位提示 */
-            <div className="flex h-full items-center justify-center text-gray-400">
+            <div className={`flex h-full items-center justify-center ${dark ? 'text-[#666]' : 'text-gray-400'}`}>
               <div className="text-center">
                 <Icon name="document" className="mx-auto mb-4 h-12 w-12" />
                 <p className="text-sm">尚未选择 PDF 文档</p>
@@ -158,10 +164,10 @@ export function PdfChatPanel() {
         </div>
 
         {/* 停止生成按钮 */}
-        {isLoading && <StopButton onClick={stopGeneration} />}
+        {isLoading && <StopButton onClick={stopGeneration} dark={dark} />}
 
         {/* 输入区域 */}
-        <div className="border-t border-gray-200 bg-white p-3">
+        <div className={`border-t p-3 ${dark ? 'border-white/[0.06] bg-[#1f1f23]' : 'border-gray-200 bg-white'}`}>
           <InputBox
             onSend={handleSend}
             isLoading={isLoading}

@@ -9,6 +9,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { XulButton } from '@/components/common/XulButton';
+import { useTheme } from '@/hooks/useTheme';
 
 /** 搜索结果条目 */
 interface SearchResult {
@@ -24,6 +25,8 @@ interface KnowledgePanelProps {
 }
 
 export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
+  const { dark } = useTheme();
+
   // ── 索引状态 ──
   const [isIndexing, setIsIndexing] = useState(false);
   const [indexProgress, setIndexProgress] = useState(0); // 0-100
@@ -106,15 +109,15 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
 
   return (
     <div className="space-y-4 p-4">
-      <h2 className="text-lg font-semibold text-gray-900">知识库</h2>
+      <h2 className={`text-lg font-semibold ${dark ? 'text-[#ececec]' : 'text-gray-900'}`}>知识库</h2>
 
       {/* ═══════ 索引状态 ═══════ */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-medium text-gray-700">索引状态</h3>
+      <div className={`rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-200'} ${dark ? 'bg-[#1f1f23]' : 'bg-white'} p-4`}>
+        <h3 className={`mb-3 text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-700'}`}>索引状态</h3>
 
         {/* 进度条 */}
         <div className="mb-2">
-          <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
+          <div className={`mb-1 flex items-center justify-between text-xs ${dark ? 'text-[#888]' : 'text-gray-500'}`}>
             <span>
               {isIndexing
                 ? `索引中... ${Math.round(indexProgress)}%`
@@ -126,7 +129,7 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
               {indexedCount} / {totalCount}
             </span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+          <div className={`h-2 w-full overflow-hidden rounded-full ${dark ? 'bg-[#333]' : 'bg-gray-200'}`}>
             <div
               className={`h-full rounded-full transition-all duration-300 ${
                 indexProgress === 100 ? 'bg-green-500' : 'bg-blue-600'
@@ -147,8 +150,8 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
       </div>
 
       {/* ═══════ 搜索 ═══════ */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-medium text-gray-700">搜索知识库</h3>
+      <div className={`rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-200'} ${dark ? 'bg-[#1f1f23]' : 'bg-white'} p-4`}>
+        <h3 className={`mb-3 text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-700'}`}>搜索知识库</h3>
         <div className="flex gap-2">
           <input
             type="text"
@@ -158,7 +161,7 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
               if (e.key === 'Enter') handleSearch();
             }}
             placeholder="输入搜索关键词..."
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className={`flex-1 rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-300'} px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
           />
           <XulButton
             onClick={handleSearch}
@@ -171,31 +174,31 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
       </div>
 
       {/* ═══════ 搜索结果 ═══════ */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-medium text-gray-700">
+      <div className={`rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-200'} ${dark ? 'bg-[#1f1f23]' : 'bg-white'} p-4`}>
+        <h3 className={`mb-3 text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-700'}`}>
           搜索结果
           {hasSearched && (
-            <span className="ml-1 font-normal text-gray-400">
+            <span className={`ml-1 font-normal ${dark ? 'text-[#666]' : 'text-gray-400'}`}>
               ({searchResults.length})
             </span>
           )}
         </h3>
 
         {!hasSearched ? (
-          <p className="py-8 text-center text-sm text-gray-400">输入关键词开始搜索</p>
+          <p className={`py-8 text-center text-sm ${dark ? 'text-[#666]' : 'text-gray-400'}`}>输入关键词开始搜索</p>
         ) : searchResults.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400">未找到相关结果</p>
+          <p className={`py-8 text-center text-sm ${dark ? 'text-[#666]' : 'text-gray-400'}`}>未找到相关结果</p>
         ) : (
           <ul className="space-y-3">
             {searchResults.map((result) => (
               <li key={result.id}>
                 <XulButton
                   onClick={() => handleResultClick(result)}
-                  className="w-full rounded-lg border border-gray-200 p-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className={`w-full rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-200'} p-3 text-left transition-colors ${dark ? 'hover:border-[#5B7FFF]' : 'hover:border-blue-300'} ${dark ? 'hover:bg-[rgba(91,127,255,0.08)]' : 'hover:bg-blue-50'} focus:outline-none focus:ring-1 focus:ring-blue-400`}
                 >
                   {/* 标题 + 评分 */}
                   <div className="mb-1 flex items-start justify-between gap-2">
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className={`text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-900'}`}>
                       {result.title}
                     </span>
                     <span className="flex-shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
@@ -204,7 +207,7 @@ export function KnowledgePanel({ onResultClick }: KnowledgePanelProps) {
                   </div>
 
                   {/* 摘要片段 */}
-                  <p className="text-xs leading-relaxed text-gray-600">
+                  <p className={`text-xs leading-relaxed ${dark ? 'text-[#888]' : 'text-gray-600'}`}>
                     {result.snippet.length > 150
                       ? result.snippet.slice(0, 150) + '...'
                       : result.snippet}

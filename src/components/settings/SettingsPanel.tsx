@@ -6,8 +6,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { XulButton } from '@/components/common/XulButton';
 import { useModelStore } from '@/stores/modelStore';
+import { useTheme } from '@/hooks/useTheme';
 
 export function SettingsPanel() {
+  const { dark } = useTheme();
   const {
     currentConfig,
     presetModels,
@@ -122,13 +124,13 @@ export function SettingsPanel() {
 
   return (
     <div className="space-y-4 p-4">
-      <h2 className="text-lg font-semibold text-gray-900">设置</h2>
+      <h2 className={`text-lg font-semibold ${dark ? 'text-[#ececec]' : 'text-gray-900'}`}>设置</h2>
 
       {/* 模型选择 */}
       <div>
         <label
           htmlFor="model-select"
-          className="mb-1 block text-sm font-medium text-gray-700"
+          className={`mb-1 block text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-700'}`}
         >
           模型
         </label>
@@ -136,7 +138,7 @@ export function SettingsPanel() {
           id="model-select"
           value={selectedPresetIndex}
           onChange={handlePresetChange}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={`w-full rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-300'} px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
         >
           {presetModels.map((preset, index) => (
             <option key={`${preset.model}-${index}`} value={index}>
@@ -145,7 +147,7 @@ export function SettingsPanel() {
           ))}
         </select>
         {currentPreset && (
-          <p className="mt-1 text-xs text-gray-500">
+          <p className={`mt-1 text-xs ${dark ? 'text-[#888]' : 'text-gray-500'}`}>
             {currentPreset.provider} · {currentPreset.model}
           </p>
         )}
@@ -155,7 +157,7 @@ export function SettingsPanel() {
       <div>
         <label
           htmlFor="api-key"
-          className="mb-1 block text-sm font-medium text-gray-700"
+          className={`mb-1 block text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-700'}`}
         >
           API Key
         </label>
@@ -169,7 +171,7 @@ export function SettingsPanel() {
           }}
           placeholder="输入你的 API Key"
           autoComplete="off"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={`w-full rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-300'} px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
         />
         {validationError && (
           <p className="mt-1 text-xs text-red-600">{validationError}</p>
@@ -180,7 +182,7 @@ export function SettingsPanel() {
       <div>
         <label
           htmlFor="base-url"
-          className="mb-1 block text-sm font-medium text-gray-700"
+          className={`mb-1 block text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-700'}`}
         >
           Base URL
         </label>
@@ -190,9 +192,9 @@ export function SettingsPanel() {
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
           placeholder="https://api.openai.com/v1"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={`w-full rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-300'} px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
         />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className={`mt-1 text-xs ${dark ? 'text-[#888]' : 'text-gray-500'}`}>
           留空使用默认地址，或输入自定义 API 地址
         </p>
       </div>
@@ -207,8 +209,8 @@ export function SettingsPanel() {
       </XulButton>
 
       {/* 保存的配置管理 */}
-      <div className="border-t border-gray-200 pt-4">
-        <h3 className="mb-3 text-sm font-medium text-gray-700">保存的配置</h3>
+      <div className={`border-t ${dark ? 'border-white/[0.06]' : 'border-gray-200'} pt-4`}>
+        <h3 className={`mb-3 text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-700'}`}>保存的配置</h3>
 
         {/* 配置名称输入 + 保存按钮 */}
         <div className="flex gap-2">
@@ -218,7 +220,7 @@ export function SettingsPanel() {
             value={configName}
             onChange={(e) => setConfigName(e.target.value)}
             placeholder="配置名称"
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className={`flex-1 rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-300'} px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
           />
           <XulButton
             onClick={handleSaveAsNew}
@@ -234,7 +236,7 @@ export function SettingsPanel() {
           <>
             <label
               htmlFor="saved-config-select"
-              className="mb-1 mt-3 block text-sm font-medium text-gray-700"
+              className={`mb-1 mt-3 block text-sm font-medium ${dark ? 'text-[#ececec]' : 'text-gray-700'}`}
             >
               已保存的配置
             </label>
@@ -242,7 +244,7 @@ export function SettingsPanel() {
               id="saved-config-select"
               value={selectedSavedName}
               onChange={(e) => setSelectedSavedName(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={`w-full rounded-lg border ${dark ? 'border-white/[0.06]' : 'border-gray-300'} px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
             >
               <option value="">选择配置...</option>
               {savedConfigs.map((sc) => (
@@ -264,7 +266,7 @@ export function SettingsPanel() {
               <XulButton
                 onClick={handleDeleteConfig}
                 disabled={!selectedSavedName}
-                className="flex-1 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
+                className={`flex-1 rounded-lg border border-red-300 ${dark ? 'bg-[#1f1f23]' : 'bg-white'} px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50`}
               >
                 删除
               </XulButton>

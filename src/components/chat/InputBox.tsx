@@ -7,6 +7,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { XulButton } from '@/components/common/XulButton';
 import { Icon } from '@/components/common/Icon';
+import { useTheme } from '@/hooks/useTheme';
 
 interface InputBoxProps {
   onSend: (content: string) => void;
@@ -16,6 +17,7 @@ interface InputBoxProps {
 }
 
 export function InputBox({ onSend, isLoading, disabled = false }: InputBoxProps) {
+  const { dark } = useTheme();
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -59,10 +61,14 @@ export function InputBox({ onSend, isLoading, disabled = false }: InputBoxProps)
 
   return (
     <div className="max-w-[900px] mx-auto w-full">
-      <div className="flex items-center gap-2 bg-[#1a1a1e] rounded-[14px] border border-white/[0.06] focus-within:border-[#5B7FFF] px-4 h-[52px] transition-colors duration-150">
+      <div className={`flex items-center gap-2 rounded-[14px] border focus-within:border-[#5B7FFF] px-4 h-[52px] transition-colors duration-150 ${
+        dark ? 'bg-[#1a1a1e] border-white/[0.06]' : 'bg-[#f8f8f8] border-black/[0.08]'
+      }`}>
         {/* Attachment / plus button */}
-        <XulButton className="h-8 w-8 rounded-lg text-[#888] hover:text-[#ececec] hover:bg-white/[0.04] flex-shrink-0" title="Attach">
-          <Icon name="plus" className="h-4 w-4" />
+        <XulButton className={`h-8 w-8 rounded-lg flex-shrink-0 ${
+          dark ? 'text-[#888] hover:text-[#ececec] hover:bg-white/[0.04]' : 'text-[#666] hover:text-[#1a1a1e] hover:bg-black/[0.04]'
+        }`} title="Attach">
+          <Icon name="plus" className="h-4 w-4" dark={dark} />
         </XulButton>
 
         {/* Text input */}
@@ -73,7 +79,9 @@ export function InputBox({ onSend, isLoading, disabled = false }: InputBoxProps)
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={isDisabled}
-          className="flex-1 bg-transparent text-[15px] text-[#ececec] placeholder:text-[#888] outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`flex-1 bg-transparent text-[15px] outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed ${
+            dark ? 'text-[#ececec] placeholder:text-[#888]' : 'text-[#1a1a1e] placeholder:text-[#999]'
+          }`}
           rows={1}
         />
 
@@ -81,9 +89,9 @@ export function InputBox({ onSend, isLoading, disabled = false }: InputBoxProps)
         <XulButton
           onClick={handleSubmit}
           disabled={isDisabled || !input.trim()}
-          className="h-10 w-10 rounded-full bg-[#5B7FFF] text-white flex items-center justify-center hover:bg-[#4A6EE0] transition-colors duration-150 flex-shrink-0 disabled:opacity-30"
+          className="h-8 w-8 rounded-full bg-[#5B7FFF] text-white flex items-center justify-center hover:bg-[#4A6EE0] transition-colors duration-150 flex-shrink-0 disabled:opacity-30"
         >
-          <Icon name="send" className="h-4 w-4" />
+          <Icon name="send" className="h-4 w-4" dark={dark} />
         </XulButton>
       </div>
     </div>

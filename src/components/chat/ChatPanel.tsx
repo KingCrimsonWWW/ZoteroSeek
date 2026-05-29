@@ -10,14 +10,16 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import { XulButton } from '../common/XulButton';
 import { Icon } from '../common/Icon';
 import { useChat } from '@/hooks/useChat';
+import { useTheme } from '@/hooks/useTheme';
 
 /**
  * 离线状态提示横幅
  */
 function OfflineBanner() {
+  const { dark } = useTheme();
   return (
     <div className="flex items-center justify-center gap-2 bg-amber-50 px-4 py-2 text-sm text-amber-700">
-      <Icon name="warning" className="h-4 w-4" />
+      <Icon name="warning" className="h-4 w-4" dark={dark} />
       <span>网络连接已断开，消息发送功能暂时不可用</span>
     </div>
   );
@@ -27,13 +29,18 @@ function OfflineBanner() {
  * 停止生成按钮
  */
 function StopButton({ onClick }: { onClick: () => void }) {
+  const { dark } = useTheme();
   return (
     <div className="flex justify-center py-2">
       <XulButton
         onClick={onClick}
-        className="flex items-center gap-2 rounded-full border border-white/[0.06] bg-[#1f1f23] px-4 py-1.5 text-sm text-[#ececec] hover:bg-white/[0.04] focus:outline-none"
+        className={`flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm focus:outline-none ${
+          dark
+            ? 'border-white/[0.06] bg-[#1f1f23] text-[#ececec] hover:bg-white/[0.04]'
+            : 'border-black/[0.08] bg-[#f0f0f0] text-[#1a1a1e] hover:bg-black/[0.04]'
+        }`}
       >
-        <Icon name="stop" className="h-3.5 w-3.5" />
+        <Icon name="stop" className="h-3.5 w-3.5" dark={dark} />
         停止生成
       </XulButton>
     </div>
@@ -42,6 +49,7 @@ function StopButton({ onClick }: { onClick: () => void }) {
 
 export function ChatPanel() {
   const { messages, isLoading, sendMessage, stopGeneration } = useChat();
+  const { dark } = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
@@ -92,7 +100,11 @@ export function ChatPanel() {
         {isLoading && <StopButton onClick={stopGeneration} />}
 
         {/* Input area */}
-        <div className="border-t border-white/[0.06] bg-[#111113] p-3">
+        <div className={`border-t p-3 ${
+          dark
+            ? 'border-white/[0.06] bg-[#111113]'
+            : 'border-black/[0.08] bg-[#ffffff]'
+        }`}>
           <InputBox onSend={handleSend} isLoading={isLoading} disabled={isOffline} />
         </div>
       </div>
