@@ -1,22 +1,54 @@
-var ZoteroSeek = {
-  id: null,
-  version: null,
-  rootURI: null,
-  
-  install(data, reason) {},
-  
-  async startup({ id, version, rootURI }) {
-    this.id = id;
-    this.version = version;
-    this.rootURI = rootURI;
-    
-    // Load the bundled script (built by zotero-plugin-scaffold)
-    Services.scriptloader.loadSubScript(rootURI + 'chrome/content/scripts/zoteroseek.js');
-  },
-  
-  shutdown({ id, version, rootURI }) {
-    if (typeof ZoteroSeek !== 'undefined' && ZoteroSeek.launcher) {
-      ZoteroSeek.launcher.stop();
-    }
-  },
-};
+/* eslint-disable no-undef */
+
+var chromeHandle
+
+function install(data, reason) {}
+
+async function startup({ id, version, resourceURI, rootURI }, reason) {
+  await Zotero.initializationPromise
+
+  if (!rootURI) {
+    rootURI = resourceURI.spec
+  }
+
+  var aomStartup = Components.classes[
+    "@mozilla.org/addons/addon-manager-startup;1"
+  ].getService(Components.interfaces.amIAddonManagerStartup)
+  var manifestURI = Services.io.newURI(rootURI + "manifest.json")
+  chromeHandle = aomStartup.registerChrome(manifestURI, [
+    ["content", "zoteroseek", rootURI + "chrome/content/"],
+  ])
+
+  const ctx = {
+    rootURI,
+  }
+  ctx._globalThis = ctx
+
+  Services.scriptloader.loadSubScript(
+    `${rootURI}/chrome/content/scripts/zoteroseek.js`,
+    ctx,
+  )
+  Zotero.__addonInstance__.hooks.onStartup()
+}
+
+async function onMainWindowLoad({ window }, reason) {
+  Zotero.__addonInstance__?.hooks.onMainWindowLoad(window)
+}
+
+async function onMainWindowUnload({ window }, reason) {
+  Zotero.__addonInstance__?.hooks.onMainWindowUnload(window)
+}
+
+function shutdown({ id, version, resourceURI, rootURI }, reason) {
+  if (reason === APP_SHUTDOWN) {
+    return
+  }
+  Zotero.__addonInstance__?.hooks.onShutdown()
+
+  if (chromeHandle) {
+    chromeHandle.destruct()
+    chromeHandle = null
+  }
+}
+
+function uninstall(data, reason) {}

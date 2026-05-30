@@ -1,6 +1,6 @@
 # AGENTS.md - ZoteroSeek 项目知识库
 
-**最后更新**: 2026-05-29
+**最后更新**: 2026-05-30
 **项目**: ZoteroSeek - Local AI Research Assistant Runtime
 
 ---
@@ -65,7 +65,8 @@ ZoteroSeek/
 │   │   └── chroma_store.py     # ChromaDB 实现
 │   ├── extractors/             # 提取器
 │   │   ├── base.py             # Extractor ABC
-│   │   └── pdf.py              # PDFExtractor (PyMuPDF)
+│   │   ├── pdf.py              # PDFExtractor (PyMuPDF)
+│   │   └── mineru_extractor.py # MinerUExtractor (Agent API)
 │   ├── models/                 # Pydantic 模型
 │   │   ├── document.py         # CanonicalDocument
 │   │   └── chunk.py            # Chunk, ChunkMetadata
@@ -130,7 +131,7 @@ npm run build    # 构建 .xpi
 |---|------|
 | Backend | FastAPI + Uvicorn + Pydantic |
 | Database | SQLite (SQLAlchemy) + ChromaDB |
-| PDF | PyMuPDF |
+| PDF 解析 | MinerU Agent API（主） + PyMuPDF（备） |
 | Embedding | OpenAI Compatible API |
 | LLM | OpenAI Compatible API (流式) |
 | Frontend | React 18 + Vite + Tailwind CSS + Zustand |
@@ -144,7 +145,7 @@ npm run build    # 构建 .xpi
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/api/v1/health` | GET | 健康检查 |
-| `/api/v1/index` | POST | 索引 PDF |
+| `/api/v1/index` | POST | 索引 PDF（支持 `extractor: "mineru"` / `"pymupdf"`） |
 | `/api/v1/search` | POST | 语义搜索 |
 | `/api/v1/chat` | POST | RAG 对话 (SSE) |
 | `/api/v1/library` | GET | 已索引文献列表 |
@@ -183,6 +184,11 @@ npm run build    # 构建 .xpi
 - **同一时间只能调用一次 question tool**，但一次调用中可以同时提出多个问题
 - 不要连续多次调用 question tool 询问不同问题，合并到一次调用中
 
+### 调试记录
+- 发现问题时，必须更新 `debug/debug.md`，记录问题描述、根本原因、涉及文件
+- 解决问题后，**不要删除** debug.md 中的内容，而是将状态标记为 ✅ 已解决，并在「修复方案」中记录实际改动
+- debug.md 是项目的历史问题档案，保留所有已解决和未解决的问题
+
 ### 禁止操作
 - 不要修改 `.venv/` 目录
 - 不要修改 `.scaffold/` 目录
@@ -200,11 +206,34 @@ npm run build    # 构建 .xpi
 ZOTEROSEEK_LLM_API_KEY=your-api-key
 ZOTEROSEEK_EMBEDDING_API_KEY=your-api-key
 ZOTEROSEEK_PORT=20801
+
+# MinerU (PDF 解析) — 可选，留空使用 Agent 免登录 API
+ZOTEROSEEK_MINERU_API_URL=         # 自建 mineru-api 地址（留空 = mineru.net 云 API）
+ZOTEROSEEK_MINERU_API_KEY=         # 精准解析 API Key（Agent 模式无需）
+ZOTEROSEEK_MINERU_BACKEND=pipeline # pipeline / hybrid-auto-engine
+ZOTEROSEEK_MINERU_LANGUAGE=ch      # 文档语言：ch / en
 ```
 
 ---
 
 ## 更新日志
+
+### 2026-05-30
+- 集成 MinerU Agent 轻量解析 API（免 Token，IP 限频）
+- 新增 MinerUExtractor（extractors/mineru_extractor.py）
+- 重写 DocumentParser 为 Markdown 感知解析器（支持 #/## 标题分段）
+- 重写 SemanticChunker 为 Markdown 感知分块器（不破坏表格/公式/代码块）
+- index.py 支持选择提取器（`extractor: "mineru"` / `"pymupdf"`）
+- 验证全链路：MinerU → Parser → Chunker → Embed → Store → Search → Chat
+- 修复插件安装问题（bootstrap.js 改为全局函数模式）
+- 创建 addon 入口文件（index.ts）
+- 修复 manifest.json addon ID
+- 实现偏好设置动态读取（prefs.ts, bridge.ts, launcher.ts）
+- 绑定设置面板事件（preferences.ts）
+- 修复 Chat API 500 错误（添加异常处理）
+- 修复 PDF 索引失败（ChromaDB 空列表 metadata 问题）
+- 创建 .env 配置文件（项目根目录）
+- 验证所有 API 端点正常工作
 
 ### 2026-05-29
 - 完成 MVP 架构重构
@@ -505,6 +534,106 @@ Zotero 9 的 privileged context 是一个受限的 JavaScript 环境，以下浏
 - **不要**使用显式闭合 `</html:script>`——会导致脚本不被加载
 - `data-l10n-id` 在 preferences pane context 中不可用（Fluent 未初始化）→ 使用硬编码文本
 - `registerPrefs()` 中 label 硬编码为 `'ZoteroSeek'`，因为 `getString()` 在 Fluent 初始化前运行
+
+### 9. ChromaDB metadata 限制
+
+ChromaDB 不接受空列表 `[]` 作为 metadata 值。所有 List 类型字段必须有非空默认值：
+
+```python
+# ❌ 错误 - 会导致 upsert 失败
+class ChunkMetadata(BaseModel):
+    authors: List[str] = []
+    citation_refs: List[str] = []
+
+# ✅ 正确 - 使用占位符
+class ChunkMetadata(BaseModel):
+    authors: List[str] = ["Unknown"]
+    citation_refs: List[str] = ["None"]
+```
+
+### 10. Pydantic Settings .env 文件位置
+
+后端使用 Pydantic Settings 读取环境变量，默认从当前工作目录读取 `.env`。如果需要从项目根目录读取：
+
+```python
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).parent.parent.parent
+
+class Settings(BaseSettings):
+    class Config:
+        env_file = ROOT_DIR / ".env"
+```
+
+### 11. FastAPI StreamingResponse 错误处理
+
+FastAPI 的 StreamingResponse 不会自动记录异步生成器中的异常。需要手动添加 try/except：
+
+```python
+from loguru import logger
+
+@router.post("/chat")
+async def chat(request: ChatRequest):
+    try:
+        async def generate():
+            async for chunk in llm_client.chat(messages, stream=True):
+                yield f"data: {chunk}\n\n"
+        return StreamingResponse(generate(), media_type="text/event-stream")
+    except Exception as e:
+        logger.exception(f"[Chat] Error: {e}")
+        raise
+```
+
+### 12. 防止 Zotero 插件重复初始化
+
+Zotero 的生命周期可能导致 `onStartup` 被调用多次。使用标志变量防止重复：
+
+```typescript
+let isInitialized = false
+
+const addon = {
+  hooks: {
+    onStartup: () => {
+      if (isInitialized) return
+      isInitialized = true
+      // 初始化代码
+    },
+  },
+}
+```
+
+### 13. MinerU Agent API 调用流程
+
+MinerU Agent 轻量解析 API（`mineru.net`）免 Token，流程为异步三步：
+
+```python
+# Step 1: 提交任务（JSON body，不是 multipart form）
+resp = POST "https://mineru.net/api/v1/agent/parse/file", json={
+    "file_name": "paper.pdf",
+    "language": "ch",
+    "page_range": "1-20",   # 可选，Agent API 限制 ≤20 页
+}
+# → {"task_id": "...", "file_url": "https://mineru.oss-xxx..."}
+
+# Step 2: 上传 PDF 到 OSS 预签名 URL（PUT，不带 Content-Type）
+PUT file_url, content=pdf_bytes  # → 200
+
+# Step 3: 轮询结果
+GET "https://mineru.net/api/v1/agent/parse/{task_id}"
+# → {"state":"done","markdown_url":"https://cdn-mineru.../full.md"}
+
+# Step 4: 下载 Markdown
+GET markdown_url  # → Markdown 文本
+```
+
+**关键注意点**：
+- 提交请求必须用 **JSON body**，不是 multipart form data
+- 上传文件用 **PUT** 方法，**不带 Content-Type header**
+- 轮询端点是 `/api/v1/agent/parse/{task_id}`，不是 `/api/v1/agent/parse/file/{task_id}`
+- `page_range` 格式为字符串 `"1-20"`，不是数组
+- 限制：≤ 10MB，≤ 20 页，单文件，仅 Markdown 输出
+- 不需要 API Key（IP 限频）
+- Python 3.14 不兼容 MinerU 的 ML 依赖（torch），但 httpx 调用 API 不受影响
 
 ---
 

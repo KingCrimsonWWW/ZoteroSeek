@@ -24,8 +24,8 @@ export const apiClient = {
   search: (query: string, topK = 5) =>
     api.post<{ results: SearchResult[] }>('/search', { query, top_k: topK }),
 
-  index: (pdfPath: string, itemId = 'manual') =>
-    api.post('/index', { pdf_path: pdfPath, item_id: itemId }),
+  index: (pdfPath: string, itemId = 'manual', extractor = 'mineru') =>
+    api.post('/index', { pdf_path: pdfPath, item_id: itemId, extractor }),
 
   chat: async (message: string, onChunk: (chunk: string) => void) => {
     const response = await fetch('/api/v1/chat', {

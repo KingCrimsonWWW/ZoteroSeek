@@ -15,7 +15,7 @@ export default function Search() {
       const res = await apiClient.search(query)
       setResults(res.data.results)
     } catch (err) {
-      console.error('Search failed:', err)
+      // handle error silently
     }
     setLoading(false)
   }

@@ -14,7 +14,7 @@ export default defineConfig({
   xpiDownloadLink: "https://github.com/KingCrimsonWWW/ZoteroSeek/releases/download/v{{version}}/{{xpiName}}.xpi",
 
   build: {
-    assets: ["plugin/chrome/**/*.*", "plugin/manifest.json", "plugin/bootstrap.js"],
+    assets: ["plugin/chrome/**/*.*", "plugin/manifest.json", "plugin/bootstrap.js", "plugin/chrome.manifest", "plugin/prefs.js"],
     define: {
       ...pkg.config,
       author: pkg.author,
@@ -25,7 +25,7 @@ export default defineConfig({
     },
     esbuildOptions: [
       {
-        entryPoints: ["plugin/src/launcher.ts"],
+        entryPoints: ["plugin/src/index.ts"],
         define: {
           __env__: `"${process.env.NODE_ENV}"`,
         },

@@ -1,24 +1,88 @@
-<?xml version="1.0"?>
-<vbox xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-      xmlns:html="http://www.w3.org/1999/xhtml">
-  
+<vbox id="zotero-prefpane-zoteroseek"
+  onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', {window})">
   <groupbox>
-    <label value="ZoteroSeek Settings"/>
-    
-    <hbox align="center">
-      <label value="Backend Port:"/>
-      <html:input type="number" id="zoteroseek-port" value="20801"/>
-    </hbox>
-    
-    <hbox align="center">
-      <label value="Backend Status:"/>
-      <label id="zoteroseek-status" value="Unknown"/>
-    </hbox>
-    
+    <label><html:h2>Backend Settings</html:h2></label>
     <hbox>
+      <label value="Backend URL:" style="display: flex; align-items: center"/>
+      <html:input type="text" id="zoteroseek-url" preference="extensions.zotero.zoteroseek.url" style="flex: 1; width: 100%"/>
+    </hbox>
+    <hbox>
+      <label value="Backend Port:" style="display: flex; align-items: center"/>
+      <html:input type="number" id="zoteroseek-port" preference="extensions.zotero.zoteroseek.port" style="width: 80px"/>
+    </hbox>
+    <hbox>
+      <label value="Status:" style="display: flex; align-items: center"/>
+      <label id="zoteroseek-status" value="Unknown" style="color: gray; margin-left: 8px"/>
+    </hbox>
+    <hbox>
+      <button id="zoteroseek-check" label="Test Connection"/>
       <button id="zoteroseek-open" label="Open ZoteroSeek"/>
-      <button id="zoteroseek-check" label="Check Status"/>
     </hbox>
   </groupbox>
   
+  <groupbox>
+    <label><html:h2>LLM Configuration</html:h2></label>
+    <hbox>
+      <label value="API Key:" style="display: flex; align-items: center"/>
+      <html:input type="password" id="zoteroseek-apikey" preference="extensions.zotero.zoteroseek.apikey" style="flex: 1"/>
+      <button id="zoteroseek-toggle-key" label="Show" style="min-width: 60px"/>
+    </hbox>
+    <hbox>
+      <label value="Base URL:" style="display: flex; align-items: center"/>
+      <html:input type="text" id="zoteroseek-baseurl" preference="extensions.zotero.zoteroseek.baseurl" placeholder="https://api.openai.com/v1" style="flex: 1"/>
+    </hbox>
+    <hbox>
+      <label value="Model:" style="display: flex; align-items: center"/>
+      <html:input type="text" id="zoteroseek-model" preference="extensions.zotero.zoteroseek.model" style="flex: 1"/>
+    </hbox>
+    <hbox>
+      <label value="Temperature:" style="display: flex; align-items: center"/>
+      <html:input type="range" id="zoteroseek-temperature" min="0" max="2" step="0.1" preference="extensions.zotero.zoteroseek.temperature" style="flex: 1"
+        oninput="document.getElementById('zoteroseek-temperature-value').value = this.value"/>
+      <label id="zoteroseek-temperature-value" value="1.0" style="min-width: 40px; text-align: center"/>
+    </hbox>
+    <hbox>
+      <label value="Max Tokens:" style="display: flex; align-items: center"/>
+      <html:input type="range" id="zoteroseek-maxtokens" min="256" max="128000" step="256" preference="extensions.zotero.zoteroseek.maxtokens" style="flex: 1"
+        oninput="document.getElementById('zoteroseek-maxtokens-value').value = this.value"/>
+      <label id="zoteroseek-maxtokens-value" value="4096" style="min-width: 60px; text-align: center"/>
+    </hbox>
+  </groupbox>
+  
+  <groupbox>
+    <label><html:h2>Embedding Settings</html:h2></label>
+    <hbox>
+      <checkbox id="zoteroseek-use-custom-embedding" label="Use custom embeddings" preference="extensions.zotero.zoteroseek.useCustomEmbedding"/>
+    </hbox>
+    <vbox id="zoteroseek-embedding-options" style="margin-left: 20px; display: none">
+      <hbox>
+        <label value="Embedding API:" style="display: flex; align-items: center"/>
+        <html:input type="text" id="zoteroseek-embedding-url" preference="extensions.zotero.zoteroseek.embeddingUrl" style="flex: 1"/>
+      </hbox>
+      <hbox>
+        <label value="Embedding Key:" style="display: flex; align-items: center"/>
+        <html:input type="password" id="zoteroseek-embedding-key" preference="extensions.zotero.zoteroseek.embeddingKey" style="flex: 1"/>
+      </hbox>
+      <hbox>
+        <label value="Embedding Model:" style="display: flex; align-items: center"/>
+        <html:input type="text" id="zoteroseek-embedding-model" preference="extensions.zotero.zoteroseek.embeddingModel" placeholder="text-embedding-3-small" style="flex: 1"/>
+      </hbox>
+      <hbox>
+        <label value="Batch Size:" style="display: flex; align-items: center"/>
+        <html:input type="range" id="zoteroseek-batchsize" min="1" max="100" step="1" preference="extensions.zotero.zoteroseek.batchSize" style="flex: 1"
+          oninput="document.getElementById('zoteroseek-batchsize-value').value = this.value"/>
+        <label id="zoteroseek-batchsize-value" value="20" style="min-width: 40px; text-align: center"/>
+      </hbox>
+    </vbox>
+  </groupbox>
+  
+  <groupbox>
+    <label><html:h2>About</html:h2></label>
+    <hbox>
+      <label value="ZoteroSeek - AI Research Assistant for Zotero" style="color: gray"/>
+    </hbox>
+    <hbox>
+      <label value="Version: __buildVersion__" style="color: gray"/>
+    </hbox>
+  </groupbox>
 </vbox>

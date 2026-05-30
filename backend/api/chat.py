@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from loguru import logger
 from backend.core.rag.chat_integration import ChatIntegration
 from backend.core.rag.retriever import Retriever
 from backend.core.prompts.registry import PromptRegistry
@@ -22,27 +23,32 @@ llm_client = LLMClient()
 @router.post("/chat")
 async def chat(request: ChatRequest):
     """RAG chat with streaming response"""
-    await vector_store.initialize()
-    retriever = Retriever(embedder=embedder, vector_store=vector_store)
-    chat_integration = ChatIntegration(retriever=retriever, prompt_registry=prompt_registry)
+    try:
+        logger.info(f"[Chat] Received request: {request.message}")
+        await vector_store.initialize()
+        retriever = Retriever(embedder=embedder, vector_store=vector_store)
+        chat_integration = ChatIntegration(retriever=retriever, prompt_registry=prompt_registry)
 
-    # Get augmented prompt with RAG context
-    augmented_prompt, sources = await chat_integration.augment_query(
-        query=request.message,
-        top_k=request.top_k,
-    )
+        # Get augmented prompt with RAG context
+        augmented_prompt, sources = await chat_integration.augment_query(
+            query=request.message,
+            top_k=request.top_k,
+        )
 
-    # Build messages
-    system, _ = prompt_registry.render("rag_research", context="", question="")
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": augmented_prompt},
-    ]
+        # Build messages
+        system, _ = prompt_registry.render("rag_research", context="", question="")
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": augmented_prompt},
+        ]
 
-    # Stream response
-    async def generate():
-        async for chunk in llm_client.chat(messages, stream=True):
-            yield f"data: {chunk}\n\n"
-        yield "data: [DONE]\n\n"
+        # Stream response
+        async def generate():
+            async for chunk in llm_client.chat(messages, stream=True):
+                yield f"data: {chunk}\n\n"
+            yield "data: [DONE]\n\n"
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+        return StreamingResponse(generate(), media_type="text/event-stream")
+    except Exception as e:
+        logger.exception(f"[Chat] Error: {e}")
+        raise

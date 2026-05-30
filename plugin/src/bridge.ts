@@ -1,15 +1,21 @@
 // bridge.ts - HTTP client for backend API
 
-const BACKEND_URL = 'http://localhost:20801';
+import { getPref } from './utils/prefs';
+
+function getBackendUrl(): string {
+  const url = getPref('url') || 'http://localhost';
+  const port = getPref('port') || 20801;
+  return `${url}:${port}`;
+}
 
 export const bridge = {
   async health() {
-    const response = await fetch(`${BACKEND_URL}/api/v1/health`);
+    const response = await fetch(`${getBackendUrl()}/api/v1/health`);
     return response.json();
   },
   
   async index(pdfPath: string, itemId: string = 'manual') {
-    const response = await fetch(`${BACKEND_URL}/api/v1/index`, {
+    const response = await fetch(`${getBackendUrl()}/api/v1/index`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pdf_path: pdfPath, item_id: itemId }),
@@ -18,7 +24,7 @@ export const bridge = {
   },
   
   async search(query: string, topK: number = 5) {
-    const response = await fetch(`${BACKEND_URL}/api/v1/search`, {
+    const response = await fetch(`${getBackendUrl()}/api/v1/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, top_k: topK }),
@@ -27,12 +33,12 @@ export const bridge = {
   },
   
   async library() {
-    const response = await fetch(`${BACKEND_URL}/api/v1/library`);
+    const response = await fetch(`${getBackendUrl()}/api/v1/library`);
     return response.json();
   },
 
   async chat(message: string, conversationId?: string): Promise<ReadableStream<string>> {
-    const response = await fetch(`${BACKEND_URL}/api/v1/chat`, {
+    const response = await fetch(`${getBackendUrl()}/api/v1/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, conversation_id: conversationId }),
