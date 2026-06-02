@@ -65,6 +65,7 @@ class ZoteroItemsResponse(BaseModel):
     items: List[ZoteroItem]
     total: int
     pdf_count: int
+    zotero_connected: bool = True
 
 
 class IndexZoteroRequest(BaseModel):
@@ -132,12 +133,17 @@ async def fetch_zotero_attachments(
 
 
 def resolve_pdf_path(attachment_data: dict) -> Optional[Path]:
-    """从 Zotero attachment 数据解析本地 PDF 路径"""
+    """从 Zotero attachment 数据解析本地 PDF 路径（仅 PDF，过滤 snapshot/html）"""
     key = attachment_data.get("key", "")
     filename = attachment_data.get("filename", "")
     content_type = attachment_data.get("contentType", "")
+    link_mode = attachment_data.get("linkMode", "")
 
-    if content_type != "application/pdf" and not filename.endswith(".pdf"):
+    # 只接受 PDF 附件，跳过 snapshot、html、linked_url 等
+    if content_type != "application/pdf" and not filename.lower().endswith(".pdf"):
+        return None
+    # 额外过滤：跳过 imported_url（通常是网页 snapshot）
+    if link_mode == "imported_url" and content_type != "application/pdf":
         return None
 
     pdf_path = ZOTERO_STORAGE_BASE / key / filename
@@ -171,13 +177,13 @@ async def list_zotero_items():
             raw_items = await fetch_zotero_items(client)
             raw_attachments = await fetch_zotero_attachments(client)
     except httpx.ConnectError:
-        return ZoteroItemsResponse(items=[], total=0, pdf_count=0)
+        return ZoteroItemsResponse(items=[], total=0, pdf_count=0, zotero_connected=False)
     except httpx.HTTPStatusError as e:
         logger.error(f"[Zotero] API 错误: {e}")
-        return ZoteroItemsResponse(items=[], total=0, pdf_count=0)
+        return ZoteroItemsResponse(items=[], total=0, pdf_count=0, zotero_connected=False)
     except Exception as e:
         logger.error(f"[Zotero] 连接失败: {e}")
-        return ZoteroItemsResponse(items=[], total=0, pdf_count=0)
+        return ZoteroItemsResponse(items=[], total=0, pdf_count=0, zotero_connected=False)
 
     # 构建 parent_key → attachments 映射
     attachment_map: dict[str, list[ZoteroAttachment]] = {}

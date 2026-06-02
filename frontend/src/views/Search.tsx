@@ -39,7 +39,7 @@ export default function SearchView() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search your knowledge base..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <button
@@ -70,35 +70,20 @@ export default function SearchView() {
             {results.map((result) => (
               <div
                 key={result.id}
-                className="bg-white p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all"
+                className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm transition-all"
               >
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm font-medium text-gray-900 block truncate">
-                      {String(result.metadata.title || 'Unknown')}
+                <div className="mb-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100 block truncate">
+                    {String(result.metadata.title || 'Unknown')}
+                  </span>
+                  {typeof result.metadata.section_type === 'string' && result.metadata.section_type && (
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      {result.metadata.section_type}
                     </span>
-                    {typeof result.metadata.section_type === 'string' && result.metadata.section_type && (
-                      <span className="text-[10px] text-gray-500 uppercase tracking-wider">
-                        {result.metadata.section_type}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Score 进度条 */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full transition-all"
-                        style={{ width: `${Math.min(result.score * 100, 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-600 w-10 text-right">
-                      {(result.score * 100).toFixed(0)}%
-                    </span>
-                  </div>
+                  )}
                 </div>
 
-                <p className="text-sm text-gray-600 line-clamp-3">{result.content}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-3">{result.content}</p>
               </div>
             ))}
           </div>
@@ -116,9 +101,9 @@ export default function SearchView() {
 
       {/* 初始状态 */}
       {!searched && (
-        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+        <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
           <SearchIcon className="w-10 h-10 mb-3" />
-          <p className="font-medium">Semantic Search</p>
+          <p className="font-medium text-gray-500 dark:text-gray-400">Semantic Search</p>
           <p className="text-sm mt-1">Search across all indexed papers using natural language</p>
         </div>
       )}

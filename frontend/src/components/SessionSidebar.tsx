@@ -33,7 +33,7 @@ export default function SessionSidebar({ onNewChat, onSelectSession }: Props) {
   const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
 
   return (
-    <div className="w-60 shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex flex-col transition-colors">
+    <div className="w-64 h-full flex flex-col bg-white/50 dark:bg-gray-800/50 backdrop-blur-xl border-r border-white/20 dark:border-gray-700/50">
       {/* 新建按钮 */}
       <div className="p-3">
         <button
@@ -110,7 +110,7 @@ export default function SessionSidebar({ onNewChat, onSelectSession }: Props) {
         })}
 
         {sorted.length === 0 && (
-          <div className="text-center text-gray-400 dark:text-gray-500 text-xs py-8">
+          <div className="text-center text-gray-400 dark:text-gray-600 text-xs py-8">
             No conversations yet
           </div>
         )}
