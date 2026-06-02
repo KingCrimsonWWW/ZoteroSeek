@@ -1,4 +1,5 @@
 import { useChatStore } from '@/stores/chatStore'
+import { useSessionStore } from '@/stores/sessionStore'
 import { useState, useRef, useEffect } from 'react'
 import { Send, Trash2, Copy, Check, FileText } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -6,7 +7,9 @@ import remarkGfm from 'remark-gfm'
 import type { ChatSource } from '@/api/client'
 
 export default function Chat() {
-  const { messages, isLoading, sendMessage, clearMessages } = useChatStore()
+  const { isLoading, sendMessage, clearMessages } = useChatStore()
+  const activeSession = useSessionStore((s) => s.getActiveSession())
+  const messages = activeSession?.messages ?? []
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -62,7 +65,7 @@ export default function Chat() {
                 className={`p-4 rounded-2xl ${
                   msg.role === 'user'
                     ? 'bg-blue-600 text-white rounded-br-md'
-                    : 'bg-white border border-gray-200 rounded-bl-md shadow-sm'
+                    : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-bl-md shadow-sm'
                 }`}
               >
                 {msg.role === 'user' ? (
@@ -92,7 +95,7 @@ export default function Chat() {
         {/* 加载动画 */}
         {isLoading && messages[messages.length - 1]?.content === '' && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md p-4 shadow-sm">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-md p-4 shadow-sm">
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
                 <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
@@ -106,7 +109,7 @@ export default function Chat() {
       </div>
 
       {/* 输入区 */}
-      <div className="border-t border-gray-200 bg-white p-4 -mx-4 -mb-6 rounded-b-lg">
+      <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 -mx-4 -mb-6 rounded-b-lg">
         <div className="flex items-end gap-3">
           {messages.length > 0 && (
             <button
@@ -125,7 +128,7 @@ export default function Chat() {
               onChange={handleInput}
               onKeyDown={handleKeyDown}
               placeholder="Ask about your research... (Shift+Enter for new line)"
-              className="flex-1 resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent max-h-[150px]"
+              className="flex-1 resize-none rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent max-h-[150px]"
               rows={1}
               disabled={isLoading}
             />
@@ -162,7 +165,7 @@ function SourcesPanel({ sources }: { sources: ChatSource[] }) {
           {sources.map((src) => (
             <div
               key={src.index}
-              className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs"
+              className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-3 text-xs"
             >
               <div className="flex items-start justify-between gap-2 mb-1">
                 <span className="font-medium text-gray-900 truncate">

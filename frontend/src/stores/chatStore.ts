@@ -1,38 +1,34 @@
 import { create } from 'zustand'
-import { apiClient, type ChatMessage, type ChatSource } from '@/api/client'
+import { apiClient, type ChatSource } from '@/api/client'
+import { useSessionStore } from './sessionStore'
 
 interface ChatState {
-  messages: ChatMessage[]
   isLoading: boolean
   sendMessage: (content: string) => Promise<void>
   clearMessages: () => void
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
-  messages: [],
+export const useChatStore = create<ChatState>((set) => ({
   isLoading: false,
 
   sendMessage: async (content: string) => {
-    const { messages } = get()
-    set({
-      messages: [...messages, { role: 'user', content }],
-      isLoading: true,
-    })
+    const sessionStore = useSessionStore.getState()
+
+    // 添加用户消息
+    sessionStore.addMessage({ role: 'user', content })
+    // 添加 assistant 占位
+    sessionStore.addMessage({ role: 'assistant', content: '' })
+    set({ isLoading: true })
 
     let assistantContent = ''
     let sources: ChatSource[] | undefined
-    set({
-      messages: [...get().messages, { role: 'assistant', content: '' }],
-    })
 
     try {
       await apiClient.chat(
         content,
         (chunk) => {
           assistantContent += chunk
-          const msgs = get().messages
-          msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, sources }
-          set({ messages: [...msgs] })
+          sessionStore.updateLastMessage(assistantContent, sources)
         },
         (src) => {
           sources = src
@@ -43,11 +39,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       assistantContent += `\n\n⚠️ ${errorMsg}`
     }
 
-    // 最终更新，附加 sources
-    const msgs = get().messages
-    msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, sources }
-    set({ messages: [...msgs], isLoading: false })
+    // 最终更新
+    sessionStore.updateLastMessage(assistantContent, sources)
+    set({ isLoading: false })
   },
 
-  clearMessages: () => set({ messages: [] }),
+  clearMessages: () => {
+    useSessionStore.getState().clearActiveMessages()
+  },
 }))
