@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -42,10 +43,29 @@ async def chat(request: ChatRequest):
             {"role": "user", "content": augmented_prompt},
         ]
 
+        # 构建 sources 数据
+        sources_data = []
+        for i, src in enumerate(sources, 1):
+            sources_data.append({
+                "index": i,
+                "title": src.metadata.get("title", "Unknown"),
+                "section": src.metadata.get("section_type", ""),
+                "score": round(src.score, 3),
+                "content_preview": src.content[:200],
+            })
+
         # Stream response
         async def generate():
-            async for chunk in llm_client.chat(messages, stream=True):
-                yield f"data: {chunk}\n\n"
+            try:
+                async for chunk in llm_client.chat(messages, stream=True):
+                    yield f"data: {chunk}\n\n"
+            except Exception as e:
+                logger.error(f"[Chat] Stream error: {e}")
+                yield f"data: [Error: {str(e)}]\n\n"
+
+            # 发送 sources 数据
+            if sources_data:
+                yield f"sources: {json.dumps(sources_data, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")

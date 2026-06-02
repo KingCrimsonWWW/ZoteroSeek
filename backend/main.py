@@ -7,6 +7,7 @@ from backend.api.index import router as index_router
 from backend.api.search import router as search_router
 from backend.api.chat import router as chat_router
 from backend.api.library import router as library_router
+from backend.api.zotero import router as zotero_router
 from backend.config.settings import settings
 
 app = FastAPI(
@@ -30,6 +31,7 @@ app.include_router(index_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(library_router, prefix="/api/v1")
+app.include_router(zotero_router, prefix="/api/v1")
 
 # Static files (React build)
 static_dir = Path(__file__).parent / "static"
