@@ -25,20 +25,33 @@ const addon = {
       })
       
       // Add toolbar button to main toolbar
+      // 策略：尝试多个锚点 ID，兼容不同 Zotero 版本
       const doc = Zotero.getMainWindow().document
       if (!doc.getElementById('zotero-tb-zoteroseek')) {
-        // Find the advanced button (gear icon) and insert after it
-        const advancedBtn = doc.getElementById('zotero-tb-advanced')
-        if (advancedBtn) {
+        // 尝试多个可能的锚点按钮（Zotero 版本间 ID 可能变化）
+        const anchorIds = ['zotero-tb-advanced', 'zotero-tb-sync', 'zotero-tb-search-spinner']
+        let anchorBtn: Element | null = null
+        for (const id of anchorIds) {
+          anchorBtn = doc.getElementById(id)
+          if (anchorBtn) break
+        }
+
+        if (anchorBtn) {
           const button = doc.createXULElement('toolbarbutton')
           button.setAttribute('id', 'zotero-tb-zoteroseek')
           button.setAttribute('class', 'zotero-tb-button')
           button.setAttribute('tooltiptext', 'ZoteroSeek - Open AI Assistant')
           button.setAttribute('image', 'chrome://zoteroseek/content/icons/icon.png')
-          button.addEventListener('command', () => {
-            launcher.openUI()
-          })
-          advancedBtn.parentNode.insertBefore(button, advancedBtn.nextSibling)
+
+          // 同时注册 command 和 click 事件，确保兼容性
+          const handler = () => { launcher.openUI() }
+          button.addEventListener('command', handler)
+          button.addEventListener('click', handler)
+
+          anchorBtn.parentNode!.insertBefore(button, anchorBtn.nextSibling)
+          Zotero.log('[ZoteroSeek] Toolbar button added')
+        } else {
+          Zotero.log('[ZoteroSeek] WARNING: No anchor button found, toolbar button not added')
         }
       }
       
@@ -58,7 +71,10 @@ const addon = {
 }
 
 // Expose to Zotero bootstrap.js
+// 关键：必须设置 Zotero.__addonInstance__，否则 bootstrap.js 无法调用 hooks
+// _globalThis.addon 是沙盒内部引用，bootstrap.js 通过 Zotero.__addonInstance__ 访问
 _globalThis.addon = addon
+Zotero.__addonInstance__ = addon
 Zotero['ZoteroSeek'] = addon
 
 export default addon
