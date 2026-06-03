@@ -828,6 +828,138 @@ async def ingest(self, ctx) -> PipelineResult:
 | `frontend/src/stores/chatStore.ts` | 聊天状态管理 | ~50 |
 | `frontend/src/stores/sessionStore.ts` | 会话管理 | ~120 |
 | `frontend/src/api/client.ts` | API 客户端 | ~100 |
+| `frontend/src/stores/sessionStore.ts` | 会话管理 + localStorage 持久化 | ~200 |
 | `plugin/src/index.ts` | 插件入口 | ~65 |
 | `plugin/src/bridge.ts` | HTTP 桥接 | ~60 |
 | `plugin/src/launcher.ts` | 后端启动器 | ~50 |
+| `backend/api/shared_deps.py` | 共享依赖单例 | ~40 |
+
+---
+
+## 11. 工程质量问题清单与修复记录
+
+### 11.1 共享依赖管理（shared_deps.py）
+
+**问题**：chat.py、search.py、index.py 各自独立创建 `EmbeddingClient()`、`ChromaVectorStore()` 等实例，每次请求都调用 `initialize()`。
+
+**修复**：抽取 `backend/api/shared_deps.py`，模块级单例 + 幂等初始化：
+
+```python
+# backend/api/shared_deps.py
+embedder = EmbeddingClient()
+vector_store = ChromaVectorStore()
+_vector_store_initialized = False
+
+async def ensure_vector_store():
+    """幂等初始化 — 只在首次调用时执行"""
+    global _vector_store_initialized
+    if not _vector_store_initialized:
+        await vector_store.initialize()
+        _vector_store_initialized = True
+```
+
+> **替代方案**：用 FastAPI 的 `Depends()` + `@lru_cache` 做依赖注入
+> **为什么不用**：当前架构冻结，shared_deps 已足够简洁，Depends 需要改更多代码。
+
+### 11.2 asyncio.to_thread() 避免阻塞
+
+**问题**：`PDFExtractor.extract()` 是 `async def`，但内部 `fitz.open()` 和 `page.get_text()` 是同步阻塞调用，会阻塞 FastAPI 事件循环。
+
+**修复**：
+```python
+async def extract(self, source, config=None):
+    # 将阻塞调用放到线程池
+    full_text, page_count = await asyncio.to_thread(self._extract_sync, source)
+    ...
+
+@staticmethod
+def _extract_sync(source: str) -> tuple[str, int]:
+    doc = fitz.open(source)
+    # ... 同步提取
+```
+
+> **替代方案**：用 `run_in_executor(None, ...)` — 效果相同但语法更冗长
+> **为什么用 to_thread**：Python 3.9+ 推荐写法，语义更清晰。
+
+### 11.3 Pydantic v2 迁移
+
+**问题**：使用了 Pydantic v1 的 `class Config` 风格。
+
+**修复**：
+```python
+# v1（旧）
+class Settings(BaseSettings):
+    class Config:
+        env_prefix = "ZOTEROSEEK_"
+        env_file = ROOT_DIR / ".env"
+
+# v2（新）
+class Settings(BaseSettings):
+    model_config = {
+        "env_prefix": "ZOTEROSEEK_",
+        "env_file": str(ROOT_DIR / ".env"),
+    }
+```
+
+### 11.4 FastAPI lifespan 替代 on_event
+
+**问题**：`@app.on_event("startup")` 已被 FastAPI 标记为废弃。
+
+**修复**：
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()  # 启动时初始化数据库
+    yield       # 应用运行中
+    # 这里可以添加清理逻辑
+
+app = FastAPI(lifespan=lifespan)
+```
+
+### 11.5 Embedding 分批策略
+
+**问题**：`embed()` 一次性发送所有文本，大批量时可能触达 API 限制。
+
+**修复**：默认 `batch_size=20`，循环分批发送：
+```python
+for i in range(0, len(texts), self.batch_size):
+    batch = texts[i:i + self.batch_size]
+    response = await client.post(...)
+```
+
+---
+
+## 12. 项目中的 Agent 能力总结
+
+### 为什么这是一个 Agent 项目？
+
+很多人把"调用了 LLM API"说成是"做了 Agent"——这是误解。**Agent 的核心是自主规划 + 工具调用 + 多步执行**。ZoteroSeek 中有三个层次的 Agent 能力：
+
+**第一层：文档理解 Agent**
+```
+PDF → 自动选择解析引擎 → 自动识别学术分段 → 自动语义分块 → 自动向量化 → 自动存储
+```
+每一步可插拔替换（策略模式），失败自动回退。
+
+**第二层：检索 Agent**
+```
+用户提问 → 自动向量化 → 自动检索最相关文档 → 自动组装结构化 Prompt
+```
+自主决策检索数量（top_k）、上下文格式、引用方式。
+
+**第三层：生成 Agent**
+```
+LLM 基于真实文献生成回答 → 强制引用格式 [^N^] → 前端可溯源验证
+```
+
+### 简历项目描述
+
+> **ZoteroSeek — 本地 AI 学术研究助手**
+> 技术栈：Python / FastAPI / ChromaDB / React / TypeScript / MinerU
+>
+> 设计并实现了基于 RAG 架构的本地 AI 研究助手，以 Zotero 文献库为数据源，支持学术论文的语义检索和智能问答。
+>
+> - **RAG 检索增强生成**：Embedding 向量化 + ChromaDB 语义检索 + Prompt 工程，实现基于私有文献库的问答，回答附带可验证引用，抑制 LLM 幻觉
+> - **多步工具编排**：集成 MinerU 文档解析 API，实现异步任务编排（提交→上传→轮询→下载），支持结构化 Markdown 输出
+> - **可插拔管线设计**：5 阶段处理管线（Extract→Parse→Chunk→Embed→Store），采用策略模式，支持 MinerU / PyMuPDF 双引擎热切换
+> - **全栈实现**：FastAPI 后端（SSE 流式响应）+ React 前端（Liquid Glass UI）+ Zotero 插件（极薄桥接层）
