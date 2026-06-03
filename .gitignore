@@ -63,3 +63,4 @@ __pycache__/
 # Runtime data (SQLite, ChromaDB)
 data/
 
+docs/TEACHING.md
