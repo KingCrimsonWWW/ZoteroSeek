@@ -28,8 +28,8 @@ const addon = {
       // 策略：尝试多个锚点 ID，兼容不同 Zotero 版本
       const doc = Zotero.getMainWindow().document
       if (!doc.getElementById('zotero-tb-zoteroseek')) {
-        // 尝试多个可能的锚点按钮（Zotero 版本间 ID 可能变化）
-        const anchorIds = ['zotero-tb-advanced', 'zotero-tb-sync', 'zotero-tb-search-spinner']
+        // 尝试多个锚点按钮，优先放在"新建条目/新建笔记"同一工具栏
+        const anchorIds = ['zotero-tb-note-add', 'zotero-tb-add', 'zotero-tb-advanced', 'zotero-tb-sync']
         let anchorBtn: Element | null = null
         for (const id of anchorIds) {
           anchorBtn = doc.getElementById(id)
