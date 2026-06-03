@@ -42,6 +42,8 @@ export interface ChatMessage {
   content: string
   /** AI 回复的引用源列表（仅 assistant 消息有此字段） */
   sources?: ChatSource[]
+  /** 消息唯一 ID（用于 React key，保证列表渲染稳定性） */
+  id?: string
 }
 
 /** AI 回复中引用的文献来源 */

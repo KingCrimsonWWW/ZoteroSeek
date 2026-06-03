@@ -279,7 +279,7 @@ class SemanticChunker:
                 authors=authors,
                 year=doc.year,
                 section_type=section.section_type.value,
-                heading_path=heading_path,
+                heading_path=heading_path or ["Untitled"],
                 content_hash=content_hash,
             ),
         )

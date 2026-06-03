@@ -46,7 +46,7 @@ AGENTS.md
 .opencode/
 .sisyphus/
 .claude/
-docs/TEACHING.md
+.docs/
 
 # Misc
 *.tgz

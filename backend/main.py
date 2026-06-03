@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,18 +10,29 @@ from backend.api.chat import router as chat_router
 from backend.api.library import router as library_router
 from backend.api.zotero import router as zotero_router
 from backend.config.settings import settings
+from backend.data.db import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    init_db()
+    yield
 
 app = FastAPI(
     title="ZoteroSeek API",
     version="0.1.0",
     description="Local AI Research Assistant Runtime",
+    lifespan=lifespan,
 )
 
-# CORS for development
+# CORS 配置
+# 注意：allow_credentials=True 时不能用 allow_origins=["*"]（CORS 规范限制）
+# 本地开发环境用 allow_credentials=False 即可
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

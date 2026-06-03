@@ -2,12 +2,9 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from backend.core.pipeline.interfaces import PipelineContext
 from backend.core.pipeline.ingestion import IngestionPipeline
-from backend.core.pipeline.parser import DocumentParser
-from backend.core.pipeline.chunker import SemanticChunker
-from backend.core.llm.embeddings import EmbeddingClient
-from backend.data.chroma_store import ChromaVectorStore
 from backend.extractors.pdf import PDFExtractor
 from backend.extractors.mineru_extractor import MinerUExtractor
+from backend.api.shared_deps import embedder, vector_store, parser, chunker, ensure_vector_store
 from loguru import logger
 
 router = APIRouter(tags=["index"])
@@ -33,11 +30,6 @@ EXTRACTORS = {
     "pymupdf": PDFExtractor,
 }
 
-parser = DocumentParser()
-chunker = SemanticChunker()
-embedder = EmbeddingClient()
-vector_store = ChromaVectorStore()
-
 
 def get_extractor(name: str):
     """根据名称获取提取器实例"""
@@ -54,7 +46,7 @@ async def index_pdf(request: IndexRequest):
         extractor = get_extractor(request.extractor)
         logger.info(f"[Index] 索引 {request.pdf_path}，使用 {request.extractor} 提取器")
 
-        await vector_store.initialize()
+        await ensure_vector_store()
 
         pipeline = IngestionPipeline(
             extractor=extractor,

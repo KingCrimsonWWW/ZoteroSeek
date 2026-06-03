@@ -108,7 +108,7 @@ export default function Chat() {
 
         {/* 消息列表渲染 */}
         {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={msg.id || i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] ${msg.role === 'user' ? 'order-1' : ''}`}>
               {/* 消息气泡样式设计：
                   - 用户消息：蓝色背景，右下角方角（rounded-br-md）

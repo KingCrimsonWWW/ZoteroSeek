@@ -163,6 +163,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   addMessage: (msg: ChatMessage) => {
+    // 为每条消息分配唯一 ID，确保 React 列表渲染稳定性
+    const msgWithId = { ...msg, id: msg.id || generateId() }
+
     set((state) => {
       let { activeSessionId, sessions } = state
 
@@ -183,7 +186,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
       sessions = sessions.map(s => {
         if (s.id !== activeSessionId) return s
-        const messages = [...s.messages, msg]
+        const messages = [...s.messages, msgWithId]
         return {
           ...s,
           messages,

@@ -7,6 +7,7 @@ Zotero 集成 API — 从 Zotero 本地库发现文献并批量索引 PDF
 """
 
 import asyncio
+import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -29,14 +30,20 @@ from backend.extractors.pdf import PDFExtractor
 
 router = APIRouter(tags=["zotero"])
 
-# Zotero 本地存储路径（Windows 默认）
-ZOTERO_STORAGE_BASE = Path("D:/WorkSpace/ZoteroData/storage")
-
-# 提取器注册表
+# 提取器注册表（与 index.py 保持一致）
 EXTRACTORS = {
     "mineru": MinerUExtractor,
     "pymupdf": PDFExtractor,
 }
+
+# Zotero 本地存储路径（PDF 附件存放位置）
+# 从 settings 读取，留空则使用默认路径
+def _get_zotero_storage_base() -> Path:
+    if settings.zotero_storage_path:
+        return Path(settings.zotero_storage_path)
+    return Path.home() / "Zotero" / "storage"
+
+ZOTERO_STORAGE_BASE = _get_zotero_storage_base()
 
 
 # ── 响应模型 ──────────────────────────────────────────────────
@@ -116,20 +123,32 @@ async def fetch_zotero_items(
 
 async def fetch_zotero_attachments(
     client: httpx.AsyncClient,
+    limit: int = 100,
 ) -> list:
-    """获取所有 PDF 附件"""
+    """获取所有 PDF 附件（分页）"""
     url = f"{settings.zotero_api_url}/users/0/items"
     headers = {}
     if settings.zotero_api_key:
         headers["Zotero-API-Key"] = settings.zotero_api_key
 
-    resp = await client.get(
-        url,
-        params={"limit": 100, "itemType": "attachment"},
-        headers=headers,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    all_items = []
+    start = 0
+    while True:
+        resp = await client.get(
+            url,
+            params={"limit": limit, "start": start, "itemType": "attachment"},
+            headers=headers,
+        )
+        resp.raise_for_status()
+        items = resp.json()
+        if not items:
+            break
+        all_items.extend(items)
+        if len(items) < limit:
+            break
+        start += limit
+
+    return all_items
 
 
 def resolve_pdf_path(attachment_data: dict) -> Optional[Path]:
@@ -329,7 +348,6 @@ async def index_zotero(request: IndexZoteroRequest):
                         if name:
                             authors.append(name)
 
-                    import json
                     item = Item(
                         id=parent_key,
                         title=title,
