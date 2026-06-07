@@ -43,6 +43,22 @@ const addon = {
         }
 
         if (anchorBtn) {
+          // 注入 CSS 控制图标大小和深色模式适配
+          const style = doc.createElementNS('http://www.w3.org/1999/xhtml', 'style')
+          style.textContent = `
+            #zotero-tb-zoteroseek .toolbarbutton-icon {
+              width: 16px !important;
+              height: 16px !important;
+            }
+            /* 深色模式：图标加亮色滤镜 */
+            @media (prefers-color-scheme: dark) {
+              #zotero-tb-zoteroseek .toolbarbutton-icon {
+                filter: brightness(1.2) saturate(0.8);
+              }
+            }
+          `
+          doc.documentElement.appendChild(style)
+
           const button = doc.createXULElement('toolbarbutton')
           button.setAttribute('id', 'zotero-tb-zoteroseek')
           button.setAttribute('class', 'zotero-tb-button')
