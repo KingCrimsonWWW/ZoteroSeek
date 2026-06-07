@@ -43,14 +43,13 @@ class PromptRegistry:
         """Register default prompts"""
         self.register(PromptTemplate(
             name="rag_research",
-            system="""You are ZoteroSeek, an AI research assistant. You help researchers understand academic papers.
+            system="""You are ZoteroSeek, an AI research assistant.
 
 Rules:
-1. Answer based ONLY on the provided context
-2. Cite sources using [^N^] format where N is the source number
-3. If context doesn't contain enough info, say so honestly
-4. Preserve technical terminology and mathematical notation
-5. Be precise and concise""",
+1. ALWAYS respond in the SAME LANGUAGE as the user's question. If the user writes in Chinese, reply in Chinese. If in English, reply in English.
+2. If context from papers is provided, use it to inform your answer and cite with [^N^] format.
+3. If NO relevant context is provided (empty or irrelevant), answer naturally without forcing citations. Do NOT invent references.
+4. Be helpful, precise, and concise. Preserve technical terminology.""",
             template="""### Context from Papers:
 
 {context}

@@ -16,7 +16,7 @@
 import { useChatStore } from '@/stores/chatStore'
 import { useSessionStore } from '@/stores/sessionStore'
 import { useState, useRef, useEffect } from 'react'
-import { Send, Trash2, Copy, Check, FileText } from 'lucide-react'
+import { Send, Trash2, Copy, Check, FileText, Pencil } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ChatSource } from '@/api/client'
@@ -27,6 +27,8 @@ export default function Chat() {
   // 使用选择器函数 (s) => s.getActiveSession() 可以避免无关状态变化触发重渲染
   // 注意：getActiveSession() 每次调用都返回新引用，这里可接受因为会话数据变化频率低
   const activeSession = useSessionStore((s) => s.getActiveSession())
+  const deleteMessage = useSessionStore((s) => s.deleteMessage)
+  const deleteMessagesFromIndex = useSessionStore((s) => s.deleteMessagesFromIndex)
   const messages = activeSession?.messages ?? []
   const [input, setInput] = useState('')
 
@@ -90,12 +92,11 @@ export default function Chat() {
   }
 
   return (
-    // 计算高度：视口高度减去顶部导航栏的 56px
-    <div className="flex flex-col h-[calc(100vh-56px)]">
+    <div className="flex flex-col flex-1 overflow-hidden">
       {/* 消息列表 — 可滚动区域，占满剩余空间 */}
       <div className="flex-1 overflow-y-auto">
-        {/* max-w-3xl 限制消息区最大宽度，保证长文本的可读性 */}
-        <div className="max-w-3xl mx-auto space-y-4 px-4 py-6">
+        {/* max-w-5xl 限制消息区最大宽度，保证长文本的可读性 */}
+        <div className="max-w-5xl mx-auto space-y-4 px-6 py-6">
 
         {/* 空状态引导：没有消息时显示欢迎界面 */}
         {messages.length === 0 && (
@@ -162,6 +163,32 @@ export default function Chat() {
                 )}
               </div>
 
+              {/* 用户消息操作按钮：复制 / 编辑 / 删除 */}
+              {msg.role === 'user' && (
+                <div className="flex justify-end gap-1 mt-1">
+                  <CopyButton text={msg.content} />
+                  <button
+                    onClick={() => {
+                      setInput(msg.content)
+                      // 从消息列表中移除这条和之后的所有消息（回退到此点）
+                      deleteMessagesFromIndex(i)
+                    }}
+                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Edit and resend"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deleteMessage(i)}
+                    className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Delete message"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
               {/* 引用源面板：仅 AI 消息且有 sources 时显示 */}
               {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
                 <SourcesPanel sources={msg.sources} />
@@ -181,8 +208,8 @@ export default function Chat() {
       </div>
 
       {/* 输入区 — 悬浮式设计（底部固定，不随消息滚动） */}
-      <div className="px-4 pb-4 pt-2">
-        <div className="max-w-3xl mx-auto">
+      <div className="px-6 pb-4 pt-2">
+        <div className="max-w-5xl mx-auto">
           <form onSubmit={handleSubmit} className="flex items-end gap-2">
             {/* 清空按钮：有消息时才显示 */}
             {messages.length > 0 && (

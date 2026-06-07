@@ -61,6 +61,10 @@ interface SessionState {
   updateLastMessage: (content: string, sources?: ChatMessage['sources']) => void
   /** 清空活跃会话的所有消息并重置标题 */
   clearActiveMessages: () => void
+  /** 删除指定索引的消息 */
+  deleteMessage: (index: number) => void
+  /** 从指定索引开始删除所有消息（用于编辑回退） */
+  deleteMessagesFromIndex: (index: number) => void
 }
 
 /**
@@ -230,6 +234,30 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           ? { ...s, messages: [], title: 'New Chat', updatedAt: Date.now() }
           : s
       )
+      saveSessions(sessions)
+      return { sessions }
+    })
+  },
+
+  deleteMessage: (index: number) => {
+    set((state) => {
+      const sessions = state.sessions.map(s => {
+        if (s.id !== state.activeSessionId) return s
+        const messages = s.messages.filter((_, i) => i !== index)
+        return { ...s, messages, updatedAt: Date.now() }
+      })
+      saveSessions(sessions)
+      return { sessions }
+    })
+  },
+
+  deleteMessagesFromIndex: (index: number) => {
+    set((state) => {
+      const sessions = state.sessions.map(s => {
+        if (s.id !== state.activeSessionId) return s
+        const messages = s.messages.slice(0, index)
+        return { ...s, messages, updatedAt: Date.now() }
+      })
       saveSessions(sessions)
       return { sessions }
     })

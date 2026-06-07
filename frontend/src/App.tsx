@@ -259,7 +259,7 @@ function App() {
           <SessionSidebar onNewChat={handleNewChat} onSelectSession={handleSelectSession} />
         </div>
 
-        <main className="flex-1 overflow-hidden flex flex-col items-center">
+        <main className="flex-1 overflow-hidden flex flex-col">
           {/**
            * 视图渲染策略
            *
@@ -273,9 +273,11 @@ function App() {
            */}
           {view === 'chat' && <Chat />}
           {view !== 'chat' && (
-            <div className="w-full max-w-4xl px-4 py-6 overflow-y-auto h-[calc(100vh-72px)]">
-              {view === 'library' && <Library />}
-              {view === 'search' && <SearchView />}
+            <div className="w-full overflow-y-auto h-[calc(100vh-72px)]">
+              <div className="max-w-4xl mx-auto px-4 py-6">
+                {view === 'library' && <Library />}
+                {view === 'search' && <SearchView />}
+              </div>
             </div>
           )}
         </main>
