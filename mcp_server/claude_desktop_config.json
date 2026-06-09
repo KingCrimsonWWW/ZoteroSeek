@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "zoteroseek": {
+      "command": "uv",
+      "args": ["run", "--project", "D:/WorkSpace/Research/ZoteroSeek/backend", "python", "-m", "mcp_server"],
+      "env": {}
+    }
+  }
+}
