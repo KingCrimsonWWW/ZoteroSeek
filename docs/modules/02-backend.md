@@ -1895,3 +1895,76 @@ class EmbeddingClient:
                         │  data: [DONE]                │
                         └──────────────────────────────┘
 ```
+
+---
+
+## 12. LangChain 生态集成
+
+### 架构演进
+
+```
+之前：手写 EmbeddingClient (httpx) + 手写 ChromaVectorStore (适配器)
+之后：LangChain OpenAIEmbeddings + LangChain Chroma（统一接口）
+保留：自研 SemanticChunker + DocumentParser（LangChain 替代方案不支持 Markdown 感知）
+```
+
+### 为什么保留自研 Chunker 和 Parser？
+
+| 组件 | LangChain 方案 | 自研方案 | 选择 |
+|------|---------------|----------|------|
+| Embedding | `OpenAIEmbeddings` | 手写 httpx 60 行 | ✅ LangChain（标准化接口） |
+| VectorStore | `langchain_chroma.Chroma` | 手写适配器 70 行 | ✅ LangChain（自动持久化） |
+| Chunker | `RecursiveCharacterTextSplitter` | Markdown 感知状态机 | ✅ 自研（保护表格/公式） |
+| Parser | 无直接替代 | Markdown + 纯文本双模式 | ✅ 自研（学术分段识别） |
+
+### 适配器模式
+
+```python
+# backend/core/llm/adapters.py
+
+class EmbeddingsAdapter:
+    """将 LangChain OpenAIEmbeddings 适配为 Pipeline 接口"""
+    def __init__(self, langchain_embeddings):
+        self._embeddings = langchain_embeddings
+
+    async def embed(self, texts: List[str]) -> List[List[float]]:
+        return await asyncio.to_thread(self._embeddings.embed_documents, texts)
+
+    async def embed_single(self, text: str) -> List[float]:
+        return await asyncio.to_thread(self._embeddings.embed_query, text)
+
+class VectorStoreAdapter:
+    """将 LangChain Chroma 适配为 Pipeline 接口"""
+    def __init__(self, langchain_vectorstore):
+        self._vs = langchain_vectorstore
+
+    async def upsert(self, ids, embeddings, documents, metadatas):
+        await asyncio.to_thread(self._vs._collection.upsert, ...)
+
+    async def query(self, vector, top_k, filters):
+        # 返回 VectorResult 列表
+```
+
+### shared_deps.py 初始化
+
+```python
+# LangChain 原生组件
+lc_embeddings = OpenAIEmbeddings(
+    api_key=settings.embedding_api_key,
+    base_url=settings.embedding_base_url,
+    model=settings.embedding_model,
+)
+lc_vectorstore = Chroma(
+    collection_name="research",
+    embedding_function=lc_embeddings,
+    persist_directory=settings.chroma_path,
+)
+
+# 适配器（供 IngestionPipeline 使用）
+embedder = EmbeddingsAdapter(lc_embeddings)
+vector_store = VectorStoreAdapter(lc_vectorstore)
+
+# 自研组件（保留）
+parser = DocumentParser()
+chunker = SemanticChunker()
+```

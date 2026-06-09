@@ -1,34 +1,48 @@
 """
-共享依赖单例 — 避免各 API 模块重复创建客户端实例
+共享依赖单例 — LangChain 生态组件
 
-为什么抽取？
-- EmbeddingClient / ChromaVectorStore 等在多个 API 模块中使用
-- 每次 import 时创建实例 → 资源浪费
-- 每次请求调用 initialize() → 重复初始化
-- 统一管理生命周期，便于后续添加连接池、缓存等优化
+使用 LangChain 的 OpenAIEmbeddings 和 Chroma 替代手写的
+EmbeddingClient 和 ChromaVectorStore。
+
+保留自研的 SemanticChunker 和 DocumentParser（LangChain 替代方案不支持 Markdown 感知）。
 """
 
-from backend.core.llm.embeddings import EmbeddingClient
-from backend.core.llm.client import LLMClient
-from backend.core.prompts.registry import PromptRegistry
-from backend.data.chroma_store import ChromaVectorStore
+from langchain_openai import OpenAIEmbeddings
+from langchain_chroma import Chroma
+from backend.config.settings import settings
+from backend.core.llm.adapters import EmbeddingsAdapter, VectorStoreAdapter
 from backend.core.pipeline.parser import DocumentParser
 from backend.core.pipeline.chunker import SemanticChunker
 
-# 模块级单例 — 整个应用共享
-embedder = EmbeddingClient()
-llm_client = LLMClient()
-prompt_registry = PromptRegistry()
-vector_store = ChromaVectorStore()
+# ── LangChain 原生组件 ──────────────────────────────────────
+
+# LangChain Embedding（替代手写 EmbeddingClient）
+lc_embeddings = OpenAIEmbeddings(
+    api_key=settings.embedding_api_key or "dummy",
+    base_url=settings.embedding_base_url,
+    model=settings.embedding_model,
+)
+
+# LangChain Chroma（替代手写 ChromaVectorStore）
+# collection_name="research" 与现有数据兼容
+lc_vectorstore = Chroma(
+    collection_name="research",
+    embedding_function=lc_embeddings,
+    persist_directory=settings.chroma_path,
+)
+
+# ── 适配器（供 IngestionPipeline 使用）─────────────────────────
+
+embedder = EmbeddingsAdapter(lc_embeddings)
+vector_store = VectorStoreAdapter(lc_vectorstore)
+
+# ── 自研组件（保留，LangChain 替代方案不支持 Markdown 感知）─────────
+
 parser = DocumentParser()
 chunker = SemanticChunker()
 
-# 向量存储初始化状态标记
-_vector_store_initialized = False
+# ── 兼容旧 API ──────────────────────────────────────────────
 
 async def ensure_vector_store():
-    """确保向量存储已初始化（幂等，只初始化一次）"""
-    global _vector_store_initialized
-    if not _vector_store_initialized:
-        await vector_store.initialize()
-        _vector_store_initialized = True
+    """兼容旧代码调用 — LangChain Chroma 自动初始化，此函数为空操作"""
+    pass

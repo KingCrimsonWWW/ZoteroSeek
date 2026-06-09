@@ -1,13 +1,8 @@
 """
-Agent 工具定义 — 将现有功能封装为 LangChain Tools
+Agent 工具定义 — LangChain @tool + LangChain Chroma 向量检索
 
-每个 @tool 函数对应一个 Agent 可调用的能力：
-- search_knowledge: 语义搜索已索引的论文
-- query_library: 查看已索引文献列表
-- index_document: 索引新的 PDF 论文
-
-工具内部复用现有组件（Retriever、IngestionPipeline、SQLite），
-不重复造轮子。
+search_knowledge 直接使用 LangChain Chroma 的 similarity_search，
+不再经过手写 Retriever。
 """
 
 from langchain_core.tools import tool
@@ -22,22 +17,20 @@ async def search_knowledge(query: str, top_k: int = 5) -> str:
         query: 搜索查询（自然语言）
         top_k: 返回结果数量（默认 5）
     """
-    from backend.api.shared_deps import embedder, vector_store, ensure_vector_store
-    from backend.core.rag.retriever import Retriever
+    from backend.api.shared_deps import lc_vectorstore
 
-    await ensure_vector_store()
-    retriever = Retriever(embedder=embedder, vector_store=vector_store)
-    results = await retriever.search(query=query, top_k=top_k)
+    # 直接使用 LangChain Chroma 的相似度搜索
+    results = lc_vectorstore.similarity_search_with_score(query, k=top_k)
 
     if not results:
         return "未找到相关文献。知识库中可能没有与该查询相关的内容。"
 
     parts = []
-    for i, r in enumerate(results, 1):
-        title = r.metadata.get("title", "Unknown")
-        section = r.metadata.get("section_type", "")
-        score = round(r.score, 3)
-        parts.append(f"[{i}] {title} ({section}) [相关度: {score}]\n{r.content[:500]}")
+    for i, (doc, score) in enumerate(results, 1):
+        title = doc.metadata.get("title", "Unknown")
+        section = doc.metadata.get("section_type", "")
+        similarity = round(1 - score, 3)
+        parts.append(f"[{i}] {title} ({section}) [相关度: {similarity}]\n{doc.page_content[:500]}")
 
     return "\n\n---\n\n".join(parts)
 
@@ -75,7 +68,7 @@ async def index_document(pdf_path: str, item_id: str = "manual", extractor: str 
         item_id: 文献 ID（可选，默认 "manual"）
         extractor: 提取引擎 "mineru"（默认，高质量）或 "pymupdf"（快速）
     """
-    from backend.api.shared_deps import embedder, vector_store, parser, chunker, ensure_vector_store
+    from backend.api.shared_deps import embedder, vector_store, parser, chunker
     from backend.core.pipeline.interfaces import PipelineContext
     from backend.core.pipeline.ingestion import IngestionPipeline
     from backend.extractors.pdf import PDFExtractor
@@ -84,7 +77,6 @@ async def index_document(pdf_path: str, item_id: str = "manual", extractor: str 
     extractors = {"mineru": MinerUExtractor, "pymupdf": PDFExtractor}
     extractor_cls = extractors.get(extractor, MinerUExtractor)
 
-    await ensure_vector_store()
     pipeline = IngestionPipeline(
         extractor=extractor_cls(),
         parser=parser,
