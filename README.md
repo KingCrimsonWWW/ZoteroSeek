@@ -47,6 +47,18 @@ ZoteroSeek 的做法：用 MinerU 把 PDF 转成保版式的 Markdown → 按章
 | **引用写成 `[来源: chunk_id]`** | chunk_id 由索引生成、全库唯一；事后可用脚本核对「引用的片段是否真实存在、是否在本轮检索结果里」 |
 | **面板数据走本机 HTTP 路由** | 不依赖 DSH 的类型化 Remote 生成器；代价是路由只绑定 127.0.0.1，且只做只读 + token 保存 |
 
+## 文档地图
+
+| 文档 | 内容 |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层、三条数据流、分块与检索（含跨语言三路 + RRF）、失败分类、评测口径 |
+| [docs/DEMO.md](docs/DEMO.md) | 5 分钟演示脚本与常见追问 |
+| [docs/INTERVIEW.md](docs/INTERVIEW.md) | 简历 bullet、面试问答、已知短板与改进计划 |
+| [evals/RESULTS.md](evals/RESULTS.md) | 全部评测数字、失败样本、局限与诚实说明 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 版本变更记录 |
+| [docs/research/](docs/research/) | DSH Host/Client 插件 API、MinerU、Zotero 的实测调研笔记（施工级） |
+| [plugin/docs/DETAIL.md](plugin/docs/DETAIL.md) | 插件管理器里展示的功能说明与限制 |
+
 ## 快速开始
 
 ```powershell
