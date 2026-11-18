@@ -1,10 +1,10 @@
-/**
- * 演示脚本：一条命令跑完「自检 → 检索评测（词面 vs 跨语言）」。
- *
- *   pwsh -File scripts/demo.ps1
- *
- * 不调用模型，几秒内出结果；生成侧指标用会话里的 zotero_eval 工具。
- */
+<#
+.SYNOPSIS
+  演示脚本：一条命令跑完「自检 → 检索评测（词面 vs 跨语言）」。
+.DESCRIPTION
+  pwsh -File scripts/demo.ps1
+  不调用模型，几秒内出结果；生成侧指标用会话里的 zotero_eval 工具。
+#>
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $root = Split-Path -Parent $PSScriptRoot
@@ -27,11 +27,12 @@ foreach ($mode in @('lexical', 'hybrid')) {
   Write-Host ("  qa-set-cross  [{0,-7}] {1}" -f $mode, $metrics)
 }
 
-Write-Host "`n==== 4/4 报告位置 ====" -ForegroundColor Cyan
+Write-Host "`n==== 4/4 生成侧（在会话里调用工具）====" -ForegroundColor Cyan
+Write-Host '  zotero_eval(qa_path="E:\TheCode\ZoteroSeek\evals\qa-set.jsonl")'
+Write-Host '  zotero_eval(qa_path="E:\TheCode\ZoteroSeek\evals\qa-set-cross.jsonl")'
+
+Write-Host "`n最近两份检索报告：" -ForegroundColor Cyan
 Get-ChildItem evals/reports -Filter '*-retrieval.md' -ErrorAction SilentlyContinue |
   Sort-Object LastWriteTime -Descending |
   Select-Object -First 2 |
   ForEach-Object { Write-Host "  $($_.FullName)" }
-
-Write-Host "`n生成侧（citation_accuracy / answer_rate）在会话里调用 zotero_eval 工具：" -ForegroundColor Cyan
-Write-Host '  zotero_eval(qa_path="E:\TheCode\ZoteroSeek\evals\qa-set.jsonl")'
