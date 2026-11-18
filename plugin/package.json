@@ -1,0 +1,30 @@
+{
+  "name": "zotero-seek",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ZoteroSeek: 把本地 Zotero 文献库与 MinerU Markdown 接进 DeepSeek Harness 的插件 - 检索、带引用作答、侧边栏读原文",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "docs",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

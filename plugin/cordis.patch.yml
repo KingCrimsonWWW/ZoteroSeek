@@ -1,0 +1,12 @@
+# ZoteroSeek bundle 的 Loader 补丁。
+# 整个插件只有这一行：Host 半边（工具 + HTTP 路由）与 Client 半边（侧边栏面板）都由它挂载。
+- insert:
+    - id: zotero-seek
+      name: zotero-seek
+      config:
+        # 数据目录：索引、MinerU 解析产物、配额台账都在这里。留空用 ~/.zotero-seek
+        dataDir: ''
+        # MinerU 解析语言：ch 适合中英混排文献
+        language: ch
+        # 单次检索返回的片段数上限
+        defaultTopK: 8

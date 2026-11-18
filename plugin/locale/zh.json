@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "ZoteroSeek",
+    "description": "把本地 Zotero 文献库接进会话：MinerU 解析成 Markdown、检索命中带页码与出处、侧边栏直接读原文并勾选引用。",
+    "detail": "docs/DETAIL.md"
+  }
+}

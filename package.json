@@ -1,103 +1,23 @@
 {
-  "name": "zoteroseek",
+  "name": "zotero-seek-workspace",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
-  "description": "AI-powered research assistant for Zotero",
-  "config": {
-    "addonName": "ZoteroSeek",
-    "addonID": "zoteroseek@kingcrimsonwww.github.io",
-    "addonRef": "zoteroseek",
-    "addonInstance": "ZoteroSeek",
-    "prefsPrefix": "extensions.zotero.zoteroseek",
-    "releasePage": "https://github.com/KingCrimsonWWW/ZoteroSeek/releases",
-    "updaterdf": "https://raw.githubusercontent.com/KingCrimsonWWW/ZoteroSeek/main/update.json"
+  "description": "ZoteroSeek: DSH 插件，把本地 Zotero 文献库 + MinerU Markdown 接进 DeepSeek Harness",
+  "engines": {
+    "node": ">=22.18"
   },
-  "main": "src/index.ts",
   "scripts": {
-    "start": "zotero-plugin serve",
-    "build": "tsc --noEmit && zotero-plugin build",
-    "build-dev": "cross-env NODE_ENV=development zotero-plugin build",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "test": "node --test tests/",
     "typecheck": "tsc --noEmit",
-    "release": "zotero-plugin release",
-    "test": "vitest run",
-    "postinstall": "node -e \"require('fs').cpSync('patches/react', 'node_modules/react', {recursive:true, force:true}); require('fs').cpSync('patches/react-dom', 'node_modules/react-dom', {recursive:true, force:true})\""
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/KingCrimsonWWW/ZoteroSeek.git"
-  },
-  "author": "KingCrimsonWWW",
-  "license": "AGPL-3.0-or-later",
-  "bugs": {
-    "url": "https://github.com/KingCrimsonWWW/ZoteroSeek/issues"
-  },
-  "homepage": "https://github.com/KingCrimsonWWW/ZoteroSeek#readme",
-  "dependencies": {
-    "@heroicons/react": "^2.1.3",
-    "dexie": "^4.0.10",
-    "lodash": "^4.17.21",
-    "marked": "^12.0.0",
-    "marked-react": "^2.0.0",
-    "openai": "^4.79.1",
-    "pdfjs-dist": "^5.7.284",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-markdown": "^9.0.1",
-    "react-syntax-highlighter": "^15.6.1",
-    "zod": "^3.23.8",
-    "zotero-plugin-toolkit": "^4.1.1",
-    "zustand": "^5.0.13"
+    "eval": "node evals/run-eval.mjs",
+    "doctor": "node evals/doctor.mjs"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/lodash": "^4.17.0",
-    "@types/react": "^18.3.1",
-    "@types/react-dom": "^18.3.1",
-    "@types/react-syntax-highlighter": "^15.5.13",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
-    "@vitejs/plugin-react": "^6.0.2",
-    "autoprefixer": "^10.4.19",
-    "compressing": "^1.10.0",
-    "concurrently": "^8.2.2",
-    "cross-env": "^7.0.3",
-    "esbuild": "^0.21.0",
-    "esbuild-style-plugin": "^1.6.3",
-    "eslint": "^9.0.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-react": "^7.34.0",
-    "fake-indexeddb": "^6.2.5",
-    "jsdom": "^29.1.1",
-    "postcss": "^8.4.49",
-    "prettier": "^3.3.0",
-    "prettier-plugin-tailwindcss": "^0.6.0",
-    "release-it": "^17.6.0",
-    "replace-in-file": "^7.2.0",
-    "sharp": "^0.34.5",
-    "tailwindcss": "^3.4.3",
-    "typescript": "^5.5.0",
-    "vitest": "^4.1.7",
-    "zotero-plugin-scaffold": "^0.3.5",
-    "zotero-types": "^3.0.1"
-  },
-  "prettier": {
-    "printWidth": 100,
-    "tabWidth": 2,
-    "useTabs": false,
-    "semi": true,
-    "singleQuote": true,
-    "trailingComma": "all",
-    "bracketSpacing": true,
-    "arrowParens": "always",
-    "plugins": [
-      "prettier-plugin-tailwindcss"
-    ]
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0"
   }
 }

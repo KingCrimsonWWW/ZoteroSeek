@@ -1,1 +1,0 @@
-# ZoteroSeek MCP Server

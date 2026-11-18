@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "ZoteroSeek",
+    "description": "Brings a local Zotero library into the conversation: MinerU-parsed Markdown, page-accurate retrieval hits, a sidebar reader, and selectable citations.",
+    "detail": "docs/DETAIL.md"
+  }
+}

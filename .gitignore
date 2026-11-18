@@ -1,67 +1,18 @@
-# Dependencies
+# dependencies
 node_modules/
-.pnp
-.pnp.js
 
-# Build output
-build/
+# build output (plugin/ is committed; these are intermediate)
 dist/
-*.xpi
-.scaffold/
-debug/
+*.log
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Environment
+# secrets / local config
 .env
 .env.local
-.env.*.local
 
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# runtime data: MinerU 产物、索引、台账（锚定根目录，避免误伤源码）
+/data/
+/evals/reports/
 
-# TypeScript
-*.tsbuildinfo
-
-# Testing
-coverage/
-
-# Reference projects (not part of this project)
-.reference-*/
-
-# AI knowledge base (local only)
-AGENTS.md
-.opencode/
-.sisyphus/
-.claude/
-.docs/
-
-# Misc
-*.tgz
-.cache
-
-# Python
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-*.egg
-
-# Runtime data (SQLite, ChromaDB)
-data/
-
-docs/TEACHING.md
-docs/TEACHING.md
+# OS / editor
+.DS_Store
+Thumbs.db
