@@ -1329,7 +1329,26 @@ var MineruClient = class {
       return null;
     }
   }
+  /**
+   * 带退避重试的 API 调用：轮询是 GET（免费、幂等），失败重试不会重复计费；
+   * 创建任务的 POST 不重试（重试可能产生第二个批次、重复花钱）。
+   */
   async apiJson(path, init) {
+    const attempts = init.method === "GET" ? 3 : 1;
+    let lastError;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        return await this.apiJsonOnce(path, init);
+      } catch (error) {
+        lastError = error;
+        const retryable = error instanceof MineruError && error.retryable && attempt < attempts - 1;
+        if (!retryable) throw error;
+        await sleep(1e3 * (attempt + 1));
+      }
+    }
+    throw lastError;
+  }
+  async apiJsonOnce(path, init) {
     let response;
     try {
       response = await fetch(`${this.options.baseUrl}${path}`, {
@@ -2085,7 +2104,7 @@ async function answerGrounded(question, options) {
     });
     check = verifyCitations(answer, hits.length);
   }
-  const rawCitations = [...check.citations, ...check.invalid].sort((left, right) => left - right);
+  const rawCitations = [...check.citations];
   const invalidCitations = [...check.invalid];
   let citationsStripped = false;
   if (!check.ok) {
@@ -2107,25 +2126,28 @@ async function answerGrounded(question, options) {
 // src/core/eval.ts
 async function runEval(options) {
   const topK = options.topK ?? 5;
+  const mode = options.mode ?? "hybrid";
   const rows = options.limit === void 0 ? options.rows : options.rows.slice(0, options.limit);
   const results = [];
   for (const row of rows) {
     if (options.signal?.aborted === true) break;
     const hits = options.library.search(row.q, {
       topK,
+      mode,
       ...row.item_key === void 0 ? {} : { itemKey: row.item_key }
     });
     const rankIndex = hits.findIndex((hit) => hit.chunkId === row.gold_chunk_id);
     const grounded = await answerGrounded(row.q, {
       search: (query, k) => options.library.search(query, {
         topK: k,
+        mode,
         ...row.item_key === void 0 ? {} : { itemKey: row.item_key }
       }),
       complete: options.deps.complete,
       topK
     });
-    const check = verifyCitations(grounded.answer, hits.length);
-    const rawCitations = rawCitationNumbers(grounded.answer, hits.length);
+    const rawCitations = [...grounded.rawCitations];
+    const invalidCitations = [...grounded.invalidCitations];
     results.push({
       id: row.id,
       type: row.type ?? "fact",
@@ -2137,11 +2159,10 @@ async function runEval(options) {
       answer: grounded.answer,
       citations: grounded.citations,
       rawCitations,
-      invalid: rawCitations.filter((value) => value < 1 || value > hits.length),
+      invalid: invalidCitations,
       retried: grounded.retried,
       citationsStripped: grounded.citationsStripped
     });
-    void check;
   }
   const total = results.length;
   const found = results.filter((result) => result.rank !== null);
@@ -2157,6 +2178,7 @@ async function runEval(options) {
   return {
     generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
     model: options.modelLabel,
+    mode,
     topK,
     qaSet: { path: options.qaPath, questions: total },
     index: {
@@ -2179,14 +2201,6 @@ async function runEval(options) {
     failures: results.filter((result) => result.rank === null || result.rank > 3)
   };
 }
-function rawCitationNumbers(answer, allowed) {
-  const found = [];
-  for (const match of answer.matchAll(/\[\^(\d+)\^?\]/g)) {
-    const value = Number(match[1]);
-    if (Number.isInteger(value) && value > 0 && !found.includes(value)) found.push(value);
-  }
-  return found;
-}
 function renderEvalReport(report) {
   const lines = [];
   lines.push("# \u8BC4\u6D4B\u62A5\u544A\uFF08\u68C0\u7D22 + \u5F15\u7528\uFF09");
@@ -2195,7 +2209,7 @@ function renderEvalReport(report) {
   lines.push(`- \u6A21\u578B\uFF1A\`${report.model}\``);
   lines.push(`- \u8BC4\u6D4B\u96C6\uFF1A${report.qaSet.questions} \u9898\uFF08${report.qaSet.path}\uFF09`);
   lines.push(`- \u7D22\u5F15\uFF1A${report.index.chunks} \u5206\u5757 / ${report.index.parsedItems} \u7BC7\u5DF2\u5165\u5E93`);
-  lines.push(`- \u53E3\u5F84\uFF1A\u68C0\u7D22 \`top_k = ${report.topK}\`\uFF1B\u751F\u6210\u4FA7\u5F15\u7528\u6807\u8BB0\u53EA\u8BA4 \`[^N^]\``);
+  lines.push(`- \u53E3\u5F84\uFF1A\u68C0\u7D22 \`top_k = ${report.topK}\`\uFF08\u6A21\u5F0F \`${report.mode}\`\uFF09\uFF1B\u751F\u6210\u4FA7\u5F15\u7528\u6807\u8BB0\u53EA\u8BA4 \`[^N^]\``);
   lines.push("");
   lines.push("| \u6307\u6807 | \u6570\u503C |");
   lines.push("|---|---|");

@@ -122,7 +122,7 @@ src/host/         DSH Host 半边：Runtime、6 个工具、/zotero-seek 路由�
 src/client/       DSH Client 半边：右侧边栏面板 + 输入框入口按钮
 plugin/           可安装 bundle（构建产物，提交进仓库）
 evals/            doctor / ingest / run-eval / sample-chunks + 4 份评测集 + RESULTS.md
-tests/            node --test 单测（37 个）
+tests/            node --test 单测（41 个）
 docs/             架构说明、演示脚本、面试讲解、调研笔记
 ```
 

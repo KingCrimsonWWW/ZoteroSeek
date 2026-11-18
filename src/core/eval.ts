@@ -9,7 +9,7 @@
  * 「答对没答对」可以被拆成两个可分别优化的问题：检索有没有找对片段、生成有没有用对片段。
  */
 import type { Library } from './library.ts'
-import { answerGrounded, verifyCitations } from './grounding.ts'
+import { answerGrounded } from './grounding.ts'
 
 export interface QaRow {
   id: string
@@ -46,6 +46,8 @@ export interface EvalReport {
   generatedAt: string
   model: string
   topK: number
+  /** 检索模式：hybrid（含双语词表扩展）或 lexical（纯词面基线）。 */
+  mode: 'hybrid' | 'lexical'
   qaSet: { path: string; questions: number }
   index: { chunks: number; parsedItems: number }
   metrics: {
@@ -71,6 +73,8 @@ export interface RunEvalOptions {
   deps: GenerationDeps
   modelLabel: string
   qaPath: string
+  /** 检索模式，默认 hybrid。lexical 用于跨语言对照基线。 */
+  mode?: 'hybrid' | 'lexical'
   /** 只跑前 N 题（调试用）。 */
   limit?: number
   signal?: AbortSignal
@@ -78,6 +82,7 @@ export interface RunEvalOptions {
 
 export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
   const topK = options.topK ?? 5
+  const mode = options.mode ?? 'hybrid'
   const rows = options.limit === undefined ? options.rows : options.rows.slice(0, options.limit)
   const results: QaResult[] = []
 
@@ -85,6 +90,7 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
     if (options.signal?.aborted === true) break
     const hits = options.library.search(row.q, {
       topK,
+      mode,
       ...(row.item_key === undefined ? {} : { itemKey: row.item_key }),
     })
     const rankIndex = hits.findIndex((hit) => hit.chunkId === row.gold_chunk_id)
@@ -93,13 +99,16 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
     const grounded = await answerGrounded(row.q, {
       search: (query, k) => options.library.search(query, {
         topK: k,
+        mode,
         ...(row.item_key === undefined ? {} : { itemKey: row.item_key }),
       }),
       complete: options.deps.complete,
       topK,
     })
-    const check = verifyCitations(grounded.answer, hits.length)
-    const rawCitations = rawCitationNumbers(grounded.answer, hits.length)
+
+    // 引用指标用「剥离非法标记之前」的原始模型输出：它衡量模型有没有尝试编造引用。
+    const rawCitations = [...grounded.rawCitations]
+    const invalidCitations = [...grounded.invalidCitations]
 
     results.push({
       id: row.id,
@@ -112,11 +121,10 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
       answer: grounded.answer,
       citations: grounded.citations,
       rawCitations,
-      invalid: rawCitations.filter((value) => value < 1 || value > hits.length),
+      invalid: invalidCitations,
       retried: grounded.retried,
       citationsStripped: grounded.citationsStripped,
     })
-    void check
   }
 
   const total = results.length
@@ -134,6 +142,7 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
   return {
     generatedAt: new Date().toISOString(),
     model: options.modelLabel,
+    mode,
     topK,
     qaSet: { path: options.qaPath, questions: total },
     index: {
@@ -157,15 +166,6 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
   }
 }
 
-/** 答案里出现的全部引用编号（含越界的），用于算 citation_accuracy 的分子分母。 */
-function rawCitationNumbers(answer: string, allowed: number): number[] {
-  const found: number[] = []
-  for (const match of answer.matchAll(/\[\^(\d+)\^?\]/g)) {
-    const value = Number(match[1])
-    if (Number.isInteger(value) && value > 0 && !found.includes(value)) found.push(value)
-  }
-  return found
-}
 
 export function renderEvalReport(report: EvalReport): string {
   const lines: string[] = []
@@ -175,7 +175,7 @@ export function renderEvalReport(report: EvalReport): string {
   lines.push(`- 模型：\`${report.model}\``)
   lines.push(`- 评测集：${report.qaSet.questions} 题（${report.qaSet.path}）`)
   lines.push(`- 索引：${report.index.chunks} 分块 / ${report.index.parsedItems} 篇已入库`)
-  lines.push(`- 口径：检索 \`top_k = ${report.topK}\`；生成侧引用标记只认 \`[^N^]\``)
+  lines.push(`- 口径：检索 \`top_k = ${report.topK}\`（模式 \`${report.mode}\`）；生成侧引用标记只认 \`[^N^]\``)
   lines.push('')
   lines.push('| 指标 | 数值 |')
   lines.push('|---|---|')

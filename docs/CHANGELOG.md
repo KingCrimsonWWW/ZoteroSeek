@@ -18,9 +18,15 @@
 - 分块降噪：文献标题行不进章节路径/正文；`ARTICLE INFO`、`ABSTRACT` 等版面标签不作为章节；**参考文献列表整块丢弃**（7 篇剔除 18 块）；
 - 标题层级改为按标题编号推断（MinerU vlm 后端会把所有标题压成同一级）。
 
+**健壮性**
+
+- MinerU 轮询（GET，免费幂等）与结果下载加退避重试；创建任务的 POST 不重试（避免重复计费）；
+- 索引文件损坏时先备份为 `index.json.broken-<ts>` 再以空索引启动，不再静默清空；
+- 演示脚本 `scripts/demo.ps1`：一条命令跑完自检 + 词面/跨语言对照评测。
+
 **工程质量**
 
-- 单测从 22 个增至 37 个（新增词表、RRF、混合检索集成、triple-route 覆盖）；
+- 单测从 22 个增至 41 个（新增词表、RRF、混合检索集成、评测指标计算、三路召回覆盖）；
 - 新增 `zotero_eval` 工具：走 DSH llm 服务跑生成侧评测（citation_accuracy / answer_rate），报告落数据目录；
 - 新增 `docs/INTERVIEW.md`（简历 bullet + 面试问答）、`docs/CHANGELOG.md`；
 - 面板在深色主题下修正主色按钮文字颜色（改用 `--dsw-alias-bg-base` 自动反色）。

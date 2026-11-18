@@ -141,7 +141,9 @@ export async function answerGrounded(question: string, options: GroundedOptions)
     check = verifyCitations(answer, hits.length)
   }
 
-  const rawCitations = [...check.citations, ...check.invalid].sort((left, right) => left - right)
+  // 引用统计用「最后一次模型输出、剥离之前」的标记：citations 已是全部解析出的编号
+  // （含越界的），invalid 是其中越界的子集，两者不能相加（会重复计数）。
+  const rawCitations = [...check.citations]
   const invalidCitations = [...check.invalid]
 
   let citationsStripped = false

@@ -399,7 +399,27 @@ export class MineruClient {
     }
   }
 
+  /**
+   * 带退避重试的 API 调用：轮询是 GET（免费、幂等），失败重试不会重复计费；
+   * 创建任务的 POST 不重试（重试可能产生第二个批次、重复花钱）。
+   */
   private async apiJson(path: string, init: { method: 'GET' | 'POST'; body?: Record<string, unknown> }): Promise<Record<string, unknown>> {
+    const attempts = init.method === 'GET' ? 3 : 1
+    let lastError: unknown
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        return await this.apiJsonOnce(path, init)
+      } catch (error) {
+        lastError = error
+        const retryable = error instanceof MineruError && error.retryable && attempt < attempts - 1
+        if (!retryable) throw error
+        await sleep(1_000 * (attempt + 1))
+      }
+    }
+    throw lastError
+  }
+
+  private async apiJsonOnce(path: string, init: { method: 'GET' | 'POST'; body?: Record<string, unknown> }): Promise<Record<string, unknown>> {
     let response: Response
     try {
       response = await fetch(`${this.options.baseUrl}${path}`, {
