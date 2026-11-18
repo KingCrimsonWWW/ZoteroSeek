@@ -90,7 +90,13 @@ node evals/run-eval.mjs
 
 生成侧（`citation_accuracy` / `answer_rate`）由插件内的 grounded 生成器产出：答案里的每个 `[^N^]` 都必须落在本轮检索编号内，不合法先纠正重试一次、再失败就剥离标记，绝不留假引用。
 
-> 数字与报告在 `evals/reports/`，随每次改动重新生成。
+最近一次结果（7 篇 / 252 分块 / 25 题，`deepseek-flash`）：
+
+| recall@5 | MRR | hit_rate | citation_accuracy | answer_rate | 平均引用 |
+|---|---|---|---|---|---|
+| **0.92** | **0.80** | **1.00** | **1.00** | **1.00** | 2.44 |
+
+原始报告与失败样本分析见 [evals/RESULTS.md](evals/RESULTS.md)，随每次改动重新生成。
 
 ## 目录结构
 

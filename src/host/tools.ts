@@ -11,6 +11,8 @@
  *    评测脚本就能事后核对引用是否落在本轮检索结果里。
  */
 import { Runtime } from './runtime.ts'
+import type { EvalDeps } from './eval-runner.ts'
+import { runEvalOnDisk } from './eval-runner.ts'
 import type { CitationFormat } from '../core/cite.ts'
 
 /** 与 @deepseek-ai/dsh-tools 的 ToolDefinition 对齐的最小结构（无类型依赖）。 */
@@ -38,8 +40,8 @@ function asRecord(args: unknown): Record<string, unknown> {
 const CITATION_FORMATS: CitationFormat[] = ['author-year', 'numeric', 'reference', 'bibtex']
 
 /** 生成 5 个工具，交给 apply() 注册。 */
-export function createTools(runtime: Runtime): HostToolDefinition[] {
-  const definitions = buildTools(runtime)
+export function createTools(runtime: Runtime, evalDeps?: EvalDeps): HostToolDefinition[] {
+  const definitions = buildTools(runtime, evalDeps)
   // 每个工具执行前都等运行时初始化完成（apply() 里的 init 是异步的，
   // 而工具注册必须同步完成，所以把等待放在执行入口）。
   return definitions.map((definition) => ({
@@ -51,7 +53,7 @@ export function createTools(runtime: Runtime): HostToolDefinition[] {
   }))
 }
 
-function buildTools(runtime: Runtime): HostToolDefinition[] {
+function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolDefinition[] {
   const defaultTopK = runtime.defaultTopK
 
   return [
@@ -228,6 +230,51 @@ function buildTools(runtime: Runtime): HostToolDefinition[] {
       },
     },
 
+    {
+      name: 'zotero_eval',
+      description:
+        '跑一遍评测集，输出检索指标（recall@k / MRR）与生成侧引用指标（citation_accuracy / answer_rate）。'
+        + '评测集是 JSONL，每题带 gold_chunk_id；报告落到数据目录的 reports/。',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          qa_path: { type: 'string', description: '评测集 JSONL 路径；默认 <dataDir>/qa-set.jsonl' },
+          limit: { type: 'integer', minimum: 1, maximum: 100, description: '只跑前 N 题（调试用）' },
+          top_k: { type: 'integer', minimum: 1, maximum: 20, description: '检索 top-k，默认 5' },
+        },
+        required: [],
+      },
+      output: {
+        schema: TEXT_OUTPUT_SCHEMA,
+        render: (_args, value) => textContent((value as { text?: string }).text ?? ''),
+      },
+      async execute(rawArgs) {
+        const args = asRecord(rawArgs)
+        if (evalDeps === undefined) {
+          return { text: '当前 profile 没有可用的模型服务，无法跑生成侧评测。' }
+        }
+        try {
+          const result = await runEvalOnDisk(runtime, evalDeps, {
+            ...(typeof args['qa_path'] === 'string' ? { qaPath: args['qa_path'] } : {}),
+            ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
+            ...(typeof args['top_k'] === 'number' ? { topK: args['top_k'] } : {}),
+          })
+          const metrics = result.report.metrics
+          return {
+            text: [
+              `评测完成：${result.report.qaSet.questions} 题 · 模型 ${result.report.model}`,
+              `recall@${result.report.topK}=${metrics.recallAtK} · MRR=${metrics.mrr} · hit_rate=${metrics.hitRate}`,
+              `citation_accuracy=${metrics.citationAccuracy ?? '—'} · answer_rate=${metrics.answerRate} · 平均引用 ${metrics.avgCitations} 条`,
+              `报告：${result.mdPath}`,
+            ].join('\n'),
+            result,
+          }
+        } catch (error) {
+          return { text: Runtime.describeError(error).message }
+        }
+      },
+    },
     {
       name: 'zotero_cite',
       description:

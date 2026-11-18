@@ -53,10 +53,10 @@ export function buildPrompt(question: string, hits: readonly SearchHit[]): Promp
   return { system: GROUNDED_SYSTEM_PROMPT, user }
 }
 
-/** 引用标记解析：只认 [^N^] 形式，普通方括号（如 [1]）不算引用，避免误杀。 */
+/** 引用标记解析：接受 [^N^] 与 [^N] 两种写法；普通方括号（如 [1]）不算引用，避免误杀。 */
 export function parseCitations(answer: string): number[] {
   const found: number[] = []
-  const pattern = /\[\^(\d+)\^\]/g
+  const pattern = /\[\^(\d+)\^?\]/g
   for (const match of answer.matchAll(pattern)) {
     const value = Number(match[1])
     if (Number.isInteger(value) && value > 0 && !found.includes(value)) found.push(value)
@@ -72,7 +72,7 @@ export function verifyCitations(answer: string, allowedCount: number): CitationC
 
 /** 剥离非法引用标记，保留正常文本；用于重试后仍不合法的降级路径。 */
 export function stripInvalidCitations(answer: string, allowedCount: number): string {
-  return answer.replace(/\[\^(\d+)\^\]/g, (whole, digits: string) => {
+  return answer.replace(/\[\^(\d+)\^?\]/g, (whole, digits: string) => {
     const value = Number(digits)
     return value >= 1 && value <= allowedCount ? whole : ''
   })
@@ -80,7 +80,12 @@ export function stripInvalidCitations(answer: string, allowedCount: number): str
 
 export interface GroundedAnswer {
   answer: string
+  /** 剥离非法引用之后、真正合法的引用编号。 */
   citations: number[]
+  /** 模型原始回答里出现过的全部引用编号（含非法），评测用。 */
+  rawCitations: number[]
+  /** 被判定为非法的编号。 */
+  invalidCitations: number[]
   /** 是否触发了「引用不合法 → 回填纠正」的重试。 */
   retried: boolean
   /** 最终答案是否被剥离过非法引用。 */
@@ -114,6 +119,8 @@ export async function answerGrounded(question: string, options: GroundedOptions)
     return {
       answer: '文献库中没有相关内容。可以先把相关文献入库（zotero_index 工具）再提问。',
       citations: [],
+      rawCitations: [],
+      invalidCitations: [],
       retried: false,
       citationsStripped: false,
       steps,
@@ -134,6 +141,9 @@ export async function answerGrounded(question: string, options: GroundedOptions)
     check = verifyCitations(answer, hits.length)
   }
 
+  const rawCitations = [...check.citations, ...check.invalid].sort((left, right) => left - right)
+  const invalidCitations = [...check.invalid]
+
   let citationsStripped = false
   if (!check.ok) {
     answer = stripInvalidCitations(answer, hits.length)
@@ -144,6 +154,8 @@ export async function answerGrounded(question: string, options: GroundedOptions)
   return {
     answer,
     citations: check.citations,
+    rawCitations,
+    invalidCitations,
     retried,
     citationsStripped,
     steps,

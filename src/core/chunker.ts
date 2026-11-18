@@ -93,10 +93,32 @@ export function buildChunks(
     bufferTokens += estimateTokens(block.text)
   }
 
+  // 论文首页的一级标题通常就是文献标题：它已经作为 title 字段参与加权，
+  // 再塞进 chunk 正文与章节路径只会制造噪声，所以这里直接跳过。
+  const titleKey = normalizeHeading(item.title)
+  const isDocumentTitle = (block: ContentBlock): boolean =>
+    block.headingLevel === 1 && normalizeHeading(block.text) === titleKey
+
+  // 版面噪声标题：Elsevier 侧栏、页眉标签之类的「伪章节」，不该进章节路径。
+  const LABEL_HEADING = /^(articleinfo|abstract|highlights?|keywords?|contentslists.*|题目.*|学位论文|专业学位|独创性声明)$/i
+  const isLabelHeading = (block: ContentBlock): boolean =>
+    LABEL_HEADING.test(block.text.replace(/\s+/g, '').toLowerCase())
+
+  // 开头的 H1 若是「长标题」（文献标题 / 学位论文封面行）就跳过；
+  // 像「# 3 方法」这种短标题是真正的章节，必须保留。
+  let seenBodyHeading = false
+  const isLeadingTitle = (block: ContentBlock): boolean =>
+    !seenBodyHeading
+    && block.headingLevel === 1
+    && normalizeHeading(block.text).length >= 20
+
   for (const block of blocks) {
     if (block.headingLevel !== null && block.text.trim().length > 0) {
+      if (isDocumentTitle(block) || isLeadingTitle(block) || isLabelHeading(block)) continue
+      const depth = headingDepth(block)
+      if (depth > 1) seenBodyHeading = true
       // 标题先落进章节栈：同级替换、低级别出栈，保证路径始终是当前活跃章节。
-      while (sectionStack.length >= block.headingLevel) sectionStack.pop()
+      while (sectionStack.length >= depth) sectionStack.pop()
       sectionStack.push(block.text.trim())
       push(block)
       continue
@@ -185,12 +207,14 @@ function normalizeBlock(raw: unknown, fallbackPage: number | null): ContentBlock
     return merged.length === 0 ? null : { kind: 'table', text: merged, page, headingLevel: null, imagePath: null }
   }
   if (type === 'image' || type === 'figure') {
-    const caption = textOf('image_caption', 'caption', 'text', 'image_footnote')
+    const caption = textOf('image_caption', 'caption', 'image_footnote')
     const imgPath = typeof record['img_path'] === 'string' ? record['img_path'] : null
-    if (caption.length === 0 && imgPath === null) return null
+    // 只有图注的图才值得进索引：没有图注的图放进检索只会贡献噪声。
+    // 图片本身仍然会在 Markdown 阅读视图里渲染出来，不影响核对原文。
+    if (caption.length === 0) return null
     return {
       kind: 'image',
-      text: caption.length === 0 ? '（插图）' : caption,
+      text: caption,
       page,
       headingLevel: null,
       imagePath: imgPath,
@@ -328,6 +352,28 @@ export function blocksFromMarkdown(markdown: string): ContentBlock[] {
     blocks.push({ kind: 'equation', text: mathLines.join('\n'), page: null, headingLevel: null, imagePath: null })
   }
   return blocks
+}
+
+/**
+ * 标题层级：MinerU 的 vlm 后端经常把所有标题都标成同一级，
+ * 所以优先看标题文本自己的编号（"2." 一层、"2.1." 两层、"2.1.3." 三层），
+ * 没有编号才退回 text_level。
+ */
+function headingDepth(block: ContentBlock): number {
+  const text = block.text.trim()
+  const numbered = /^(\d+(?:\.\d+)*)[.、]?\s+\S/.exec(text)
+  if (numbered !== null && numbered[1] !== undefined) {
+    const depth = numbered[1].split('.').length
+    return Math.min(3, Math.max(1, depth))
+  }
+  if (/^第[一二三四五六七八九十百零\d]+[章节]/.test(text)) return 1
+  const level = block.headingLevel ?? 1
+  return Math.min(3, Math.max(1, level))
+}
+
+/** 标题归一化：去掉空白、大小写、末尾标点，用于判断「这行标题是不是文献标题本身」。 */
+function normalizeHeading(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, ' ').replace(/[.:;、，。]+$/, '').trim()
 }
 
 function dominantKind(blocks: readonly ContentBlock[]): Chunk['kind'] {

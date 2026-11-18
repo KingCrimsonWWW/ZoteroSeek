@@ -306,8 +306,14 @@ function createPanel(t: Dict) {
         setToast(accepted ? t.copied : t.copyFailed)
         return
       }
-      insert(text, 'ZoteroSeek 引用')
-      setToast('已放入输入框')
+      try {
+        insert(text, 'ZoteroSeek 引用')
+        setToast('已放入输入框')
+      } catch {
+        // 宿主版本差异时退回复制，不让面板崩掉。
+        const accepted = await writeClipboard(text)
+        setToast(accepted ? t.copied : t.copyFailed)
+      }
     }, [checked, hits, props.inputActions, t.copied, t.copyFailed])
 
     const saveSettings = useCallback(async () => {

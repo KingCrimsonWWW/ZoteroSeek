@@ -45,7 +45,9 @@ export function apply(ctx: HostContextLike, config: RuntimeConfig = {}): void {
   // 预热：读设置、建目录；工具与路由在第一个请求到达时等同一个 Promise。
   void runtime.init()
 
-  for (const tool of createTools(runtime)) {
+  const evalDeps = createEvalDeps(ctx)
+
+  for (const tool of createTools(runtime, evalDeps)) {
     ctx.effect(() => ctx.tools.register(tool), `zotero-seek: tool ${tool.name}`)
   }
 
@@ -64,6 +66,33 @@ export function apply(ctx: HostContextLike, config: RuntimeConfig = {}): void {
       order: PROMPT_SECTION_ORDER,
       text: CITATION_CONTRACT,
     }), 'zotero-seek: citation contract')
+  }
+}
+
+/**
+ * 用 DSH 的 llm 服务给「评测 / 一键总结」提供模型调用。
+ * provider/model 取会话默认模型（agent-default-model 行），调用方无需另配密钥。
+ */
+function createEvalDeps(ctx: HostContextLike): { complete: (parts: { system: string; user: string }) => Promise<string>; label: string } | undefined {
+  const llm = ctx.get('llm') as { stream(options: unknown): AsyncIterable<{ type?: string; text?: string }> } | null
+  const defaultModel = ctx.get('agentDefaultModel') as { currentSelection(): { provider: string; model: string } } | null
+  if (llm === null || llm === undefined || defaultModel === null || defaultModel === undefined) return undefined
+  const selection = defaultModel.currentSelection()
+  if (selection === undefined || selection.provider === undefined || selection.model === undefined) return undefined
+  return {
+    label: `${selection.provider}/${selection.model}`,
+    async complete(parts) {
+      let text = ''
+      for await (const chunk of llm.stream({
+        provider: selection.provider,
+        model: selection.model,
+        system: parts.system,
+        messages: [{ role: 'user', content: [{ type: 'text', text: parts.user }] }],
+      })) {
+        if (chunk.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text
+      }
+      return text
+    },
   }
 }
 

@@ -235,8 +235,13 @@ function createPanel(t) {
         setToast(accepted ? t.copied : t.copyFailed);
         return;
       }
-      insert(text, "ZoteroSeek \u5F15\u7528");
-      setToast("\u5DF2\u653E\u5165\u8F93\u5165\u6846");
+      try {
+        insert(text, "ZoteroSeek \u5F15\u7528");
+        setToast("\u5DF2\u653E\u5165\u8F93\u5165\u6846");
+      } catch {
+        const accepted = await writeClipboard(text);
+        setToast(accepted ? t.copied : t.copyFailed);
+      }
     }, [checked, hits, props.inputActions, t.copied, t.copyFailed]);
     const saveSettings = (0, import_react.useCallback)(async () => {
       const result = await apiPost("/api/settings", {

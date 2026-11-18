@@ -270,9 +270,18 @@ function buildChunks(item, blocks, options = {}) {
     buffer.push(block);
     bufferTokens += estimateTokens(block.text);
   };
+  const titleKey = normalizeHeading(item.title);
+  const isDocumentTitle = (block) => block.headingLevel === 1 && normalizeHeading(block.text) === titleKey;
+  const LABEL_HEADING = /^(articleinfo|abstract|highlights?|keywords?|contentslists.*|题目.*|学位论文|专业学位|独创性声明)$/i;
+  const isLabelHeading = (block) => LABEL_HEADING.test(block.text.replace(/\s+/g, "").toLowerCase());
+  let seenBodyHeading = false;
+  const isLeadingTitle = (block) => !seenBodyHeading && block.headingLevel === 1 && normalizeHeading(block.text).length >= 20;
   for (const block of blocks) {
     if (block.headingLevel !== null && block.text.trim().length > 0) {
-      while (sectionStack.length >= block.headingLevel) sectionStack.pop();
+      if (isDocumentTitle(block) || isLeadingTitle(block) || isLabelHeading(block)) continue;
+      const depth = headingDepth(block);
+      if (depth > 1) seenBodyHeading = true;
+      while (sectionStack.length >= depth) sectionStack.pop();
       sectionStack.push(block.text.trim());
       push(block);
       continue;
@@ -351,12 +360,12 @@ function normalizeBlock(raw, fallbackPage) {
     return merged.length === 0 ? null : { kind: "table", text: merged, page, headingLevel: null, imagePath: null };
   }
   if (type === "image" || type === "figure") {
-    const caption = textOf("image_caption", "caption", "text", "image_footnote");
+    const caption = textOf("image_caption", "caption", "image_footnote");
     const imgPath = typeof record["img_path"] === "string" ? record["img_path"] : null;
-    if (caption.length === 0 && imgPath === null) return null;
+    if (caption.length === 0) return null;
     return {
       kind: "image",
-      text: caption.length === 0 ? "\uFF08\u63D2\u56FE\uFF09" : caption,
+      text: caption,
       page,
       headingLevel: null,
       imagePath: imgPath
@@ -485,6 +494,20 @@ function blocksFromMarkdown(markdown) {
     blocks.push({ kind: "equation", text: mathLines.join("\n"), page: null, headingLevel: null, imagePath: null });
   }
   return blocks;
+}
+function headingDepth(block) {
+  const text = block.text.trim();
+  const numbered = /^(\d+(?:\.\d+)*)[.、]?\s+\S/.exec(text);
+  if (numbered !== null && numbered[1] !== void 0) {
+    const depth = numbered[1].split(".").length;
+    return Math.min(3, Math.max(1, depth));
+  }
+  if (/^第[一二三四五六七八九十百零\d]+[章节]/.test(text)) return 1;
+  const level = block.headingLevel ?? 1;
+  return Math.min(3, Math.max(1, level));
+}
+function normalizeHeading(text) {
+  return text.toLowerCase().replace(/\s+/g, " ").replace(/[.:;、，。]+$/, "").trim();
 }
 function dominantKind(blocks) {
   let tables = 0;
@@ -1735,6 +1758,256 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
+// src/host/eval-runner.ts
+import { readFile as readFile4, writeFile as writeFile4, mkdir as mkdir4 } from "node:fs/promises";
+import { join as join5 } from "node:path";
+
+// src/core/grounding.ts
+var GROUNDED_SYSTEM_PROMPT = `\u4F60\u662F ZoteroSeek\uFF0C\u4E00\u4E2A\u53EA\u6839\u636E\u672C\u5730\u6587\u732E\u5E93\u68C0\u7D22\u7ED3\u679C\u4F5C\u7B54\u7684\u7814\u7A76\u52A9\u624B\u3002
+
+## \u786C\u6027\u89C4\u5219
+1. \u53EA\u80FD\u4F7F\u7528\u3010\u68C0\u7D22\u7247\u6BB5\u3011\u91CC\u51FA\u73B0\u7684\u4FE1\u606F\u4F5C\u7B54\uFF0C\u4E0D\u4F7F\u7528\u4F60\u81EA\u5DF1\u7684\u77E5\u8BC6\u8865\u5145\u4EFB\u4F55\u4E8B\u5B9E\u3002
+2. \u6BCF\u4E00\u6761\u6709\u4F9D\u636E\u7684\u9648\u8FF0\uFF0C\u5728\u53E5\u672B\u6807\u6CE8\u5F15\u7528\uFF0C\u683C\u5F0F\u4E3A [^N^]\uFF0CN \u662F\u7247\u6BB5\u7F16\u53F7\uFF08\u4ECE 1 \u5F00\u59CB\uFF09\uFF0C\u53EF\u4EE5\u8FDE\u5199\u591A\u4E2A\u5982 [^1^][^3^]\u3002
+3. \u68C0\u7D22\u7247\u6BB5\u4E0D\u8DB3\u4EE5\u56DE\u7B54\u65F6\uFF0C\u76F4\u63A5\u8BF4\u300C\u6587\u732E\u5E93\u4E2D\u6CA1\u6709\u76F8\u5173\u5185\u5BB9\u300D\uFF0C\u5E76\u8BF4\u660E\u7F3A\u5C11\u4EC0\u4E48\uFF1B\u4E0D\u8981\u731C\u6D4B\u3001\u4E0D\u8981\u62FC\u51D1\u3002
+4. \u4E0D\u7F16\u9020\u6807\u9898\u3001\u4F5C\u8005\u3001\u5E74\u4EFD\u3001\u9875\u7801\u3001\u671F\u520A\u540D\u3001\u5B9E\u9A8C\u6570\u503C\u3002\u7247\u6BB5\u91CC\u6CA1\u6709\u7684\u6570\u5B57\u4E0D\u8981\u5199\u3002
+5. \u8868\u683C\u4E0E\u516C\u5F0F\u8BF7\u6309\u539F\u6587\u903B\u8F91\u89E3\u91CA\uFF0C\u4E0D\u8981\u91CD\u5199\u6210\u770B\u8D77\u6765\u66F4\u6574\u9F50\u4F46\u5176\u5B9E\u4E0D\u540C\u7684\u5F62\u5F0F\u3002
+6. \u7528\u7B80\u4F53\u4E2D\u6587\u56DE\u7B54\uFF1B\u672F\u8BED\u53EF\u4FDD\u7559\u82F1\u6587\u539F\u6587\u3002
+
+## \u8F93\u51FA\u683C\u5F0F
+- \u5148\u7ED9 1-3 \u53E5\u7ED3\u8BBA\uFF0C\u518D\u7ED9\u5206\u70B9\u4F9D\u636E\uFF1B\u6BCF\u4E2A\u5206\u70B9\u7684\u4F9D\u636E\u53E5\u672B\u5FC5\u987B\u6709 [^N^]\u3002
+- \u7ED3\u5C3E\u4E0D\u8981\u91CD\u590D\u6574\u6BB5\u5F15\u7528\u5217\u8868\u3002`;
+function buildPrompt(question, hits) {
+  const blocks = hits.map((hit, index) => {
+    const location = [hit.title, hit.sectionPath, hit.page === null ? null : `\u7B2C ${hit.page + 1} \u9875`].filter((part) => part !== null && part.length > 0).join(" \xB7 ");
+    return `\u3010\u7247\u6BB5 ${index + 1}\u3011chunk_id=${hit.chunkId} \xB7 ${location} \xB7 \u7C7B\u578B=${hit.kind}
+${hit.text}`;
+  });
+  const user = `## \u95EE\u9898
+${question}
+
+## \u68C0\u7D22\u7247\u6BB5\uFF08\u53EA\u5141\u8BB8\u5F15\u7528\u4EE5\u4E0B\u7F16\u53F7\uFF09
+${blocks.join("\n\n")}`;
+  return { system: GROUNDED_SYSTEM_PROMPT, user };
+}
+function parseCitations(answer) {
+  const found = [];
+  const pattern = /\[\^(\d+)\^?\]/g;
+  for (const match of answer.matchAll(pattern)) {
+    const value = Number(match[1]);
+    if (Number.isInteger(value) && value > 0 && !found.includes(value)) found.push(value);
+  }
+  return found;
+}
+function verifyCitations(answer, allowedCount) {
+  const citations = parseCitations(answer);
+  const invalid = citations.filter((value) => value < 1 || value > allowedCount);
+  return { ok: invalid.length === 0, citations, invalid };
+}
+function stripInvalidCitations(answer, allowedCount) {
+  return answer.replace(/\[\^(\d+)\^?\]/g, (whole, digits) => {
+    const value = Number(digits);
+    return value >= 1 && value <= allowedCount ? whole : "";
+  });
+}
+async function answerGrounded(question, options) {
+  const topK = options.topK ?? 8;
+  const maxRetries = options.maxRetries ?? 1;
+  const hits = options.search(question, topK);
+  const steps = 1;
+  if (hits.length === 0) {
+    return {
+      answer: "\u6587\u732E\u5E93\u4E2D\u6CA1\u6709\u76F8\u5173\u5185\u5BB9\u3002\u53EF\u4EE5\u5148\u628A\u76F8\u5173\u6587\u732E\u5165\u5E93\uFF08zotero_index \u5DE5\u5177\uFF09\u518D\u63D0\u95EE\u3002",
+      citations: [],
+      rawCitations: [],
+      invalidCitations: [],
+      retried: false,
+      citationsStripped: false,
+      steps
+    };
+  }
+  const parts = buildPrompt(question, hits);
+  let answer = await options.complete(parts);
+  let check = verifyCitations(answer, hits.length);
+  let retried = false;
+  if (!check.ok && maxRetries > 0) {
+    retried = true;
+    answer = await options.complete({
+      system: parts.system,
+      user: `${parts.user}
+
+## \u7EA0\u6B63
+\u4F60\u4E0A\u4E00\u6B21\u7684\u56DE\u7B54\u5F15\u7528\u4E86\u7247\u6BB5\u7F16\u53F7\u4E4B\u5916\u7684\u7F16\u53F7\uFF1A${check.invalid.map((n) => `[^${n}^]`).join("")}\u3002\u53EA\u5141\u8BB8\u5F15\u7528 1..${hits.length}\u3002\u8BF7\u91CD\u65B0\u56DE\u7B54\u3002`
+    });
+    check = verifyCitations(answer, hits.length);
+  }
+  const rawCitations = [...check.citations, ...check.invalid].sort((left, right) => left - right);
+  const invalidCitations = [...check.invalid];
+  let citationsStripped = false;
+  if (!check.ok) {
+    answer = stripInvalidCitations(answer, hits.length);
+    check = verifyCitations(answer, hits.length);
+    citationsStripped = true;
+  }
+  return {
+    answer,
+    citations: check.citations,
+    rawCitations,
+    invalidCitations,
+    retried,
+    citationsStripped,
+    steps
+  };
+}
+
+// src/core/eval.ts
+async function runEval(options) {
+  const topK = options.topK ?? 5;
+  const rows = options.limit === void 0 ? options.rows : options.rows.slice(0, options.limit);
+  const results = [];
+  for (const row of rows) {
+    if (options.signal?.aborted === true) break;
+    const hits = options.library.search(row.q, {
+      topK,
+      ...row.item_key === void 0 ? {} : { itemKey: row.item_key }
+    });
+    const rankIndex = hits.findIndex((hit) => hit.chunkId === row.gold_chunk_id);
+    const grounded = await answerGrounded(row.q, {
+      search: (query, k) => options.library.search(query, {
+        topK: k,
+        ...row.item_key === void 0 ? {} : { itemKey: row.item_key }
+      }),
+      complete: options.deps.complete,
+      topK
+    });
+    const check = verifyCitations(grounded.answer, hits.length);
+    const rawCitations = rawCitationNumbers(grounded.answer, hits.length);
+    results.push({
+      id: row.id,
+      type: row.type ?? "fact",
+      q: row.q,
+      gold: row.gold_chunk_id,
+      rank: rankIndex < 0 ? null : rankIndex + 1,
+      top: hits.map((hit) => hit.chunkId),
+      answer: grounded.answer,
+      citations: grounded.citations,
+      rawCitations,
+      invalid: rawCitations.filter((value) => value < 1 || value > hits.length),
+      retried: grounded.retried,
+      citationsStripped: grounded.citationsStripped
+    });
+    void check;
+  }
+  const total = results.length;
+  const found = results.filter((result) => result.rank !== null);
+  const rawTotal = results.reduce((sum, result) => sum + result.rawCitations.length, 0);
+  const invalidTotal = results.reduce((sum, result) => sum + result.invalid.length, 0);
+  const byType = /* @__PURE__ */ new Map();
+  for (const result of results) {
+    const bucket = byType.get(result.type) ?? { total: 0, found: 0 };
+    bucket.total += 1;
+    if (result.rank !== null) bucket.found += 1;
+    byType.set(result.type, bucket);
+  }
+  return {
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    model: options.modelLabel,
+    topK,
+    qaSet: { path: options.qaPath, questions: total },
+    index: {
+      chunks: options.library.stats().chunks,
+      parsedItems: options.library.stats().parsedItems
+    },
+    metrics: {
+      recallAtK: round(total === 0 ? 0 : found.length / total),
+      mrr: round(total === 0 ? 0 : found.reduce((sum, result) => sum + 1 / (result.rank ?? Number.POSITIVE_INFINITY), 0) / total),
+      hitRate: round(total === 0 ? 0 : results.filter((result) => result.top.length > 0).length / total),
+      citationAccuracy: rawTotal === 0 ? null : round(1 - invalidTotal / rawTotal),
+      answerRate: round(total === 0 ? 0 : results.filter((result) => result.citations.length > 0).length / total),
+      avgCitations: round(total === 0 ? 0 : results.reduce((sum, result) => sum + result.citations.length, 0) / total)
+    },
+    byType: Object.fromEntries([...byType].map(([type, bucket]) => [type, {
+      total: bucket.total,
+      recall: round(bucket.total === 0 ? 0 : bucket.found / bucket.total)
+    }])),
+    results,
+    failures: results.filter((result) => result.rank === null || result.rank > 3)
+  };
+}
+function rawCitationNumbers(answer, allowed) {
+  const found = [];
+  for (const match of answer.matchAll(/\[\^(\d+)\^?\]/g)) {
+    const value = Number(match[1]);
+    if (Number.isInteger(value) && value > 0 && !found.includes(value)) found.push(value);
+  }
+  return found;
+}
+function renderEvalReport(report) {
+  const lines = [];
+  lines.push("# \u8BC4\u6D4B\u62A5\u544A\uFF08\u68C0\u7D22 + \u5F15\u7528\uFF09");
+  lines.push("");
+  lines.push(`- \u751F\u6210\u65F6\u95F4\uFF1A${report.generatedAt}`);
+  lines.push(`- \u6A21\u578B\uFF1A\`${report.model}\``);
+  lines.push(`- \u8BC4\u6D4B\u96C6\uFF1A${report.qaSet.questions} \u9898\uFF08${report.qaSet.path}\uFF09`);
+  lines.push(`- \u7D22\u5F15\uFF1A${report.index.chunks} \u5206\u5757 / ${report.index.parsedItems} \u7BC7\u5DF2\u5165\u5E93`);
+  lines.push(`- \u53E3\u5F84\uFF1A\u68C0\u7D22 \`top_k = ${report.topK}\`\uFF1B\u751F\u6210\u4FA7\u5F15\u7528\u6807\u8BB0\u53EA\u8BA4 \`[^N^]\``);
+  lines.push("");
+  lines.push("| \u6307\u6807 | \u6570\u503C |");
+  lines.push("|---|---|");
+  lines.push(`| recall@${report.topK} | ${report.metrics.recallAtK} |`);
+  lines.push(`| MRR | ${report.metrics.mrr} |`);
+  lines.push(`| hit_rate | ${report.metrics.hitRate} |`);
+  lines.push(`| citation_accuracy | ${report.metrics.citationAccuracy === null ? "\u2014" : report.metrics.citationAccuracy} |`);
+  lines.push(`| answer_rate | ${report.metrics.answerRate} |`);
+  lines.push(`| \u5E73\u5747\u5F15\u7528\u6761\u6570 | ${report.metrics.avgCitations} |`);
+  lines.push("");
+  lines.push("| \u9898\u578B | \u9898\u6570 | recall |");
+  lines.push("|---|---|---|");
+  for (const [type, bucket] of Object.entries(report.byType)) {
+    lines.push(`| ${type} | ${bucket.total} | ${bucket.recall} |`);
+  }
+  if (report.failures.length > 0) {
+    lines.push("");
+    lines.push("## \u672A\u8FDB\u5165\u524D 3 \u7684\u9898");
+    lines.push("");
+    for (const failure of report.failures) {
+      lines.push(`- \`${failure.id}\` ${failure.q} \u2014 gold=${failure.gold} rank=${failure.rank ?? "\u672A\u547D\u4E2D"}`);
+    }
+  }
+  return `${lines.join("\n")}
+`;
+}
+function round(value) {
+  return Math.round(value * 1e4) / 1e4;
+}
+
+// src/host/eval-runner.ts
+async function runEvalOnDisk(runtime, deps, options = {}) {
+  await runtime.init();
+  const qaPath = options.qaPath !== void 0 && options.qaPath.length > 0 ? options.qaPath : join5(runtime.dataDir, "qa-set.jsonl");
+  const raw = await readFile4(qaPath, "utf8");
+  const rows = raw.split("\n").map((line) => line.trim()).filter((line) => line.length > 0).map((line) => JSON.parse(line));
+  if (rows.length === 0) throw new Error(`\u8BC4\u6D4B\u96C6\u4E3A\u7A7A\uFF1A${qaPath}`);
+  const library = await runtime.library();
+  const report = await runEval({
+    library,
+    rows,
+    deps,
+    qaPath,
+    modelLabel: deps.label,
+    ...options.topK === void 0 ? {} : { topK: options.topK },
+    ...options.limit === void 0 ? {} : { limit: options.limit }
+  });
+  const reportDir = join5(runtime.dataDir, "reports");
+  await mkdir4(reportDir, { recursive: true });
+  const stamp = report.generatedAt.replace(/[:.]/g, "-");
+  const jsonPath = join5(reportDir, `${stamp}-eval.json`);
+  const mdPath = join5(reportDir, `${stamp}-eval.md`);
+  await writeFile4(jsonPath, `${JSON.stringify(report, null, 2)}
+`, "utf8");
+  await writeFile4(mdPath, renderEvalReport(report), "utf8");
+  return { report, jsonPath, mdPath };
+}
+
 // src/host/tools.ts
 var TEXT_OUTPUT_SCHEMA = { type: "object", additionalProperties: true, properties: {} };
 function textContent(text) {
@@ -1744,8 +2017,8 @@ function asRecord(args) {
   return args !== null && typeof args === "object" ? args : {};
 }
 var CITATION_FORMATS = ["author-year", "numeric", "reference", "bibtex"];
-function createTools(runtime) {
-  const definitions = buildTools(runtime);
+function createTools(runtime, evalDeps) {
+  const definitions = buildTools(runtime, evalDeps);
   return definitions.map((definition) => ({
     ...definition,
     async execute(args, exec) {
@@ -1754,7 +2027,7 @@ function createTools(runtime) {
     }
   }));
 }
-function buildTools(runtime) {
+function buildTools(runtime, evalDeps) {
   const defaultTopK = runtime.defaultTopK;
   return [
     {
@@ -1928,6 +2201,49 @@ item_key=${result.itemKey} \xB7 ${result.chunks} \u4E2A\u5206\u5757 \xB7 \u7ED3\
       }
     },
     {
+      name: "zotero_eval",
+      description: "\u8DD1\u4E00\u904D\u8BC4\u6D4B\u96C6\uFF0C\u8F93\u51FA\u68C0\u7D22\u6307\u6807\uFF08recall@k / MRR\uFF09\u4E0E\u751F\u6210\u4FA7\u5F15\u7528\u6307\u6807\uFF08citation_accuracy / answer_rate\uFF09\u3002\u8BC4\u6D4B\u96C6\u662F JSONL\uFF0C\u6BCF\u9898\u5E26 gold_chunk_id\uFF1B\u62A5\u544A\u843D\u5230\u6570\u636E\u76EE\u5F55\u7684 reports/\u3002",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          qa_path: { type: "string", description: "\u8BC4\u6D4B\u96C6 JSONL \u8DEF\u5F84\uFF1B\u9ED8\u8BA4 <dataDir>/qa-set.jsonl" },
+          limit: { type: "integer", minimum: 1, maximum: 100, description: "\u53EA\u8DD1\u524D N \u9898\uFF08\u8C03\u8BD5\u7528\uFF09" },
+          top_k: { type: "integer", minimum: 1, maximum: 20, description: "\u68C0\u7D22 top-k\uFF0C\u9ED8\u8BA4 5" }
+        },
+        required: []
+      },
+      output: {
+        schema: TEXT_OUTPUT_SCHEMA,
+        render: (_args, value) => textContent(value.text ?? "")
+      },
+      async execute(rawArgs) {
+        const args = asRecord(rawArgs);
+        if (evalDeps === void 0) {
+          return { text: "\u5F53\u524D profile \u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u670D\u52A1\uFF0C\u65E0\u6CD5\u8DD1\u751F\u6210\u4FA7\u8BC4\u6D4B\u3002" };
+        }
+        try {
+          const result = await runEvalOnDisk(runtime, evalDeps, {
+            ...typeof args["qa_path"] === "string" ? { qaPath: args["qa_path"] } : {},
+            ...typeof args["limit"] === "number" ? { limit: args["limit"] } : {},
+            ...typeof args["top_k"] === "number" ? { topK: args["top_k"] } : {}
+          });
+          const metrics = result.report.metrics;
+          return {
+            text: [
+              `\u8BC4\u6D4B\u5B8C\u6210\uFF1A${result.report.qaSet.questions} \u9898 \xB7 \u6A21\u578B ${result.report.model}`,
+              `recall@${result.report.topK}=${metrics.recallAtK} \xB7 MRR=${metrics.mrr} \xB7 hit_rate=${metrics.hitRate}`,
+              `citation_accuracy=${metrics.citationAccuracy ?? "\u2014"} \xB7 answer_rate=${metrics.answerRate} \xB7 \u5E73\u5747\u5F15\u7528 ${metrics.avgCitations} \u6761`,
+              `\u62A5\u544A\uFF1A${result.mdPath}`
+            ].join("\n"),
+            result
+          };
+        } catch (error) {
+          return { text: Runtime.describeError(error).message };
+        }
+      }
+    },
+    {
       name: "zotero_cite",
       description: "\u4E3A\u4E00\u7EC4 Zotero \u6761\u76EE\u751F\u6210\u5F15\u7528\u6587\u672C\uFF1Aauthor-year \u884C\u5185\u5F15\u7528\u3001numeric \u7F16\u53F7\u3001reference \u53C2\u8003\u6587\u732E\u884C\u3001bibtex\u3002",
       parameters: {
@@ -1963,7 +2279,7 @@ ${lines.join("\n")}`,
 }
 
 // src/host/server.ts
-import { readFile as readFile4 } from "node:fs/promises";
+import { readFile as readFile5 } from "node:fs/promises";
 import { extname, isAbsolute, normalize, resolve, sep } from "node:path";
 var PREFIX = "/zotero-seek";
 var MAX_BODY_BYTES = 64 * 1024;
@@ -2065,7 +2381,7 @@ async function serveFile(res, runtime, url) {
   }
   let bytes;
   try {
-    bytes = await readFile4(target);
+    bytes = await readFile5(target);
   } catch {
     return fail(res, 404, "file-not-found", `\u627E\u4E0D\u5230\u6587\u4EF6 ${relative}`);
   }
@@ -2153,7 +2469,8 @@ function apply(ctx, config = {}) {
     ...config.defaultTopK === void 0 ? {} : { defaultTopK: config.defaultTopK }
   });
   void runtime.init();
-  for (const tool of createTools(runtime)) {
+  const evalDeps = createEvalDeps(ctx);
+  for (const tool of createTools(runtime, evalDeps)) {
     ctx.effect(() => ctx.tools.register(tool), `zotero-seek: tool ${tool.name}`);
   }
   registerPanelRoutes(ctx, runtime);
@@ -2166,6 +2483,28 @@ function apply(ctx, config = {}) {
       text: CITATION_CONTRACT
     }), "zotero-seek: citation contract");
   }
+}
+function createEvalDeps(ctx) {
+  const llm = ctx.get("llm");
+  const defaultModel = ctx.get("agentDefaultModel");
+  if (llm === null || llm === void 0 || defaultModel === null || defaultModel === void 0) return void 0;
+  const selection = defaultModel.currentSelection();
+  if (selection === void 0 || selection.provider === void 0 || selection.model === void 0) return void 0;
+  return {
+    label: `${selection.provider}/${selection.model}`,
+    async complete(parts) {
+      let text = "";
+      for await (const chunk of llm.stream({
+        provider: selection.provider,
+        model: selection.model,
+        system: parts.system,
+        messages: [{ role: "user", content: [{ type: "text", text: parts.user }] }]
+      })) {
+        if (chunk.type === "text-delta" && typeof chunk.text === "string") text += chunk.text;
+      }
+      return text;
+    }
+  };
 }
 var CITATION_CONTRACT = `## \u6587\u732E\u5E93\uFF08ZoteroSeek\uFF09
 \u56DE\u7B54\u6D89\u53CA\u7528\u6237\u6587\u732E\u5185\u5BB9\u7684\u95EE\u9898\u65F6\uFF0C\u5148\u7528 \`zotero_search\` \u68C0\u7D22\uFF0C\u518D\u57FA\u4E8E\u8FD4\u56DE\u7247\u6BB5\u4F5C\u7B54\u3002

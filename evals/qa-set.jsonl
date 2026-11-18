@@ -1,0 +1,25 @@
+{"id":"q01","q":"Why did the authors adopt the thin-plate equation instead of the thick-plate model to describe the track slab under hammer impact?","item_key":"EHC5UR3B","gold_chunk_id":"EHC5UR3B:0007","type":"method"}
+{"id":"q02","q":"In the validation experiment, what was the measurement grid spacing and how many measurement points were used on the track slab?","item_key":"EHC5UR3B","gold_chunk_id":"EHC5UR3B:0010","type":"fact"}
+{"id":"q03","q":"Which three characteristic parameters were proposed to describe the vibration characteristics of the track slab at different void sizes?","item_key":"EHC5UR3B","gold_chunk_id":"EHC5UR3B:0009","type":"method"}
+{"id":"q04","q":"What range of void extents is reported to adversely affect the service performance of ballastless tracks and require timely detection?","item_key":"EHC5UR3B","gold_chunk_id":"EHC5UR3B:0007","type":"fact"}
+{"id":"q05","q":"What research gap regarding asymmetric double-arch tunnels do the authors state in the abstract?","item_key":"UITJGJM9","gold_chunk_id":"UITJGJM9:0000","type":"fact"}
+{"id":"q06","q":"Why are double-arch tunnels considered advantageous in mountainous areas according to the introduction?","item_key":"UITJGJM9","gold_chunk_id":"UITJGJM9:0001","type":"fact"}
+{"id":"q07","q":"Why do voids behind linings threaten the structural safety of tunnels, and what earlier numerical schemes were mostly used to study them?","item_key":"UITJGJM9","gold_chunk_id":"UITJGJM9:0002","type":"method"}
+{"id":"q08","q":"According to Table 5, which backfill materials are used for void defects and what grouting pressure range is recommended for small voids?","item_key":"GUW7QDMH","gold_chunk_id":"GUW7QDMH:0009","type":"fact"}
+{"id":"q09","q":"Why is establishing effective contact between rock mass and lining the basis for repairing void defects, and how does backfill grouting achieve it?","item_key":"GUW7QDMH","gold_chunk_id":"GUW7QDMH:0008","type":"method"}
+{"id":"q10","q":"Why is bolt reinforcement needed in addition to backfilling when repairing a void quality defect?","item_key":"GUW7QDMH","gold_chunk_id":"GUW7QDMH:0010","type":"method"}
+{"id":"q11","q":"What advantages do FRP materials have for tunnel defect remediation, and how are FRP grids fixed to the concrete?","item_key":"GUW7QDMH","gold_chunk_id":"GUW7QDMH:0012","type":"fact"}
+{"id":"q12","q":"What acoustic excitation frequency range was used, and how many excitation signals were designed from which two excitation modes?","item_key":"W5QY3SIH","gold_chunk_id":"W5QY3SIH:0008","type":"method"}
+{"id":"q13","q":"What are the four steps of the testing procedure in the non-contact acoustic-vibration detection system?","item_key":"W5QY3SIH","gold_chunk_id":"W5QY3SIH:0007","type":"method"}
+{"id":"q14","q":"What is the difference between stepped-tone sweep excitation and linear chirp excitation in terms of response stability and frequency coverage?","item_key":"W5QY3SIH","gold_chunk_id":"W5QY3SIH:0009","type":"fact"}
+{"id":"q15","q":"In the comparative excitation experiment, what concrete specimen and artificial delamination dimensions were used, and how was the surface sound pressure level controlled?","item_key":"W5QY3SIH","gold_chunk_id":"W5QY3SIH:0009","type":"fact"}
+{"id":"q16","q":"When the subgrade joint clutter is not removed by the BPF before reverse-time migration, what misinterpretation can occur in the image?","item_key":"6E3QKFG4","gold_chunk_id":"6E3QKFG4:0009","type":"method"}
+{"id":"q17","q":"空洞直径为300mm时，混凝土表面弯曲共振频率约为多少？振动速度在空洞区域如何分布？","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0055","type":"fact"}
+{"id":"q18","q":"检测距离增加时，空洞混凝土表面的振动信号振幅和共振频率分别如何变化？","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0055","type":"fact"}
+{"id":"q19","q":"空洞深度为20mm、50mm、80mm时，试验识别出的弯曲振动特征频率分别是多少？与数值模拟结果的相对偏差如何？","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0053","type":"fact"}
+{"id":"q20","q":"第三章设计的试件Ⅲ中四处空洞分别用什么材料填充、厚度和边长是多少？","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0058","type":"fact"}
+{"id":"q21","q":"变帧长梅尔频率倒谱系数在维度取多少时效果最佳，准确率达到多少，比传统梅尔频率倒谱系数高出多少？","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0001","type":"fact"}
+{"id":"q22","q":"基于AcrcNet分类器的改进MFCC特征相比基于SVM分类，分类准确率和F1分数平均提升了多少？","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0042","type":"fact"}
+{"id":"q23","q":"PTFMSAN分类器用于隧道衬砌空洞检测时，最优准确率是多少，相比AcrcNet提升了多少？","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0053","type":"fact"}
+{"id":"q24","q":"表5-4中单尺度与多尺度动态卷积的分类准确率对比说明了什么结论？","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0050","type":"fact"}
+{"id":"q25","q":"这篇论文为什么同时采用锤击激励与远程声波激励下的LDV检测来验证声波激励的可行性？","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0056","type":"method"}
