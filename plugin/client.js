@@ -133,6 +133,8 @@ function createPanel(t) {
     const [doc, setDoc] = (0, import_react.useState)(null);
     const [query, setQuery] = (0, import_react.useState)("");
     const [hits, setHits] = (0, import_react.useState)([]);
+    const [expansionHint, setExpansionHint] = (0, import_react.useState)("");
+    const [crossLingual, setCrossLingual] = (0, import_react.useState)(true);
     const [checked, setChecked] = (0, import_react.useState)(/* @__PURE__ */ new Set());
     const [busy, setBusy] = (0, import_react.useState)("");
     const [toast, setToast] = (0, import_react.useState)("");
@@ -187,10 +189,12 @@ function createPanel(t) {
       try {
         const result = await apiGet("/api/search", {
           q: keyword,
+          mode: crossLingual ? "hybrid" : "lexical",
           ...itemKey === void 0 ? {} : { item_key: itemKey }
         });
         if (result.ok && result.value !== void 0) {
           setHits(result.value.hits);
+          setExpansionHint(result.value.expansion?.description ?? "");
           if (result.value.hits.length === 0) setError(result.value.note ?? t.noHits);
         } else {
           setError(result.message ?? "\u68C0\u7D22\u5931\u8D25");
@@ -199,7 +203,7 @@ function createPanel(t) {
       } finally {
         setBusy("");
       }
-    }, [t.noHits]);
+    }, [crossLingual, t.noHits]);
     const toggle = (0, import_react.useCallback)((chunkId) => {
       setChecked((current) => {
         const next = new Set(current);
@@ -337,6 +341,9 @@ function createPanel(t) {
           query,
           setQuery,
           busy,
+          expansionHint,
+          crossLingual,
+          setCrossLingual,
           runSearch: () => {
             if (query.trim().length > 0) void runSearch(query);
           },
@@ -515,6 +522,18 @@ function HitsView(props) {
         }
       }),
       (0, import_react.createElement)("button", { style: S.button, onClick: props.runSearch }, props.busy === "search" ? t.loading : t.runSearch)
+    ),
+    (0, import_react.createElement)(
+      "label",
+      { style: S.modeRow, title: "\u5F00\u542F\u540E\u4F1A\u7528\u9886\u57DF\u53CC\u8BED\u8BCD\u8868\u628A\u4E2D\u6587\u95EE\u9898\u6269\u5C55\u6210\u82F1\u6587\u672F\u8BED\uFF08\u53CD\u4E4B\u4EA6\u7136\uFF09\uFF0C\u518D\u4E0E\u8BCD\u9762\u7ED3\u679C\u505A RRF \u878D\u5408" },
+      (0, import_react.createElement)("input", {
+        type: "checkbox",
+        checked: props.crossLingual,
+        onChange: () => props.setCrossLingual(!props.crossLingual),
+        style: S.checkbox
+      }),
+      (0, import_react.createElement)("span", null, "\u8DE8\u8BED\u8A00\u68C0\u7D22"),
+      props.expansionHint.length > 0 ? (0, import_react.createElement)("span", { style: S.expansionHint }, props.expansionHint) : null
     ),
     hits.length === 0 ? (0, import_react.createElement)("div", { style: S.empty }, t.noHits) : (0, import_react.createElement)(
       import_react.Fragment,
@@ -1011,6 +1030,17 @@ var S = {
   hitCardChecked: { borderColor: "var(--dsw-alias-brand-primary)" },
   hitHead: { display: "flex", gap: 8, alignItems: "flex-start" },
   checkbox: { marginTop: 2, accentColor: "var(--dsw-alias-brand-primary)" },
+  modeRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    fontSize: 10.5,
+    color: "var(--dsw-alias-label-secondary)",
+    cursor: "pointer",
+    flexWrap: "wrap"
+  },
+  expansionHint: { color: "var(--dsw-alias-brand-primary)", opacity: 0.9 },
   hitTitle: { fontSize: 12, fontWeight: 500, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   hitMeta: { fontSize: 10, color: "var(--dsw-alias-label-secondary)" },
   chunkId: { opacity: 0.7, fontFamily: "ui-monospace, monospace" },

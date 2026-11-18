@@ -1,0 +1,6 @@
+{"id":"h09","q":"What are the main limitations of the ultrasonic echo method and the impact echo method for detecting defects in concrete?","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0006","type":"method"}
+{"id":"h10","q":"What peak pressure can the pneumatic pulse excitation device produce, and within what depth range can it localize defects?","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0009","type":"fact"}
+{"id":"h11","q":"What was China's total highway mileage by the end of 2023, and what maintenance trend is described for tunnels?","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0003","type":"fact"}
+{"id":"h12","q":"Which decomposition and reconstruction algorithm was used to process the accelerometer vibration signal, and what threshold filters the wavelet coefficients?","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0034","type":"method"}
+{"id":"h13","q":"Why is ultrasonic testing limited for large-scale tunnel inspection, and which other non-destructive methods are mentioned?","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0008","type":"fact"}
+{"id":"h14","q":"What problems of 2D convolution were addressed by introducing frequency dynamic convolution, improved attention and multi-scale feature extraction?","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0015","type":"method"}

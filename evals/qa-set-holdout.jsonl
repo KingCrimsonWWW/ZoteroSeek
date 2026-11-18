@@ -1,0 +1,8 @@
+{"id":"h01","q":"For a circular void of 300 mm diameter and 20 mm depth, what bending resonance frequency was identified on the concrete surface?","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0055","type":"fact"}
+{"id":"h02","q":"How does the vibration velocity distribute across the void area and away from it?","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0055","type":"fact"}
+{"id":"h03","q":"What fill materials, densities and edge lengths were used for the four voids in specimen III?","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0058","type":"fact"}
+{"id":"h04","q":"What measured characteristic frequencies were identified for void depths of 20 mm, 50 mm and 80 mm, and how far did they deviate from the simulation?","item_key":"EVRF6GD8","gold_chunk_id":"EVRF6GD8:0053","type":"fact"}
+{"id":"h05","q":"What accuracy did the variable-frame-length MFCC reach, and how much higher was it than the conventional MFCC?","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0001","type":"fact"}
+{"id":"h06","q":"How much did the AcrcNet classifier improve classification accuracy and F1 over SVM using the improved MFCC features?","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0042","type":"fact"}
+{"id":"h07","q":"What best accuracy did PTFMSAN reach in tunnel lining void detection, and how much did it improve over AcrcNet?","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0053","type":"fact"}
+{"id":"h08","q":"What does Table 5-4 show when comparing single-scale and multi-scale dynamic convolution accuracy?","item_key":"HG4N8X9X","gold_chunk_id":"HG4N8X9X:0050","type":"fact"}

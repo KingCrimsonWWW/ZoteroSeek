@@ -9,13 +9,25 @@
  */
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { Bm25Index } from './bm25.ts'
+import { Bm25Index, type Bm25Hit } from './bm25.ts'
+import { expandQuery, type QueryExpansion } from './glossary.ts'
+import { fuseRrf } from './rrf.ts'
 import { blocksFromContentList, blocksFromMarkdown, buildChunks } from './chunker.ts'
 import type { MineruClient } from './mineru.ts'
 import type { ZoteroClient } from './zotero.ts'
 import type { Chunk, ContentBlock, LibraryIndex, ParsedDocument, SearchHit, ZoteroItem } from './types.ts'
 
 const INDEX_FILE = 'index.json'
+
+/** 检索模式：hybrid = 词面 + 双语词表扩展；lexical = 纯词面（评测基线）。 */
+export type SearchMode = 'hybrid' | 'lexical'
+
+export interface SearchOptions {
+  topK?: number
+  itemKey?: string
+  maxCharsPerHit?: number
+  mode?: SearchMode
+}
 
 export interface LibraryStats {
   items: number
@@ -165,17 +177,68 @@ export class Library {
     })
   }
 
-  /** BM25 检索。itemKey 存在时只在该文献内检索。 */
-  search(query: string, options: { topK?: number; itemKey?: string; maxCharsPerHit?: number } = {}): SearchHit[] {
+  /**
+   * 检索。默认混合模式：
+   *   1. 原始查询走 BM25（词面）；
+   *   2. 用领域双语词表扩展后的查询再走一次 BM25（跨语言）；
+   *   3. 两路排名用 RRF 融合。
+   * itemKey 存在时只在该文献内检索；mode='lexical' 可关闭扩展（评测基线用）。
+   */
+  search(query: string, options: SearchOptions = {}): SearchHit[] {
+    return this.searchDetailed(query, options).hits
+  }
+
+  /** 与 search 相同，但额外返回扩展解释，供工具输出与面板展示。 */
+  searchDetailed(query: string, options: SearchOptions = {}): {
+    hits: SearchHit[]
+    expansion: QueryExpansion | null
+    mode: SearchMode
+  } {
     const topK = Math.max(1, options.topK ?? 8)
+    const mode: SearchMode = options.mode ?? 'hybrid'
+    const maxChars = options.maxCharsPerHit ?? 1200
     const chunkById = new Map(this.index.chunks.map((chunk) => [chunk.chunkId, chunk]))
     const candidates = options.itemKey === undefined
       ? this.index.chunks
       : this.index.chunks.filter((chunk) => chunk.itemKey === options.itemKey)
 
-    const hits = this.searchWithin(query, candidates, topK)
-    const maxChars = options.maxCharsPerHit ?? 1200
-    return hits.map((hit) => {
+    // 每路多取一些候选，融合后再截到 topK：RRF 需要看到两路的排名才有意义。
+    const depth = Math.max(topK * 4, 20)
+    const lexical = this.searchWithin(query, candidates, depth)
+    const expansion = mode === 'hybrid' ? expandQuery(query) : null
+    const expanded = expansion !== null && expansion.added.length > 0
+      ? this.searchWithin(expansion.expandedQuery, candidates, depth)
+      : []
+
+    const lexicalRank = new Map(lexical.map((hit, index) => [hit.id, index + 1]))
+    const expandedRank = new Map(expanded.map((hit, index) => [hit.id, index + 1]))
+    const matchedById = new Map<string, string[]>()
+    for (const hit of [...lexical, ...expanded]) {
+      const existing = matchedById.get(hit.id) ?? []
+      matchedById.set(hit.id, [...new Set([...existing, ...hit.matched])])
+    }
+
+    let ranked: Array<{ id: string; score: number; route: SearchHit['route'] }>
+    if (expanded.length === 0) {
+      ranked = lexical.map((hit) => ({ id: hit.id, score: hit.score, route: 'lexical' as const }))
+    } else {
+      const fused = fuseRrf(
+        [
+          { ids: lexical.map((hit) => hit.id), weight: 1 },
+          { ids: expanded.map((hit) => hit.id), weight: 0.9 },
+        ],
+        { k: 10, topK },
+      )
+      ranked = fused.map((hit) => ({
+        id: hit.id,
+        score: hit.score,
+        route: lexicalRank.has(hit.id) && expandedRank.has(hit.id)
+          ? 'both'
+          : lexicalRank.has(hit.id) ? 'lexical' : 'expanded',
+      }))
+    }
+
+    const hits = ranked.slice(0, topK).map((hit) => {
       const chunk = chunkById.get(hit.id)
       if (chunk === undefined) throw new Error(`索引不一致：chunk ${hit.id} 不存在`)
       return {
@@ -187,15 +250,18 @@ export class Library {
         kind: chunk.kind,
         text: chunk.text.length > maxChars ? `${chunk.text.slice(0, maxChars)}…` : chunk.text,
         score: Number(hit.score.toFixed(4)),
+        route: hit.route,
+        matched: matchedById.get(hit.id) ?? [],
       }
     })
+    return { hits, expansion, mode }
   }
 
   private searchWithin(
     query: string,
     candidates: readonly Chunk[],
     topK: number,
-  ): Array<{ id: string; score: number }> {
+  ): Bm25Hit[] {
     if (candidates.length === this.index.chunks.length) {
       return this.bm25.search(query, topK)
     }

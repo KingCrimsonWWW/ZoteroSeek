@@ -69,6 +69,11 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
           query: { type: 'string', description: '检索问题，中英文均可，可用技术术语与编号' },
           top_k: { type: 'integer', minimum: 1, maximum: 20, description: `返回片段数，默认 ${defaultTopK}` },
           item_key: { type: 'string', description: '只在这一篇文献内检索时填写其 Zotero item_key' },
+          mode: {
+            type: 'string',
+            enum: ['hybrid', 'lexical'],
+            description: 'hybrid（默认）会叠加领域双语词表扩展，中文问英文文献也能命中；lexical 只做原始词面检索，用于对照',
+          },
         },
         required: ['query'],
       },
@@ -84,8 +89,9 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
         const query = String(args['query'] ?? '').trim()
         const topK = typeof args['top_k'] === 'number' ? args['top_k'] : defaultTopK
         const itemKey = typeof args['item_key'] === 'string' ? args['item_key'] : undefined
+        const mode = args['mode'] === 'lexical' ? 'lexical' as const : 'hybrid' as const
         if (query.length === 0) return { text: '参数错误：query 不能为空。', hits: [] }
-        const result = await runtime.search(query, { topK, source: 'tool', ...(itemKey === undefined ? {} : { itemKey }) })
+        const result = await runtime.search(query, { topK, source: 'tool', mode, ...(itemKey === undefined ? {} : { itemKey }) })
         const lines: string[] = []
         if (result.hits.length === 0) {
           lines.push(result.note ?? '文献库中没有相关内容。')
@@ -96,16 +102,19 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
             }
           }
         } else {
-          lines.push(`检索命中 ${result.hits.length} 个片段（BM25，标题×3/章节×2/正文×1 加权）。引用格式：[来源: chunk_id]`)
+          const modeLabel = result.mode === 'hybrid' ? 'BM25 词面 + 领域双语词表扩展，RRF 融合' : 'BM25 词面'
+          lines.push(`检索命中 ${result.hits.length} 个片段（${modeLabel}）。引用格式：[来源: chunk_id]`)
+          if (result.expansion !== null) lines.push(result.expansion.description)
           result.hits.forEach((hit, index) => {
             const page = hit.page === null ? '' : ` · 第 ${hit.page + 1} 页`
             const section = hit.sectionPath.length > 0 ? ` · ${hit.sectionPath}` : ''
-            lines.push('', `[${index + 1}] chunk_id=${hit.chunkId} · 《${hit.title}》${section}${page} · 类型=${hit.kind} · score=${hit.score}`)
+            const route = hit.route === 'both' ? '词面+扩展' : hit.route === 'expanded' ? '跨语言扩展' : '词面'
+            lines.push('', `[${index + 1}] chunk_id=${hit.chunkId} · 《${hit.title}》${section}${page} · 类型=${hit.kind} · 命中=${route} · score=${hit.score}`)
             lines.push(hit.text)
           })
           lines.push('', '注意：chunk_id 必须原样引用，不要改写或编造。')
         }
-        return { text: lines.join('\n'), hits: result.hits }
+        return { text: lines.join('\n'), hits: result.hits, expansion: result.expansion }
       },
     },
 
@@ -242,6 +251,11 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
           qa_path: { type: 'string', description: '评测集 JSONL 路径；默认 <dataDir>/qa-set.jsonl' },
           limit: { type: 'integer', minimum: 1, maximum: 100, description: '只跑前 N 题（调试用）' },
           top_k: { type: 'integer', minimum: 1, maximum: 20, description: '检索 top-k，默认 5' },
+          mode: {
+            type: 'string',
+            enum: ['hybrid', 'lexical'],
+            description: '检索模式：hybrid（默认，含双语词表扩展）或 lexical（纯词面基线，用于对照）',
+          },
         },
         required: [],
       },
@@ -259,6 +273,7 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
             ...(typeof args['qa_path'] === 'string' ? { qaPath: args['qa_path'] } : {}),
             ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
             ...(typeof args['top_k'] === 'number' ? { topK: args['top_k'] } : {}),
+            ...(args['mode'] === 'lexical' ? { mode: 'lexical' as const } : {}),
           })
           const metrics = result.report.metrics
           return {

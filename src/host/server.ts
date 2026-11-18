@@ -55,9 +55,11 @@ async function handle(req: IncomingMessage, res: ServerResponse, runtime: Runtim
           const query = (url.searchParams.get('q') ?? '').trim()
           if (query.length === 0) return fail(res, 400, 'empty-query', '检索词不能为空')
           const itemKey = url.searchParams.get('item_key')
+          const mode = url.searchParams.get('mode') === 'lexical' ? 'lexical' as const : 'hybrid' as const
           return ok(res, await runtime.search(query, {
             topK: Number(url.searchParams.get('top_k') ?? runtime.defaultTopK),
             source: 'panel',
+            mode,
             ...(itemKey === null || itemKey.length === 0 ? {} : { itemKey }),
           }))
         }

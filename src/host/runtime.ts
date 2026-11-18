@@ -12,6 +12,7 @@ import { MineruClient, MineruError, type MineruErrorKind } from '../core/mineru.
 import { ZoteroClient, ZoteroError } from '../core/zotero.ts'
 import type { CitationFormat } from '../core/cite.ts'
 import { formatCitationBundle, fallbackBibtex } from '../core/cite.ts'
+import { describeExpansion } from '../core/glossary.ts'
 import type { ParsedDocument, SearchHit, ZoteroItem } from '../core/types.ts'
 
 export interface RuntimeConfig {
@@ -169,15 +170,34 @@ export class Runtime {
     return items.slice(0, limit).map((item) => ({ ...item, parsed: parsed[item.key] !== undefined }))
   }
 
-  /** 检索：BM25 over 已入库 chunk；没有命中时退回元数据检索。 */
-  async search(query: string, options: { topK?: number; itemKey?: string; source?: 'tool' | 'panel' } = {}): Promise<{
+  /** 检索：词面 BM25 + 领域双语词表扩展，RRF 融合；没有命中时退回元数据检索。 */
+  async search(query: string, options: {
+    topK?: number
+    itemKey?: string
+    source?: 'tool' | 'panel'
+    mode?: 'hybrid' | 'lexical'
+  } = {}): Promise<{
     hits: SearchHit[]
     metadataOnly: ZoteroItem[]
+    /** 跨语言扩展的解释；没有命中词表时为 null。 */
+    expansion: { description: string; added: Array<{ from: string; to: string }> } | null
+    mode: 'hybrid' | 'lexical'
     note?: string
   }> {
     const library = await this.library()
     const topK = clampNumber(options.topK, 1, 20, this.defaultTopK)
-    const hits = library.search(query, { topK, ...(options.itemKey === undefined ? {} : { itemKey: options.itemKey }) })
+    const detail = library.searchDetailed(query, {
+      topK,
+      ...(options.itemKey === undefined ? {} : { itemKey: options.itemKey }),
+      ...(options.mode === undefined ? {} : { mode: options.mode }),
+    })
+    const hits = detail.hits
+    const expansion = detail.expansion === null || detail.expansion.added.length === 0
+      ? null
+      : {
+        description: describeExpansion(detail.expansion),
+        added: detail.expansion.added.map((item) => ({ from: item.from, to: item.to })),
+      }
     this.recordTrail({
       source: options.source ?? 'tool',
       query,
@@ -186,7 +206,7 @@ export class Runtime {
       hits: hits.length,
       chunkIds: hits.map((hit) => hit.chunkId),
     })
-    if (hits.length > 0) return { hits, metadataOnly: [] }
+    if (hits.length > 0) return { hits, metadataOnly: [], expansion, mode: detail.mode }
     // 检索不到时给「可能是你想找但还没入库的文献」，避免 Agent 直接编造。
     const metadataOnly = await this.zotero().searchItems(query, { limit: 5 }).catch(() => [])
     const parsed = library.parsedItems()
@@ -194,6 +214,8 @@ export class Runtime {
     return {
       hits,
       metadataOnly: unindexed,
+      expansion,
+      mode: detail.mode,
       note: unindexed.length > 0
         ? '文献库里没有已入库正文命中；下面这些条目匹配元数据但还没入库，先调用 zotero_index 解析入库再检索。'
         : '文献库里没有相关内容（已入库文献的正文里没有匹配片段）。',

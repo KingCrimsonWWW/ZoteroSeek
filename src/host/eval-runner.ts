@@ -25,7 +25,7 @@ export interface EvalRunResult {
 export async function runEvalOnDisk(
   runtime: Runtime,
   deps: EvalDeps,
-  options: { qaPath?: string; limit?: number; topK?: number } = {},
+  options: { qaPath?: string; limit?: number; topK?: number; mode?: 'hybrid' | 'lexical' } = {},
 ): Promise<EvalRunResult> {
   await runtime.init()
   const qaPath = options.qaPath !== undefined && options.qaPath.length > 0
@@ -47,6 +47,7 @@ export async function runEvalOnDisk(
     qaPath,
     modelLabel: deps.label,
     ...(options.topK === undefined ? {} : { topK: options.topK }),
+    ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.limit === undefined ? {} : { limit: options.limit }),
   })
 

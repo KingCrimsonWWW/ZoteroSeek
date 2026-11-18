@@ -10,7 +10,7 @@
 - 直接丢 PDF 给模型会丢表格、公式和版面，问答里出现「看起来对但其实不对」的引用；
 - 真正的科研问答需要**能核对出处**：这句话来自哪一篇、哪一节、第几页。
 
-ZoteroSeek 的做法：用 MinerU 把 PDF 转成保版式的 Markdown → 按章节分块并保留页码 → 进程内 BM25 检索 → 模型只能引用检索结果里的 `chunk_id` → 侧边栏能把原文和命中片段并排打开核对。
+ZoteroSeek 的做法：用 MinerU 把 PDF 转成保版式的 Markdown → 按章节分块并保留页码 → 进程内 BM25 检索（叠加领域双语词表做跨语言扩展，三路 RRF 融合）→ 模型只能引用检索结果里的 `chunk_id` → 侧边栏能把原文和命中片段并排打开核对。
 
 ## 架构
 
@@ -18,14 +18,15 @@ ZoteroSeek 的做法：用 MinerU 把 PDF 转成保版式的 Markdown → 按章
 ┌──────────────────────── DeepSeek Harness ────────────────────────┐
 │  Client（浏览器）                     Host（Node）                 │
 │  ┌──────────────────────┐            ┌─────────────────────────┐  │
-│  │ 右侧边栏「文献库」面板 │  HTTP      │ 5 个 Agent 工具          │  │
+│  │ 右侧边栏「文献库」面板 │  HTTP      │ 6 个 Agent 工具          │  │
 │  │ 文献 / 阅读 / 检索     │◄──────────►│ zotero_search/read/      │  │
-│  │ 勾选 → 引用到对话      │ /zotero-  │ index/library/cite      │  │
+│  │ 勾选 → 引用到对话      │ /zotero-  │ index/library/cite/eval │  │
 │  └──────────────────────┘ seek/*     │ 引用规则注入系统提示词   │  │
 │                                      └───────────┬─────────────┘  │
 │                                                  │ Runtime          │
 │                    ┌─────────────────────────────▼──────────────┐ │
-│                    │ 索引：JSON 快照 + BM25（标题×3/章节×2/正文×1）│ │
+│                    │ 检索：词面 BM25 + 双语词表扩展 + 纯译文 三路  │ │
+│                    │       （标题×3/章节×2/正文×1，RRF 融合）      │ │
 │                    │ 解析：MinerU 云端 → 内容寻址缓存 + 配额台账   │ │
 │                    │ Zotero：本地 API（只读）+ storage PDF 路径    │ │
 │                    └────────────────────────────────────────────┘ │
@@ -40,6 +41,7 @@ ZoteroSeek 的做法：用 MinerU 把 PDF 转成保版式的 Markdown → 按章
 |---|---|
 | **单个 TypeScript 插件，无 sidecar** | Zotero 与 MinerU 都是 HTTP API，检索用进程内 BM25，作答复用宿主 Agent；少两套运行时与端口，MVP 从 8 天压到 2–3 天 |
 | **BM25 + 中文二元 bigram** | 几百篇/几千分块的规模下毫秒级、零模型下载、可解释（能报出命中了哪些词）；语义检索留作二期 |
+| **跨语言靠领域词表 + 三路 RRF** | 中文问英文文献 recall@5 0.07→0.79，无需下载 embedding 模型；代价是反向（英文→中文）依赖词表覆盖，已实测并列入二期 |
 | **MinerU `content_list.json` 为主分块源** | 字段有官方口径、带 `page_idx` 与 `bbox`；`content_list_v2.json` 作为可选增强，`full.md` 作为兜底 |
 | **内容寻址的解析缓存** | 目录名 = `sha1(pdf 字节 + 解析参数)`，同一份 PDF 换条目/改标题不会重复花钱 |
 | **引用写成 `[来源: chunk_id]`** | chunk_id 由索引生成、全库唯一；事后可用脚本核对「引用的片段是否真实存在、是否在本轮检索结果里」 |
@@ -75,12 +77,13 @@ node evals/run-eval.mjs
 ## 使用
 
 - **在对话里问**：「我文献库里关于衬砌背后空洞的检测方法有哪些？分别有什么局限？」→ Agent 先调 `zotero_search`，再基于带页码的片段作答，引用形如 `[来源: EHC5UR3B:0012]`。
+- **用中文问英文文献**：检索默认开启跨语言扩展（面板里可关闭做对照）。例如问「轨道板脱空 激光多普勒测振 检测」，会先把「脱空/轨道板/激光多普勒」扩展成 `void / cavity / track slab / laser doppler vibrometry` 再检索；工具输出里会写明扩展了哪些词、每条命中是「词面」「跨语言」还是两者都中。
 - **在侧边栏核对**：输入框左侧「📚 文献库」→ 文献列表 → 阅读（MinerU Markdown 原文）→ 检索（勾选片段 → 引用到对话 / 复制行内引用 / 复制参考文献 / BibTeX）。
 - **没入库的文献**：面板里点「入库」，或让 Agent 调 `zotero_index`。
 
 ## 评测
 
-检索侧（不需要模型，可复现）：`node evals/run-eval.mjs`
+检索侧（不需要模型，可复现）：`node evals/run-eval.mjs --qa <集> --mode hybrid|lexical`
 
 | 指标 | 口径 |
 |---|---|
@@ -90,37 +93,43 @@ node evals/run-eval.mjs
 
 生成侧（`citation_accuracy` / `answer_rate`）由插件内的 grounded 生成器产出：答案里的每个 `[^N^]` 都必须落在本轮检索编号内，不合法先纠正重试一次、再失败就剥离标记，绝不留假引用。
 
-最近一次结果（7 篇 / 252 分块 / 25 题，`deepseek-flash`）：
+最近一次结果（7 篇 / 234 分块，`deepseek-flash`）：
 
-| recall@5 | MRR | hit_rate | citation_accuracy | answer_rate | 平均引用 |
-|---|---|---|---|---|---|
-| **0.92** | **0.80** | **1.00** | **1.00** | **1.00** | 2.44 |
+| 评测集 | 纯词面 recall@5 | 混合 recall@5 | citation_accuracy | answer_rate |
+|---|---|---|---|---|
+| 同语言 25 题 | 0.92 | **0.92** | **1.00** | **1.00** |
+| 中文→英文 14 题 | 0.07 | **0.79** | **1.00** | **1.00** |
+| 英文→中文 留出 8+6 题 | 0.25 / 0.17 | **0.50 / 0.67** | — | — |
 
-原始报告与失败样本分析见 [evals/RESULTS.md](evals/RESULTS.md)，随每次改动重新生成。
+原始报告、失败样本与局限说明见 [evals/RESULTS.md](evals/RESULTS.md)，随每次改动重新生成。
 
 ## 目录结构
 
 ```text
 src/core/         纯 TS 领域层，可 node --test 直接单测
   zotero.ts       Zotero 本地 API 客户端（只读）
-  mineru.ts       MinerU 云端解析客户端（四步流程 + 缓存 + 配额台账）
+  mineru.ts       MinerU 云端解析客户端（四步流程 + 内容寻址缓存 + 配额台账）
   zip.ts          零依赖 ZIP 读取器
-  chunker.ts      content_list / full.md → 带章节与页码的 chunk
+  chunker.ts      content_list / full.md → 带章节与页码的 chunk（标题/参考文献降噪）
   bm25.ts         中文 bigram 分词 + BM25
-  library.ts      索引持久化、增量入库、检索入口
+  glossary.ts     领域双语词表（122 条）→ 查询扩展（zh↔en）
+  rrf.ts          Reciprocal Rank Fusion
+  library.ts      索引持久化、增量入库、三路检索入口
   grounding.ts    grounded 提示词 + 引用解析/校验/剥离
+  eval.ts         检索 + 引用指标（评测单一实现）
   cite.ts         作者-年份 / 参考文献 / BibTeX 格式化
-src/host/         DSH Host 半边：Runtime、5 个工具、/zotero-seek 路由、提示词注入
+src/host/         DSH Host 半边：Runtime、6 个工具、/zotero-seek 路由、提示词注入
 src/client/       DSH Client 半边：右侧边栏面板 + 输入框入口按钮
 plugin/           可安装 bundle（构建产物，提交进仓库）
-evals/            doctor / ingest / run-eval
-tests/            node --test 单测（22 个）
-docs/             架构说明与调研笔记
+evals/            doctor / ingest / run-eval / sample-chunks + 4 份评测集 + RESULTS.md
+tests/            node --test 单测（37 个）
+docs/             架构说明、演示脚本、面试讲解、调研笔记
 ```
 
 ## 已知限制
 
-- 检索是**词面检索**（BM25），同义改写可能命中不到；这是当前版本的明确取舍，二期再加语义检索与 RRF 融合。
+- 检索是**词面 + 领域词表**的方法：同义改写、以及「问题里缺少数值/枚举」的元问题仍会漏召回；二期用多语 embedding 做语义召回并与现有三路 RRF 融合。
+- 反向跨语言（英文问中文文献）依赖词表覆盖度，实测 recall@5 0.17–0.25 → 0.50–0.67，MRR 仍偏低。
 - 面板界面只有中文文案，英文词典已备好但未接语言切换。
 - MinerU 解析需要外发你主动提交的那一篇 PDF；解析失败只报原因，不用其它来源拼凑内容。
 - 面板数据面是绑定 127.0.0.1 的私有 HTTP 路由（无 Peer 身份），只做只读与 token 保存。

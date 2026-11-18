@@ -29,6 +29,8 @@ export interface QaResult {
   q: string
   gold: string
   rank: number | null
+  /** gold 片段是怎么被找到的（命中时）：lexical / expanded / both。 */
+  goldRoute: string | null
   top: string[]
   answer: string
   /** 答案里出现的合法引用编号。 */
@@ -105,6 +107,7 @@ export async function runEval(options: RunEvalOptions): Promise<EvalReport> {
       q: row.q,
       gold: row.gold_chunk_id,
       rank: rankIndex < 0 ? null : rankIndex + 1,
+      goldRoute: rankIndex < 0 ? null : hits[rankIndex]?.route ?? null,
       top: hits.map((hit) => hit.chunkId),
       answer: grounded.answer,
       citations: grounded.citations,

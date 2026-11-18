@@ -4,7 +4,7 @@ import { answerGrounded, parseCitations, stripInvalidCitations, verifyCitations 
 import type { SearchHit } from '../src/core/types.ts'
 
 function hit(chunkId: string, text: string): SearchHit {
-  return { chunkId, itemKey: 'K1', title: '隧道衬砌空洞识别', sectionPath: '3 方法', page: 2, kind: 'text', text, score: 1 }
+  return { chunkId, itemKey: 'K1', title: '隧道衬砌空洞识别', sectionPath: '3 方法', page: 2, kind: 'text', text, score: 1, route: 'lexical', matched: [] }
 }
 
 test('parseCitations: 只认 [^N^]，普通方括号不算引用', () => {

@@ -28,6 +28,7 @@ const argOf = (name, fallback) => {
 }
 
 const topK = Number(argOf('--top-k', '5'))
+const mode = argOf('--mode', 'hybrid')
 const qaPath = argOf('--qa', 'evals/qa-set.jsonl')
 const outDir = argOf('--out', 'evals/reports')
 const dataDir = process.env.ZOTEROSEEK_DATA ?? join(homedir(), '.zotero-seek')
@@ -50,7 +51,7 @@ async function main() {
 
   const results = []
   for (const row of rows) {
-    const hits = library.search(row.q, { topK, ...(row.item_key === undefined ? {} : { itemKey: row.item_key }) })
+    const hits = library.search(row.q, { topK, mode, ...(row.item_key === undefined ? {} : { itemKey: row.item_key }) })
     const rank = hits.findIndex((hit) => hit.chunkId === row.gold_chunk_id)
     results.push({
       id: row.id,
@@ -58,6 +59,7 @@ async function main() {
       q: row.q,
       gold: row.gold_chunk_id,
       rank: rank < 0 ? null : rank + 1,
+      goldRoute: rank < 0 ? null : hits[rank]?.route ?? null,
       top: hits.map((hit) => hit.chunkId),
     })
   }

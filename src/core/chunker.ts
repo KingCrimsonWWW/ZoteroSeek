@@ -56,7 +56,8 @@ export function buildChunks(
   const flush = (): void => {
     if (buffer.length === 0) return
     const text = buffer.map((block) => block.text).join('\n\n').trim()
-    if (text.length > 0 && estimateTokens(text) >= minTokens) {
+    // 参考文献列表不是可引用正文：整块丢弃，避免检索命中一堆 [29] 引文。
+    if (!isReferenceDominated(text) && text.length > 0 && estimateTokens(text) >= minTokens) {
       const first = buffer[0]
       chunks.push({
         chunkId: `${item.key}:${String(seq).padStart(4, '0')}`,
@@ -101,6 +102,8 @@ export function buildChunks(
 
   // 版面噪声标题：Elsevier 侧栏、页眉标签之类的「伪章节」，不该进章节路径。
   const LABEL_HEADING = /^(articleinfo|abstract|highlights?|keywords?|contentslists.*|题目.*|学位论文|专业学位|独创性声明)$/i
+  // 后置内容（参考文献、致谢、附录……）不是可引用正文，进索引只会制造噪声。
+  const BACK_MATTER_HEADING = /^(references?|bibliography|参考文献|致谢|acknowledg(e)?ments?|appendix|附录|作者简介|declarationofcompetinginterest|dataavailability|作者贡献)/i
   const isLabelHeading = (block: ContentBlock): boolean =>
     LABEL_HEADING.test(block.text.replace(/\s+/g, '').toLowerCase())
 
@@ -369,6 +372,17 @@ function headingDepth(block: ContentBlock): number {
   if (/^第[一二三四五六七八九十百零\d]+[章节]/.test(text)) return 1
   const level = block.headingLevel ?? 1
   return Math.min(3, Math.max(1, level))
+}
+
+/**
+ * 判断一段文本是不是参考文献列表：参考文献行通常以「[12]」或「[12-15]」开头，
+ * 夹杂作者、年份与 DOI。过半行满足就认为整块是参考文献，不进索引。
+ */
+function isReferenceDominated(text: string): boolean {
+  const lines = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0)
+  if (lines.length < 4) return false
+  const referenceLines = lines.filter((line) => /^\[\d+\]|^\[\d+[–-]\d+\]/.test(line)).length
+  return referenceLines / lines.length > 0.5
 }
 
 /** 标题归一化：去掉空白、大小写、末尾标点，用于判断「这行标题是不是文献标题本身」。 */

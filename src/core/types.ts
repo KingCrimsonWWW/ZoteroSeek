@@ -70,6 +70,9 @@ export interface Chunk {
   tokenEstimate: number
 }
 
+/** 检索命中的来源：原始词面 / 跨语言扩展 / 两路都命中。 */
+export type HitRoute = 'lexical' | 'expanded' | 'both'
+
 /** 一次检索命中。 */
 export interface SearchHit {
   chunkId: string
@@ -79,7 +82,12 @@ export interface SearchHit {
   page: number | null
   kind: Chunk['kind']
   text: string
+  /** 融合后的分数（RRF；单路时等价于该路名次分）。 */
   score: number
+  /** 这一条是怎么被找到的。 */
+  route: HitRoute
+  /** 命中的查询词（含扩展词），用于解释与调参。 */
+  matched: string[]
 }
 
 /** 一篇文献的解析状态。 */

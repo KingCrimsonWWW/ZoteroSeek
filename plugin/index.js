@@ -209,6 +209,192 @@ var Bm25Index = class {
   }
 };
 
+// src/core/glossary.ts
+var GLOSSARY = [
+  // —— 对象与场景 ——
+  { zh: ["\u7A7A\u6D1E", "\u8131\u7A7A", "\u7A7A\u8154", "\u7A7A\u9F13"], en: ["void", "cavity", "hollow", "delamination", "debonding"] },
+  { zh: ["\u886C\u780C"], en: ["lining"] },
+  { zh: ["\u96A7\u9053"], en: ["tunnel"] },
+  { zh: ["\u76FE\u6784"], en: ["shield"] },
+  { zh: ["\u7BA1\u7247"], en: ["segment"] },
+  { zh: ["\u53CC\u62F1"], en: ["double-arch", "double arch"] },
+  { zh: ["\u9053\u5E8A", "\u8F68\u9053\u677F"], en: ["track slab", "track bed", "slab"] },
+  { zh: ["\u65E0\u781F\u8F68\u9053"], en: ["ballastless track"] },
+  { zh: ["\u94C1\u8DEF", "\u94C1\u9053"], en: ["railway", "rail"] },
+  { zh: ["\u5730\u94C1"], en: ["subway", "metro"] },
+  { zh: ["\u6DF7\u51DD\u571F"], en: ["concrete"] },
+  { zh: ["\u94A2\u7B4B"], en: ["rebar", "reinforcement", "reinforced"] },
+  { zh: ["\u75C5\u5BB3", "\u7F3A\u9677", "\u635F\u4F24"], en: ["defect", "damage", "deterioration"] },
+  { zh: ["\u88C2\u7F1D", "\u5F00\u88C2", "\u88C2\u7EB9"], en: ["crack", "cracking"] },
+  { zh: ["\u539A\u5EA6\u4E0D\u8DB3", "\u539A\u5EA6"], en: ["thickness", "insufficient thickness"] },
+  { zh: ["\u6E17\u6F0F", "\u6C34\u5BB3", "\u542B\u6C34"], en: ["leakage", "moisture", "water"] },
+  { zh: ["\u5206\u5C42", "\u79BB\u5C42"], en: ["delamination", "separation"] },
+  // —— 检测方法 ——
+  { zh: ["\u68C0\u6D4B", "\u63A2\u6D4B", "\u68C0\u67E5"], en: ["detection", "detect", "inspection", "inspect", "testing"] },
+  { zh: ["\u76D1\u6D4B"], en: ["monitoring", "monitor"] },
+  { zh: ["\u8BC6\u522B"], en: ["identification", "identify", "recognition"] },
+  { zh: ["\u5206\u7C7B"], en: ["classification", "classify"] },
+  { zh: ["\u63A2\u5730\u96F7\u8FBE", "\u5730\u8D28\u96F7\u8FBE", "\u96F7\u8FBE"], en: ["ground penetrating radar", "ground-penetrating radar", "GPR", "radar"] },
+  { zh: ["\u9006\u65F6\u504F\u79FB"], en: ["reverse time migration", "reverse-time migration", "RTM"] },
+  { zh: ["\u53CD\u6295\u5F71"], en: ["back projection", "back-projection"] },
+  { zh: ["\u53CD\u6F14"], en: ["inversion", "inverse"] },
+  { zh: ["\u6210\u50CF"], en: ["imaging", "image"] },
+  { zh: ["\u6FC0\u5149\u591A\u666E\u52D2\u6D4B\u632F\u4EEA", "\u6FC0\u5149\u591A\u666E\u52D2", "\u6D4B\u632F\u4EEA"], en: ["laser doppler vibrometry", "laser Doppler vibrometer", "LDV", "vibrometer"] },
+  { zh: ["\u58F0\u6CE2\u6FC0\u52B1", "\u8FDC\u7A0B\u58F0\u6CE2", "\u58F0\u6FC0\u52B1"], en: ["acoustic excitation", "acoustic excitation signal"] },
+  { zh: ["\u58F0\u538B\u7EA7"], en: ["sound pressure level", "SPL"] },
+  { zh: ["\u51B2\u51FB\u56DE\u6CE2"], en: ["impact echo"] },
+  { zh: ["\u8D85\u58F0\u6CE2", "\u8D85\u58F0"], en: ["ultrasonic", "ultrasound"] },
+  { zh: ["\u58F0\u53D1\u5C04"], en: ["acoustic emission"] },
+  { zh: ["\u6572\u51FB"], en: ["impact", "hammer", "tapping"] },
+  { zh: ["\u632F\u52A8"], en: ["vibration"] },
+  { zh: ["\u5171\u632F\u9891\u7387", "\u56FA\u6709\u9891\u7387"], en: ["resonance frequency", "natural frequency"] },
+  { zh: ["\u5F2F\u66F2\u632F\u52A8"], en: ["bending vibration"] },
+  { zh: ["\u632F\u52A8\u901F\u5EA6"], en: ["vibration velocity"] },
+  { zh: ["\u5E45\u503C", "\u632F\u5E45"], en: ["amplitude"] },
+  { zh: ["\u9891\u8C31", "\u8C31"], en: ["spectrum", "spectral"] },
+  { zh: ["\u8D28\u5FC3"], en: ["centroid"] },
+  { zh: ["\u6A21\u6001"], en: ["modal", "mode"] },
+  { zh: ["\u65F6\u57DF"], en: ["time domain"] },
+  { zh: ["\u9891\u57DF"], en: ["frequency domain"] },
+  { zh: ["\u9891\u5E26", "\u5E26\u5BBD"], en: ["frequency band", "bandwidth"] },
+  { zh: ["\u5CF0\u503C"], en: ["peak"] },
+  { zh: ["\u76F8\u4F4D"], en: ["phase"] },
+  { zh: ["\u6EE4\u6CE2"], en: ["filter", "filtering"] },
+  { zh: ["\u53BB\u566A"], en: ["denoising", "noise removal"] },
+  { zh: ["\u6742\u6CE2"], en: ["clutter"] },
+  { zh: ["\u5408\u6210\u5B54\u5F84"], en: ["synthetic aperture"] },
+  { zh: ["\u4F20\u611F\u5668"], en: ["sensor", "transducer"] },
+  { zh: ["\u91C7\u96C6"], en: ["acquisition", "acquire"] },
+  { zh: ["\u626B\u63CF"], en: ["scanning", "scan"] },
+  // —— 声学与机器学习 ——
+  { zh: ["\u58F0\u5B66\u7279\u5F81", "\u58F0\u97F3\u7279\u5F81"], en: ["acoustic feature", "sound feature"] },
+  { zh: ["\u6885\u5C14\u9891\u7387\u5012\u8C31\u7CFB\u6570", "\u5012\u8C31\u7CFB\u6570"], en: ["MFCC", "mel frequency cepstral", "mel-frequency cepstral"] },
+  { zh: ["\u58F0\u97F3\u5206\u7C7B", "\u73AF\u5883\u58F0\u97F3"], en: ["sound classification", "environmental sound", "acoustic event"] },
+  { zh: ["\u6DF1\u5EA6\u5B66\u4E60"], en: ["deep learning"] },
+  { zh: ["\u795E\u7ECF\u7F51\u7EDC"], en: ["neural network"] },
+  { zh: ["\u5377\u79EF"], en: ["convolution", "convolutional", "CNN"] },
+  { zh: ["\u6B8B\u5DEE\u7F51\u7EDC", "\u6B8B\u5DEE"], en: ["residual network", "ResNet", "residual"] },
+  { zh: ["\u6CE8\u610F\u529B"], en: ["attention"] },
+  { zh: ["\u591A\u5C3A\u5EA6"], en: ["multi-scale", "multiscale"] },
+  { zh: ["\u52A8\u6001\u5377\u79EF"], en: ["dynamic convolution"] },
+  { zh: ["\u5206\u5272"], en: ["segmentation", "segment"] },
+  { zh: ["\u6570\u636E\u96C6"], en: ["dataset"] },
+  { zh: ["\u51C6\u786E\u7387", "\u7CBE\u5EA6"], en: ["accuracy", "precision"] },
+  { zh: ["\u53EC\u56DE\u7387"], en: ["recall"] },
+  { zh: ["\u9608\u503C"], en: ["threshold"] },
+  // —— 力学与施工 ——
+  { zh: ["\u5E94\u529B"], en: ["stress"] },
+  { zh: ["\u53D8\u5F62"], en: ["deformation"] },
+  { zh: ["\u4F4D\u79FB"], en: ["displacement"] },
+  { zh: ["\u521A\u5EA6"], en: ["stiffness"] },
+  { zh: ["\u6CE8\u6D46", "\u704C\u6D46"], en: ["grouting", "grout"] },
+  { zh: ["\u56DE\u586B"], en: ["backfill", "back-fill"] },
+  { zh: ["\u52A0\u56FA", "\u4FEE\u590D", "\u4FEE\u8865"], en: ["reinforcement", "repair", "remediation"] },
+  { zh: ["\u6A21\u578B\u8BD5\u9A8C"], en: ["model test"] },
+  { zh: ["\u6570\u503C\u6A21\u62DF", "\u6709\u9650\u5143"], en: ["numerical simulation", "finite element", "FEM"] },
+  { zh: ["\u73B0\u573A"], en: ["field"] },
+  { zh: ["\u5B9E\u9A8C", "\u8BD5\u9A8C"], en: ["experiment", "experimental", "test"] },
+  { zh: ["\u53C2\u6570"], en: ["parameter"] },
+  { zh: ["\u65B9\u6CD5"], en: ["method", "approach"] },
+  { zh: ["\u5C40\u9650"], en: ["limitation", "limitations"] },
+  { zh: ["\u8584\u677F", "\u8584\u677F\u65B9\u7A0B"], en: ["thin plate", "thin-plate equation", "thin plate theory"] },
+  { zh: ["\u539A\u677F", "\u539A\u677F\u6A21\u578B"], en: ["thick plate", "thick-plate model"] },
+  { zh: ["\u7279\u5F81\u53C2\u6570"], en: ["characteristic parameter", "characteristic parameters"] },
+  { zh: ["\u6D4B\u91CF\u7F51\u683C", "\u6D4B\u70B9", "\u7F51\u683C"], en: ["measurement grid", "measurement point", "grid"] },
+  { zh: ["\u7814\u7A76\u7A7A\u767D", "\u7814\u7A76\u4E0D\u8DB3"], en: ["research gap", "few studies", "limited research"] },
+  { zh: ["\u5C71\u533A"], en: ["mountainous", "mountainous areas"] },
+  { zh: ["\u951A\u6746"], en: ["bolt", "rock bolt", "anchor bolt"] },
+  { zh: ["\u56DE\u586B\u6750\u6599"], en: ["backfill material", "backfill materials"] },
+  { zh: ["\u6CE8\u6D46\u538B\u529B"], en: ["grouting pressure"] },
+  { zh: ["\u6B65\u8FDB\u5355\u9891\u626B\u63CF", "\u6B65\u8FDB\u626B\u9891"], en: ["stepped-tone sweep", "stepped frequency", "stepped-tone"] },
+  { zh: ["\u7EBF\u6027\u8C03\u9891"], en: ["linear chirp", "chirp"] },
+  { zh: ["\u8BD5\u4EF6", "\u8BD5\u6837"], en: ["specimen", "sample"] },
+  { zh: ["\u5E26\u901A\u6EE4\u6CE2", "\u5E26\u901A\u6EE4\u6CE2\u5668"], en: ["band-pass filter", "bandpass filter", "BPF"] },
+  { zh: ["\u63A5\u7F1D"], en: ["joint"] },
+  { zh: ["\u6210\u50CF\u6761\u4EF6"], en: ["imaging condition"] },
+  { zh: ["\u76F8\u5BF9\u8BEF\u5DEE", "\u8BEF\u5DEE"], en: ["relative error", "error"] },
+  { zh: ["\u4EFF\u771F", "\u6570\u503C\u4EFF\u771F"], en: ["simulation", "numerical simulation"] },
+  { zh: ["\u5256\u9762"], en: ["profile"] },
+  { zh: ["\u8FD0\u8425"], en: ["operational", "operation"] },
+  { zh: ["\u7EF4\u62A4", "\u4FDD\u517B"], en: ["maintenance"] },
+  { zh: ["\u652F\u62A4"], en: ["support"] },
+  { zh: ["\u7ED3\u679C"], en: ["results", "result"] },
+  { zh: ["\u7ED3\u8BBA"], en: ["conclusion", "conclusions"] },
+  { zh: ["\u80CC\u666F"], en: ["background", "introduction"] },
+  { zh: ["\u5C0F\u6CE2\u53D8\u6362", "\u5C0F\u6CE2"], en: ["wavelet transform", "wavelet"] },
+  { zh: ["\u4FE1\u53F7\u91CD\u6784", "\u91CD\u6784"], en: ["signal reconstruction", "reconstruction"] },
+  { zh: ["\u5206\u89E3\u5C42\u6570"], en: ["decomposition level", "decomposition levels"] },
+  { zh: ["\u5CF0\u503C\u538B\u529B"], en: ["peak pressure"] },
+  { zh: ["\u51B2\u51FB\u6CE2"], en: ["shock wave"] },
+  { zh: ["\u7EA2\u5916\u70ED\u6210\u50CF", "\u7EA2\u5916"], en: ["infrared thermography", "infrared"] },
+  { zh: ["\u65E0\u635F\u68C0\u6D4B", "\u65E0\u635F"], en: ["non-destructive testing", "non-destructive", "NDT"] },
+  { zh: ["\u8D85\u58F0\u56DE\u6CE2"], en: ["ultrasonic echo"] },
+  { zh: ["\u914D\u5408\u6BD4"], en: ["mix proportion", "mix design"] },
+  { zh: ["\u52A0\u901F\u5EA6\u8BA1", "\u52A0\u901F\u5EA6\u4F20\u611F\u5668"], en: ["accelerometer", "acceleration sensor"] },
+  { zh: ["\u538B\u7535"], en: ["piezoelectric"] },
+  { zh: ["\u566A\u58F0", "\u53BB\u566A"], en: ["noise", "denoising"] },
+  { zh: ["\u7A7A\u57DF", "\u7A7A\u95F4\u8C31\u71B5"], en: ["spatial spectral entropy", "spatial"] },
+  { zh: ["\u7279\u5F81\u63D0\u53D6"], en: ["feature extraction"] },
+  { zh: ["\u4FE1\u53F7\u5904\u7406"], en: ["signal processing"] },
+  { zh: ["\u6A21\u6001\u5206\u6790"], en: ["modal analysis"] }
+];
+var MAX_ADDED_TERMS = 40;
+function expandQuery(query) {
+  const trimmed = query.trim();
+  const added = [];
+  const appended = [];
+  const seen = /* @__PURE__ */ new Set();
+  const zhHaystack = trimmed.replace(/\s+/g, "");
+  const enHaystack = trimmed.toLowerCase();
+  const push = (from, to, direction) => {
+    const key = to.toLowerCase();
+    if (seen.has(key) || appended.length >= MAX_ADDED_TERMS) return;
+    seen.add(key);
+    added.push({ from, to, direction });
+    appended.push(to);
+  };
+  for (const entry of GLOSSARY) {
+    const zhHit = entry.zh.find((term) => term.length > 0 && zhHaystack.includes(term));
+    if (zhHit !== void 0) {
+      for (const term of entry.en) push(zhHit, term, "zh\u2192en");
+    }
+    const enHit = entry.en.find((term) => term.length > 1 && enHaystack.includes(term.toLowerCase()));
+    if (enHit !== void 0) {
+      for (const term of entry.zh) push(enHit, term, "en\u2192zh");
+    }
+  }
+  const expandedQuery = appended.length === 0 ? trimmed : `${trimmed} ${appended.join(" ")}`;
+  return { query: trimmed, expandedQuery, translatedQuery: appended.join(" "), added };
+}
+function describeExpansion(expansion) {
+  if (expansion.added.length === 0) return "";
+  const shown = expansion.added.slice(0, 6).map((item) => `${item.from}\u2192${item.to}`);
+  const suffix = expansion.added.length > shown.length ? ` \u7B49 ${expansion.added.length} \u4E2A` : "";
+  return `\u8DE8\u8BED\u8A00\u6269\u5C55\uFF1A${shown.join("\u3001")}${suffix}`;
+}
+var GLOSSARY_SIZE = GLOSSARY.length;
+
+// src/core/rrf.ts
+function fuseRrf(lists, options = {}) {
+  const k = options.k ?? 10;
+  const scores = /* @__PURE__ */ new Map();
+  lists.forEach((list, listIndex) => {
+    const weight = list.weight ?? 1;
+    list.ids.forEach((id, index) => {
+      const rank = index + 1;
+      const existing = scores.get(id);
+      const contribution = weight / (k + rank);
+      if (existing === void 0) {
+        scores.set(id, { id, score: contribution, ranks: [{ list: listIndex, rank, weight }] });
+      } else {
+        existing.score += contribution;
+        existing.ranks.push({ list: listIndex, rank, weight });
+      }
+    });
+  });
+  return [...scores.values()].sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, options.topK ?? 10);
+}
+
 // src/core/chunker.ts
 var DEFAULTS = {
   maxTokens: 800,
@@ -237,7 +423,7 @@ function buildChunks(item, blocks, options = {}) {
   const flush = () => {
     if (buffer.length === 0) return;
     const text = buffer.map((block) => block.text).join("\n\n").trim();
-    if (text.length > 0 && estimateTokens(text) >= minTokens) {
+    if (!isReferenceDominated(text) && text.length > 0 && estimateTokens(text) >= minTokens) {
       const first = buffer[0];
       chunks.push({
         chunkId: `${item.key}:${String(seq).padStart(4, "0")}`,
@@ -273,6 +459,7 @@ function buildChunks(item, blocks, options = {}) {
   const titleKey = normalizeHeading(item.title);
   const isDocumentTitle = (block) => block.headingLevel === 1 && normalizeHeading(block.text) === titleKey;
   const LABEL_HEADING = /^(articleinfo|abstract|highlights?|keywords?|contentslists.*|题目.*|学位论文|专业学位|独创性声明)$/i;
+  const BACK_MATTER_HEADING = /^(references?|bibliography|参考文献|致谢|acknowledg(e)?ments?|appendix|附录|作者简介|declarationofcompetinginterest|dataavailability|作者贡献)/i;
   const isLabelHeading = (block) => LABEL_HEADING.test(block.text.replace(/\s+/g, "").toLowerCase());
   let seenBodyHeading = false;
   const isLeadingTitle = (block) => !seenBodyHeading && block.headingLevel === 1 && normalizeHeading(block.text).length >= 20;
@@ -506,6 +693,12 @@ function headingDepth(block) {
   const level = block.headingLevel ?? 1;
   return Math.min(3, Math.max(1, level));
 }
+function isReferenceDominated(text) {
+  const lines = text.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
+  if (lines.length < 4) return false;
+  const referenceLines = lines.filter((line) => /^\[\d+\]|^\[\d+[–-]\d+\]/.test(line)).length;
+  return referenceLines / lines.length > 0.5;
+}
 function normalizeHeading(text) {
   return text.toLowerCase().replace(/\s+/g, " ").replace(/[.:;、，。]+$/, "").trim();
 }
@@ -648,14 +841,52 @@ var Library = class _Library {
       return existed;
     });
   }
-  /** BM25 检索。itemKey 存在时只在该文献内检索。 */
+  /**
+   * 检索。默认混合模式：
+   *   1. 原始查询走 BM25（词面）；
+   *   2. 用领域双语词表扩展后的查询再走一次 BM25（跨语言）；
+   *   3. 两路排名用 RRF 融合。
+   * itemKey 存在时只在该文献内检索；mode='lexical' 可关闭扩展（评测基线用）。
+   */
   search(query, options = {}) {
+    return this.searchDetailed(query, options).hits;
+  }
+  /** 与 search 相同，但额外返回扩展解释，供工具输出与面板展示。 */
+  searchDetailed(query, options = {}) {
     const topK = Math.max(1, options.topK ?? 8);
+    const mode = options.mode ?? "hybrid";
+    const maxChars = options.maxCharsPerHit ?? 1200;
     const chunkById = new Map(this.index.chunks.map((chunk) => [chunk.chunkId, chunk]));
     const candidates = options.itemKey === void 0 ? this.index.chunks : this.index.chunks.filter((chunk) => chunk.itemKey === options.itemKey);
-    const hits = this.searchWithin(query, candidates, topK);
-    const maxChars = options.maxCharsPerHit ?? 1200;
-    return hits.map((hit) => {
+    const depth = Math.max(topK * 4, 20);
+    const lexical = this.searchWithin(query, candidates, depth);
+    const expansion = mode === "hybrid" ? expandQuery(query) : null;
+    const expanded = expansion !== null && expansion.added.length > 0 ? this.searchWithin(expansion.expandedQuery, candidates, depth) : [];
+    const lexicalRank = new Map(lexical.map((hit, index) => [hit.id, index + 1]));
+    const expandedRank = new Map(expanded.map((hit, index) => [hit.id, index + 1]));
+    const matchedById = /* @__PURE__ */ new Map();
+    for (const hit of [...lexical, ...expanded]) {
+      const existing = matchedById.get(hit.id) ?? [];
+      matchedById.set(hit.id, [.../* @__PURE__ */ new Set([...existing, ...hit.matched])]);
+    }
+    let ranked;
+    if (expanded.length === 0) {
+      ranked = lexical.map((hit) => ({ id: hit.id, score: hit.score, route: "lexical" }));
+    } else {
+      const fused = fuseRrf(
+        [
+          { ids: lexical.map((hit) => hit.id), weight: 1 },
+          { ids: expanded.map((hit) => hit.id), weight: 0.9 }
+        ],
+        { k: 10, topK }
+      );
+      ranked = fused.map((hit) => ({
+        id: hit.id,
+        score: hit.score,
+        route: lexicalRank.has(hit.id) && expandedRank.has(hit.id) ? "both" : lexicalRank.has(hit.id) ? "lexical" : "expanded"
+      }));
+    }
+    const hits = ranked.slice(0, topK).map((hit) => {
       const chunk = chunkById.get(hit.id);
       if (chunk === void 0) throw new Error(`\u7D22\u5F15\u4E0D\u4E00\u81F4\uFF1Achunk ${hit.id} \u4E0D\u5B58\u5728`);
       return {
@@ -666,9 +897,12 @@ var Library = class _Library {
         page: chunk.page,
         kind: chunk.kind,
         text: chunk.text.length > maxChars ? `${chunk.text.slice(0, maxChars)}\u2026` : chunk.text,
-        score: Number(hit.score.toFixed(4))
+        score: Number(hit.score.toFixed(4)),
+        route: hit.route,
+        matched: matchedById.get(hit.id) ?? []
       };
     });
+    return { hits, expansion, mode };
   }
   searchWithin(query, candidates, topK) {
     if (candidates.length === this.index.chunks.length) {
@@ -1622,11 +1856,20 @@ var Runtime = class {
     }
     return items.slice(0, limit).map((item) => ({ ...item, parsed: parsed[item.key] !== void 0 }));
   }
-  /** 检索：BM25 over 已入库 chunk；没有命中时退回元数据检索。 */
+  /** 检索：词面 BM25 + 领域双语词表扩展，RRF 融合；没有命中时退回元数据检索。 */
   async search(query, options = {}) {
     const library = await this.library();
     const topK = clampNumber(options.topK, 1, 20, this.defaultTopK);
-    const hits = library.search(query, { topK, ...options.itemKey === void 0 ? {} : { itemKey: options.itemKey } });
+    const detail = library.searchDetailed(query, {
+      topK,
+      ...options.itemKey === void 0 ? {} : { itemKey: options.itemKey },
+      ...options.mode === void 0 ? {} : { mode: options.mode }
+    });
+    const hits = detail.hits;
+    const expansion = detail.expansion === null || detail.expansion.added.length === 0 ? null : {
+      description: describeExpansion(detail.expansion),
+      added: detail.expansion.added.map((item) => ({ from: item.from, to: item.to }))
+    };
     this.recordTrail({
       source: options.source ?? "tool",
       query,
@@ -1635,13 +1878,15 @@ var Runtime = class {
       hits: hits.length,
       chunkIds: hits.map((hit) => hit.chunkId)
     });
-    if (hits.length > 0) return { hits, metadataOnly: [] };
+    if (hits.length > 0) return { hits, metadataOnly: [], expansion, mode: detail.mode };
     const metadataOnly = await this.zotero().searchItems(query, { limit: 5 }).catch(() => []);
     const parsed = library.parsedItems();
     const unindexed = metadataOnly.filter((item) => parsed[item.key] === void 0);
     return {
       hits,
       metadataOnly: unindexed,
+      expansion,
+      mode: detail.mode,
       note: unindexed.length > 0 ? "\u6587\u732E\u5E93\u91CC\u6CA1\u6709\u5DF2\u5165\u5E93\u6B63\u6587\u547D\u4E2D\uFF1B\u4E0B\u9762\u8FD9\u4E9B\u6761\u76EE\u5339\u914D\u5143\u6570\u636E\u4F46\u8FD8\u6CA1\u5165\u5E93\uFF0C\u5148\u8C03\u7528 zotero_index \u89E3\u6790\u5165\u5E93\u518D\u68C0\u7D22\u3002" : "\u6587\u732E\u5E93\u91CC\u6CA1\u6709\u76F8\u5173\u5185\u5BB9\uFF08\u5DF2\u5165\u5E93\u6587\u732E\u7684\u6B63\u6587\u91CC\u6CA1\u6709\u5339\u914D\u7247\u6BB5\uFF09\u3002"
     };
   }
@@ -1887,6 +2132,7 @@ async function runEval(options) {
       q: row.q,
       gold: row.gold_chunk_id,
       rank: rankIndex < 0 ? null : rankIndex + 1,
+      goldRoute: rankIndex < 0 ? null : hits[rankIndex]?.route ?? null,
       top: hits.map((hit) => hit.chunkId),
       answer: grounded.answer,
       citations: grounded.citations,
@@ -1995,6 +2241,7 @@ async function runEvalOnDisk(runtime, deps, options = {}) {
     qaPath,
     modelLabel: deps.label,
     ...options.topK === void 0 ? {} : { topK: options.topK },
+    ...options.mode === void 0 ? {} : { mode: options.mode },
     ...options.limit === void 0 ? {} : { limit: options.limit }
   });
   const reportDir = join5(runtime.dataDir, "reports");
@@ -2039,7 +2286,12 @@ function buildTools(runtime, evalDeps) {
         properties: {
           query: { type: "string", description: "\u68C0\u7D22\u95EE\u9898\uFF0C\u4E2D\u82F1\u6587\u5747\u53EF\uFF0C\u53EF\u7528\u6280\u672F\u672F\u8BED\u4E0E\u7F16\u53F7" },
           top_k: { type: "integer", minimum: 1, maximum: 20, description: `\u8FD4\u56DE\u7247\u6BB5\u6570\uFF0C\u9ED8\u8BA4 ${defaultTopK}` },
-          item_key: { type: "string", description: "\u53EA\u5728\u8FD9\u4E00\u7BC7\u6587\u732E\u5185\u68C0\u7D22\u65F6\u586B\u5199\u5176 Zotero item_key" }
+          item_key: { type: "string", description: "\u53EA\u5728\u8FD9\u4E00\u7BC7\u6587\u732E\u5185\u68C0\u7D22\u65F6\u586B\u5199\u5176 Zotero item_key" },
+          mode: {
+            type: "string",
+            enum: ["hybrid", "lexical"],
+            description: "hybrid\uFF08\u9ED8\u8BA4\uFF09\u4F1A\u53E0\u52A0\u9886\u57DF\u53CC\u8BED\u8BCD\u8868\u6269\u5C55\uFF0C\u4E2D\u6587\u95EE\u82F1\u6587\u6587\u732E\u4E5F\u80FD\u547D\u4E2D\uFF1Blexical \u53EA\u505A\u539F\u59CB\u8BCD\u9762\u68C0\u7D22\uFF0C\u7528\u4E8E\u5BF9\u7167"
+          }
         },
         required: ["query"]
       },
@@ -2055,8 +2307,9 @@ function buildTools(runtime, evalDeps) {
         const query = String(args["query"] ?? "").trim();
         const topK = typeof args["top_k"] === "number" ? args["top_k"] : defaultTopK;
         const itemKey = typeof args["item_key"] === "string" ? args["item_key"] : void 0;
+        const mode = args["mode"] === "lexical" ? "lexical" : "hybrid";
         if (query.length === 0) return { text: "\u53C2\u6570\u9519\u8BEF\uFF1Aquery \u4E0D\u80FD\u4E3A\u7A7A\u3002", hits: [] };
-        const result = await runtime.search(query, { topK, source: "tool", ...itemKey === void 0 ? {} : { itemKey } });
+        const result = await runtime.search(query, { topK, source: "tool", mode, ...itemKey === void 0 ? {} : { itemKey } });
         const lines = [];
         if (result.hits.length === 0) {
           lines.push(result.note ?? "\u6587\u732E\u5E93\u4E2D\u6CA1\u6709\u76F8\u5173\u5185\u5BB9\u3002");
@@ -2067,16 +2320,19 @@ function buildTools(runtime, evalDeps) {
             }
           }
         } else {
-          lines.push(`\u68C0\u7D22\u547D\u4E2D ${result.hits.length} \u4E2A\u7247\u6BB5\uFF08BM25\uFF0C\u6807\u9898\xD73/\u7AE0\u8282\xD72/\u6B63\u6587\xD71 \u52A0\u6743\uFF09\u3002\u5F15\u7528\u683C\u5F0F\uFF1A[\u6765\u6E90: chunk_id]`);
+          const modeLabel = result.mode === "hybrid" ? "BM25 \u8BCD\u9762 + \u9886\u57DF\u53CC\u8BED\u8BCD\u8868\u6269\u5C55\uFF0CRRF \u878D\u5408" : "BM25 \u8BCD\u9762";
+          lines.push(`\u68C0\u7D22\u547D\u4E2D ${result.hits.length} \u4E2A\u7247\u6BB5\uFF08${modeLabel}\uFF09\u3002\u5F15\u7528\u683C\u5F0F\uFF1A[\u6765\u6E90: chunk_id]`);
+          if (result.expansion !== null) lines.push(result.expansion.description);
           result.hits.forEach((hit, index) => {
             const page = hit.page === null ? "" : ` \xB7 \u7B2C ${hit.page + 1} \u9875`;
             const section = hit.sectionPath.length > 0 ? ` \xB7 ${hit.sectionPath}` : "";
-            lines.push("", `[${index + 1}] chunk_id=${hit.chunkId} \xB7 \u300A${hit.title}\u300B${section}${page} \xB7 \u7C7B\u578B=${hit.kind} \xB7 score=${hit.score}`);
+            const route = hit.route === "both" ? "\u8BCD\u9762+\u6269\u5C55" : hit.route === "expanded" ? "\u8DE8\u8BED\u8A00\u6269\u5C55" : "\u8BCD\u9762";
+            lines.push("", `[${index + 1}] chunk_id=${hit.chunkId} \xB7 \u300A${hit.title}\u300B${section}${page} \xB7 \u7C7B\u578B=${hit.kind} \xB7 \u547D\u4E2D=${route} \xB7 score=${hit.score}`);
             lines.push(hit.text);
           });
           lines.push("", "\u6CE8\u610F\uFF1Achunk_id \u5FC5\u987B\u539F\u6837\u5F15\u7528\uFF0C\u4E0D\u8981\u6539\u5199\u6216\u7F16\u9020\u3002");
         }
-        return { text: lines.join("\n"), hits: result.hits };
+        return { text: lines.join("\n"), hits: result.hits, expansion: result.expansion };
       }
     },
     {
@@ -2209,7 +2465,12 @@ item_key=${result.itemKey} \xB7 ${result.chunks} \u4E2A\u5206\u5757 \xB7 \u7ED3\
         properties: {
           qa_path: { type: "string", description: "\u8BC4\u6D4B\u96C6 JSONL \u8DEF\u5F84\uFF1B\u9ED8\u8BA4 <dataDir>/qa-set.jsonl" },
           limit: { type: "integer", minimum: 1, maximum: 100, description: "\u53EA\u8DD1\u524D N \u9898\uFF08\u8C03\u8BD5\u7528\uFF09" },
-          top_k: { type: "integer", minimum: 1, maximum: 20, description: "\u68C0\u7D22 top-k\uFF0C\u9ED8\u8BA4 5" }
+          top_k: { type: "integer", minimum: 1, maximum: 20, description: "\u68C0\u7D22 top-k\uFF0C\u9ED8\u8BA4 5" },
+          mode: {
+            type: "string",
+            enum: ["hybrid", "lexical"],
+            description: "\u68C0\u7D22\u6A21\u5F0F\uFF1Ahybrid\uFF08\u9ED8\u8BA4\uFF0C\u542B\u53CC\u8BED\u8BCD\u8868\u6269\u5C55\uFF09\u6216 lexical\uFF08\u7EAF\u8BCD\u9762\u57FA\u7EBF\uFF0C\u7528\u4E8E\u5BF9\u7167\uFF09"
+          }
         },
         required: []
       },
@@ -2226,7 +2487,8 @@ item_key=${result.itemKey} \xB7 ${result.chunks} \u4E2A\u5206\u5757 \xB7 \u7ED3\
           const result = await runEvalOnDisk(runtime, evalDeps, {
             ...typeof args["qa_path"] === "string" ? { qaPath: args["qa_path"] } : {},
             ...typeof args["limit"] === "number" ? { limit: args["limit"] } : {},
-            ...typeof args["top_k"] === "number" ? { topK: args["top_k"] } : {}
+            ...typeof args["top_k"] === "number" ? { topK: args["top_k"] } : {},
+            ...args["mode"] === "lexical" ? { mode: "lexical" } : {}
           });
           const metrics = result.report.metrics;
           return {
@@ -2309,9 +2571,11 @@ async function handle(req, res, runtime) {
           const query = (url.searchParams.get("q") ?? "").trim();
           if (query.length === 0) return fail(res, 400, "empty-query", "\u68C0\u7D22\u8BCD\u4E0D\u80FD\u4E3A\u7A7A");
           const itemKey = url.searchParams.get("item_key");
+          const mode = url.searchParams.get("mode") === "lexical" ? "lexical" : "hybrid";
           return ok(res, await runtime.search(query, {
             topK: Number(url.searchParams.get("top_k") ?? runtime.defaultTopK),
             source: "panel",
+            mode,
             ...itemKey === null || itemKey.length === 0 ? {} : { itemKey }
           }));
         }

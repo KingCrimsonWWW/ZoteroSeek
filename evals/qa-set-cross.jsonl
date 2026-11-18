@@ -1,0 +1,14 @@
+{"id":"x01","q":"为什么作者用薄板方程而不是厚板模型来描述锤击作用下的轨道板？","item_key":"EHC5UR3B","gold_chunk_id":"EHC5UR3B:0007","type":"method"}
+{"id":"x02","q":"验证实验里测量网格的间距和测点数量分别是多少？","item_key":"EHC5UR3B","gold_chunk_id":"EHC5UR3B:0010","type":"fact"}
+{"id":"x03","q":"作者提出哪三个特征参数来描述不同空洞尺寸下轨道板的振动特性？","item_key":"EHC5UR3B","gold_chunk_id":"EHC5UR3B:0009","type":"method"}
+{"id":"x04","q":"空洞尺寸处在什么范围内会不利地影响无砟轨道的服役性能、需要及时检测？","item_key":"EHC5UR3B","gold_chunk_id":"EHC5UR3B:0007","type":"fact"}
+{"id":"x05","q":"摘要里指出的关于非对称双拱隧道的研究空白是什么？","item_key":"UITJGJM9","gold_chunk_id":"UITJGJM9:0000","type":"fact"}
+{"id":"x06","q":"为什么双拱隧道在山区被认为更有优势？","item_key":"UITJGJM9","gold_chunk_id":"UITJGJM9:0001","type":"fact"}
+{"id":"x07","q":"表 5 中空洞缺陷的回填材料有哪些，小空洞的注浆压力建议控制在什么范围？","item_key":"GUW7QDMH","gold_chunk_id":"GUW7QDMH:0009","type":"fact"}
+{"id":"x08","q":"为什么说让岩体与衬砌建立有效接触是修复空洞缺陷的基础，回填注浆如何做到？","item_key":"GUW7QDMH","gold_chunk_id":"GUW7QDMH:0008","type":"method"}
+{"id":"x09","q":"修复空洞缺陷时为什么还需要配合锚杆加固？","item_key":"GUW7QDMH","gold_chunk_id":"GUW7QDMH:0010","type":"method"}
+{"id":"x10","q":"FRP 材料用于隧道缺陷修复有哪些优点，FRP 网格如何固定在混凝土上？","item_key":"GUW7QDMH","gold_chunk_id":"GUW7QDMH:0012","type":"fact"}
+{"id":"x11","q":"非接触声振检测采用了什么频率范围的声激励，基于哪两种激励模式设计了四种信号？","item_key":"W5QY3SIH","gold_chunk_id":"W5QY3SIH:0008","type":"method"}
+{"id":"x12","q":"步进单频扫描激励与线性调频激励在响应稳定性和频带覆盖上有什么区别？","item_key":"W5QY3SIH","gold_chunk_id":"W5QY3SIH:0009","type":"fact"}
+{"id":"x13","q":"对比激励实验使用的混凝土试件和人工分层尺寸是多少，表面声压级控制在什么范围？","item_key":"W5QY3SIH","gold_chunk_id":"W5QY3SIH:0009","type":"fact"}
+{"id":"x14","q":"逆时偏移成像前如果不用带通滤波去除接缝杂波，会出现什么误判？","item_key":"6E3QKFG4","gold_chunk_id":"6E3QKFG4:0009","type":"method"}

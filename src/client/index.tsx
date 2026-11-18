@@ -195,6 +195,8 @@ function createPanel(t: Dict) {
     const [doc, setDoc] = useState<MarkdownView | null>(null)
     const [query, setQuery] = useState('')
     const [hits, setHits] = useState<HitView[]>([])
+    const [expansionHint, setExpansionHint] = useState('')
+    const [crossLingual, setCrossLingual] = useState(true)
     const [checked, setChecked] = useState<Set<string>>(new Set())
     const [busy, setBusy] = useState<string>('')
     const [toast, setToast] = useState<string>('')
@@ -253,12 +255,14 @@ function createPanel(t: Dict) {
       setBusy('search')
       setError('')
       try {
-        const result = await apiGet<{ hits: HitView[]; note?: string }>('/api/search', {
+        const result = await apiGet<{ hits: HitView[]; note?: string; expansion?: { description: string } | null }>('/api/search', {
           q: keyword,
+          mode: crossLingual ? 'hybrid' : 'lexical',
           ...(itemKey === undefined ? {} : { item_key: itemKey }),
         })
         if (result.ok && result.value !== undefined) {
           setHits(result.value.hits)
+          setExpansionHint(result.value.expansion?.description ?? '')
           if (result.value.hits.length === 0) setError(result.value.note ?? t.noHits)
         } else {
           setError(result.message ?? '检索失败')
@@ -267,7 +271,7 @@ function createPanel(t: Dict) {
       } finally {
         setBusy('')
       }
-    }, [t.noHits])
+    }, [crossLingual, t.noHits])
 
     const toggle = useCallback((chunkId: string) => {
       setChecked((current) => {
@@ -375,6 +379,7 @@ function createPanel(t: Dict) {
         }) : null,
         view === 'hits' ? h(HitsView, {
           t, hits, checked, toggle, query, setQuery, busy,
+          expansionHint, crossLingual, setCrossLingual,
           runSearch: () => { if (query.trim().length > 0) void runSearch(query) },
           copyCitations,
           quoteSelected,
@@ -554,6 +559,9 @@ function HitsView(props: {
   setQuery: (value: string) => void
   busy: string
   runSearch: () => void
+  expansionHint: string
+  crossLingual: boolean
+  setCrossLingual: (value: boolean) => void
   copyCitations: (format: 'author-year' | 'reference' | 'bibtex') => void
   quoteSelected: () => void
   openItem: (itemKey: string) => void
@@ -569,6 +577,18 @@ function HitsView(props: {
         onKeyDown: (event: { key: string }) => { if (event.key === 'Enter') props.runSearch() },
       }),
       h('button', { style: S.button, onClick: props.runSearch }, props.busy === 'search' ? t.loading : t.runSearch),
+    ),
+    h('label', { style: S.modeRow, title: '开启后会用领域双语词表把中文问题扩展成英文术语（反之亦然），再与词面结果做 RRF 融合' },
+      h('input', {
+        type: 'checkbox',
+        checked: props.crossLingual,
+        onChange: () => props.setCrossLingual(!props.crossLingual),
+        style: S.checkbox,
+      }),
+      h('span', null, '跨语言检索'),
+      props.expansionHint.length > 0
+        ? h('span', { style: S.expansionHint }, props.expansionHint)
+        : null,
     ),
     hits.length === 0
       ? h('div', { style: S.empty }, t.noHits)
@@ -1088,6 +1108,17 @@ const S: Record<string, CSSProperties> = {
   hitCardChecked: { borderColor: 'var(--dsw-alias-brand-primary)' },
   hitHead: { display: 'flex', gap: 8, alignItems: 'flex-start' },
   checkbox: { marginTop: 2, accentColor: 'var(--dsw-alias-brand-primary)' },
+  modeRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+    fontSize: 10.5,
+    color: 'var(--dsw-alias-label-secondary)',
+    cursor: 'pointer',
+    flexWrap: 'wrap',
+  },
+  expansionHint: { color: 'var(--dsw-alias-brand-primary)', opacity: 0.9 },
   hitTitle: { fontSize: 12, fontWeight: 500, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   hitMeta: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)' },
   chunkId: { opacity: 0.7, fontFamily: 'ui-monospace, monospace' },
