@@ -37,6 +37,7 @@ var zs_icon_default = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAI
 // src/client/index.tsx
 var DICT = {
   zh: {
+    appName: "ZoteroSeek",
     title: "\u6587\u732E\u5E93",
     tabLibrary: "\u6587\u732E",
     tabReader: "\u9605\u8BFB",
@@ -46,13 +47,20 @@ var DICT = {
     back: "\u8FD4\u56DE",
     searchPlaceholder: "\u6309\u6807\u9898/\u4F5C\u8005/\u6807\u7B7E\u7B5B\u9009\u2026",
     search: "\u7B5B\u9009",
+    libraryHint: "\u53EA\u7B5B\u6587\u732E\u5143\u6570\u636E\uFF08\u6807\u9898/\u4F5C\u8005/\u6807\u7B7E\uFF0C\u4E2D\u6587\u53EF\u67E5\u82F1\u6587\u6761\u76EE\uFF09\uFF1B\u6B63\u6587\u68C0\u7D22\u8BF7\u5230\u300C\u68C0\u7D22\u300D\u9875",
     queryPlaceholder: "\u5728\u5DF2\u5165\u5E93\u6B63\u6587\u91CC\u68C0\u7D22\uFF08\u4E2D\u82F1\u6587\u5747\u53EF\uFF09\u2026",
     runSearch: "\u68C0\u7D22",
+    history: "\u5386\u53F2\u68C0\u7D22",
+    clearHistory: "\u6E05\u9664",
+    noHistory: "\u8FD8\u6CA1\u6709\u68C0\u7D22\u8BB0\u5F55",
+    searchEmpty: "\u8F93\u5165\u95EE\u9898\u540E\u56DE\u8F66\u5F00\u59CB\u68C0\u7D22",
+    readerEmpty: "\u5148\u4ECE\u300C\u6587\u732E\u300D\u5217\u8868\u91CC\u9009\u4E00\u7BC7\u5DF2\u5165\u5E93\u7684\u6587\u732E",
+    noIndexedHint: "\u8FD8\u6CA1\u6709\u4EFB\u4F55\u6587\u732E\u5165\u5E93\uFF1A\u70B9\u6761\u76EE\u53F3\u4FA7\u300C\u5165\u5E93\u300D\uFF0C\u6216\u8BA9 Agent \u8C03 zotero_index",
     index: "\u5165\u5E93",
     indexing: "MinerU \u89E3\u6790\u4E2D\u2026",
     indexHint: "\u672A\u5165\u5E93\uFF0C\u70B9\u300C\u5165\u5E93\u300D\u7528 MinerU \u89E3\u6790\u6210 Markdown",
     noItems: "\u6CA1\u6709\u6761\u76EE\u3002\u5148\u70B9\u53F3\u4E0A\u89D2\u300C\u5237\u65B0\u300D\u4ECE Zotero \u62C9\u53D6\u3002",
-    noHits: "\u6CA1\u6709\u547D\u4E2D\u3002\u53EF\u4EE5\u5148\u5207\u6362\u6587\u732E\u89C6\u56FE\uFF0C\u628A\u76F8\u5173\u6587\u732E\u5165\u5E93\u518D\u8BD5\u3002",
+    noHits: "\u6CA1\u6709\u547D\u4E2D\u3002\u53EF\u4EE5\u5148\u5207\u6362\u5230\u300C\u6587\u732E\u300D\uFF0C\u628A\u76F8\u5173\u6587\u732E\u5165\u5E93\u518D\u8BD5\u3002",
     hitsFor: "\u547D\u4E2D\u7247\u6BB5",
     selected: "\u5DF2\u9009",
     copyCitation: "\u590D\u5236\u884C\u5185\u5F15\u7528",
@@ -82,6 +90,7 @@ var DICT = {
     retry: "\u91CD\u8BD5"
   },
   en: {
+    appName: "ZoteroSeek",
     title: "Library",
     tabLibrary: "Library",
     tabReader: "Reader",
@@ -91,13 +100,20 @@ var DICT = {
     back: "Back",
     searchPlaceholder: "Filter by title, author or tag\u2026",
     search: "Filter",
+    libraryHint: "Filters metadata only (title / author / tag); full-text search lives in the Search tab",
     queryPlaceholder: "Search the indexed full text\u2026",
     runSearch: "Search",
+    history: "Recent searches",
+    clearHistory: "Clear",
+    noHistory: "No searches yet",
+    searchEmpty: "Type a question and press Enter",
+    readerEmpty: "Pick an indexed paper from the Library tab first",
+    noIndexedHint: "Nothing is indexed yet: press Parse on an item, or call zotero_index from the agent",
     index: "Parse",
     indexing: "MinerU parsing\u2026",
     indexHint: "Not indexed yet \u2014 Parse turns the PDF into Markdown",
     noItems: "No items. Use Refresh to load them from Zotero.",
-    noHits: "No hits. Index the relevant papers first.",
+    noHits: "No hits. Switch to Library and index the relevant papers first.",
     hitsFor: "Passages",
     selected: "selected",
     copyCitation: "Copy citation",
@@ -138,6 +154,8 @@ function createPanel(t) {
     const [doc, setDoc] = (0, import_react.useState)(null);
     const [query, setQuery] = (0, import_react.useState)("");
     const [hits, setHits] = (0, import_react.useState)([]);
+    const [hasSearched, setHasSearched] = (0, import_react.useState)(false);
+    const [history, setHistory] = (0, import_react.useState)(() => loadSearchHistory());
     const [expansionHint, setExpansionHint] = (0, import_react.useState)("");
     const [crossLingual, setCrossLingual] = (0, import_react.useState)(true);
     const [checked, setChecked] = (0, import_react.useState)(/* @__PURE__ */ new Set());
@@ -188,9 +206,21 @@ function createPanel(t) {
         setBusy("");
       }
     }, [filter, loadItems, loadStatus, openDoc, selected]);
+    const rememberQuery = (0, import_react.useCallback)((keyword) => {
+      setHistory((current) => {
+        const next = [keyword, ...current.filter((entry) => entry !== keyword)].slice(0, 10);
+        saveSearchHistory(next);
+        return next;
+      });
+    }, []);
+    const clearHistory = (0, import_react.useCallback)(() => {
+      setHistory([]);
+      saveSearchHistory([]);
+    }, []);
     const runSearch = (0, import_react.useCallback)(async (keyword, itemKey) => {
       setBusy("search");
       setError("");
+      setHasSearched(true);
       try {
         const result = await apiGet("/api/search", {
           q: keyword,
@@ -200,6 +230,7 @@ function createPanel(t) {
         if (result.ok && result.value !== void 0) {
           setHits(result.value.hits);
           setExpansionHint(result.value.expansion?.description ?? "");
+          if (itemKey === void 0) rememberQuery(keyword);
           if (result.value.hits.length === 0) setError(result.value.note ?? t.noHits);
         } else {
           setError(result.message ?? "\u68C0\u7D22\u5931\u8D25");
@@ -208,7 +239,7 @@ function createPanel(t) {
       } finally {
         setBusy("");
       }
-    }, [crossLingual, t.noHits]);
+    }, [crossLingual, rememberQuery, t.noHits]);
     const toggle = (0, import_react.useCallback)((chunkId) => {
       setChecked((current) => {
         const next = new Set(current);
@@ -278,7 +309,15 @@ function createPanel(t) {
       (0, import_react.createElement)(
         "div",
         { style: S.header },
-        (0, import_react.createElement)("span", { style: S.brand }, "ZoteroSeek"),
+        (0, import_react.createElement)("img", {
+          src: zs_icon_default,
+          alt: "",
+          width: 18,
+          height: 18,
+          style: { display: "block", borderRadius: 4 },
+          draggable: false
+        }),
+        (0, import_react.createElement)("span", { style: S.brand }, t.appName),
         (0, import_react.createElement)("span", { style: S.headerSpacer }),
         (0, import_react.createElement)("button", { style: S.iconButton, title: t.settings, onClick: () => setSettingsOpen((open) => !open) }, "\u2699"),
         (0, import_react.createElement)("button", { style: S.iconButton, title: t.refresh, onClick: () => {
@@ -290,8 +329,8 @@ function createPanel(t) {
         "div",
         { style: S.segmented },
         segment(t.tabLibrary, view === "library", () => setView("library")),
-        segment(t.tabReader, view === "reader", () => setView("reader"), doc === null),
-        segment(t.tabHits, view === "hits", () => setView("hits"), hits.length === 0)
+        segment(t.tabReader, view === "reader", () => setView("reader")),
+        segment(t.tabHits, view === "hits", () => setView("hits"))
       ),
       status !== null ? (0, import_react.createElement)(StatusBar, { status, t, onOpenSettings: () => setSettingsOpen(true) }) : null,
       settingsOpen ? (0, import_react.createElement)(SettingsDrawer, {
@@ -349,8 +388,15 @@ function createPanel(t) {
           expansionHint,
           crossLingual,
           setCrossLingual,
+          hasSearched,
+          history,
+          clearHistory,
           runSearch: () => {
             if (query.trim().length > 0) void runSearch(query);
+          },
+          pickHistory: (value) => {
+            setQuery(value);
+            void runSearch(value);
           },
           copyCitations,
           quoteSelected,
@@ -444,6 +490,7 @@ function LibraryView(props) {
       }),
       (0, import_react.createElement)("button", { style: S.button, onClick: onFilter }, t.search)
     ),
+    (0, import_react.createElement)("div", { style: S.libraryHint }, t.libraryHint),
     items.length === 0 ? (0, import_react.createElement)("div", { style: S.empty }, t.noItems) : (0, import_react.createElement)(
       "div",
       { style: S.list },
@@ -471,7 +518,7 @@ function LibraryView(props) {
 }
 function ReaderView(props) {
   const { t, doc, selected } = props;
-  if (selected === null) return (0, import_react.createElement)("div", { style: S.empty }, t.noItems);
+  if (selected === null) return (0, import_react.createElement)("div", { style: S.empty }, t.readerEmpty);
   const title = doc?.item.title ?? selected.title;
   return (0, import_react.createElement)(
     import_react.Fragment,
@@ -540,7 +587,19 @@ function HitsView(props) {
       (0, import_react.createElement)("span", null, "\u8DE8\u8BED\u8A00\u68C0\u7D22"),
       props.expansionHint.length > 0 ? (0, import_react.createElement)("span", { style: S.expansionHint }, props.expansionHint) : null
     ),
-    hits.length === 0 ? (0, import_react.createElement)("div", { style: S.empty }, t.noHits) : (0, import_react.createElement)(
+    props.history.length > 0 ? (0, import_react.createElement)(
+      "div",
+      { style: S.historyRow },
+      (0, import_react.createElement)("span", { style: S.historyLabel }, t.history),
+      ...props.history.map((entry) => (0, import_react.createElement)("button", {
+        key: `h-${entry}`,
+        style: S.historyChip,
+        title: entry,
+        onClick: () => props.pickHistory(entry)
+      }, entry.length > 24 ? `${entry.slice(0, 24)}\u2026` : entry)),
+      (0, import_react.createElement)("button", { style: S.historyClear, onClick: props.clearHistory }, t.clearHistory)
+    ) : null,
+    hits.length > 0 ? (0, import_react.createElement)(
       import_react.Fragment,
       null,
       (0, import_react.createElement)(
@@ -564,7 +623,7 @@ function HitsView(props) {
         (0, import_react.createElement)("button", { style: S.smallButton, onClick: () => props.copyCitations("reference") }, t.copyReference),
         (0, import_react.createElement)("button", { style: S.smallButton, onClick: () => props.copyCitations("bibtex") }, t.copyBibtex)
       ) : null
-    )
+    ) : (0, import_react.createElement)("div", { style: S.empty }, props.hasSearched ? t.noHits : t.searchEmpty)
   );
 }
 function HitCard(props) {
@@ -783,6 +842,23 @@ function markdownTable(rows, nextKey, options) {
 }
 function sanitizeHtml(html) {
   return html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "").replace(/<iframe[\s\S]*?<\/iframe>/gi, "");
+}
+var SEARCH_HISTORY_KEY = "zotero-seek/search-history/v1";
+function loadSearchHistory() {
+  try {
+    const raw = globalThis.localStorage?.getItem(SEARCH_HISTORY_KEY);
+    if (raw === null || raw === void 0) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((entry) => typeof entry === "string").slice(0, 10) : [];
+  } catch {
+    return [];
+  }
+}
+function saveSearchHistory(entries) {
+  try {
+    globalThis.localStorage?.setItem(SEARCH_HISTORY_KEY, JSON.stringify(entries));
+  } catch {
+  }
 }
 async function apiGet(path, params = {}) {
   const search = new URLSearchParams(params).toString();
@@ -1046,6 +1122,30 @@ var S = {
     flexWrap: "wrap"
   },
   expansionHint: { color: "var(--dsw-alias-brand-primary)", opacity: 0.9 },
+  libraryHint: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)", opacity: 0.85, marginBottom: 8 },
+  historyRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 8 },
+  historyLabel: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)" },
+  historyChip: {
+    fontSize: 10.5,
+    padding: "2px 8px",
+    borderRadius: 999,
+    border: "1px solid var(--dsw-alias-border-l1)",
+    background: "var(--dsw-alias-bg-layer-1)",
+    color: "var(--dsw-alias-label-secondary)",
+    cursor: "pointer",
+    maxWidth: 180,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
+  },
+  historyClear: {
+    fontSize: 10.5,
+    padding: "2px 6px",
+    border: "none",
+    background: "transparent",
+    color: "var(--dsw-alias-brand-primary)",
+    cursor: "pointer"
+  },
   hitTitle: { fontSize: 12, fontWeight: 500, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   hitMeta: { fontSize: 10, color: "var(--dsw-alias-label-secondary)" },
   chunkId: { opacity: 0.7, fontFamily: "ui-monospace, monospace" },
@@ -1098,8 +1198,8 @@ function createOpenButton(t, open) {
   return function ZoteroSeekOpenButton() {
     return (0, import_react.createElement)("button", {
       type: "button",
-      title: t.title,
-      "aria-label": t.title,
+      title: t.appName + " \u6587\u732E\u5E93",
+      "aria-label": t.appName + " \u6587\u732E\u5E93",
       style: {
         display: "inline-flex",
         alignItems: "center",
@@ -1135,11 +1235,11 @@ var index_default = {
       id: TAB_ID,
       kind: TAB_KIND,
       keepMounted: true,
-      title: () => translate.title,
+      title: () => translate.appName,
       guide: [{
         id: "open-library",
         order: 40,
-        title: () => translate.title,
+        title: () => translate.appName,
         description: () => translate.searchPlaceholder
       }]
     }), "zotero-seek: tab type");

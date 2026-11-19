@@ -84,6 +84,7 @@ interface StatusView {
 
 const DICT = {
   zh: {
+    appName: 'ZoteroSeek',
     title: '文献库',
     tabLibrary: '文献',
     tabReader: '阅读',
@@ -93,13 +94,20 @@ const DICT = {
     back: '返回',
     searchPlaceholder: '按标题/作者/标签筛选…',
     search: '筛选',
+    libraryHint: '只筛文献元数据（标题/作者/标签，中文可查英文条目）；正文检索请到「检索」页',
     queryPlaceholder: '在已入库正文里检索（中英文均可）…',
     runSearch: '检索',
+    history: '历史检索',
+    clearHistory: '清除',
+    noHistory: '还没有检索记录',
+    searchEmpty: '输入问题后回车开始检索',
+    readerEmpty: '先从「文献」列表里选一篇已入库的文献',
+    noIndexedHint: '还没有任何文献入库：点条目右侧「入库」，或让 Agent 调 zotero_index',
     index: '入库',
     indexing: 'MinerU 解析中…',
     indexHint: '未入库，点「入库」用 MinerU 解析成 Markdown',
     noItems: '没有条目。先点右上角「刷新」从 Zotero 拉取。',
-    noHits: '没有命中。可以先切换文献视图，把相关文献入库再试。',
+    noHits: '没有命中。可以先切换到「文献」，把相关文献入库再试。',
     hitsFor: '命中片段',
     selected: '已选',
     copyCitation: '复制行内引用',
@@ -129,6 +137,7 @@ const DICT = {
     retry: '重试',
   },
   en: {
+    appName: 'ZoteroSeek',
     title: 'Library',
     tabLibrary: 'Library',
     tabReader: 'Reader',
@@ -138,13 +147,20 @@ const DICT = {
     back: 'Back',
     searchPlaceholder: 'Filter by title, author or tag…',
     search: 'Filter',
+    libraryHint: 'Filters metadata only (title / author / tag); full-text search lives in the Search tab',
     queryPlaceholder: 'Search the indexed full text…',
     runSearch: 'Search',
+    history: 'Recent searches',
+    clearHistory: 'Clear',
+    noHistory: 'No searches yet',
+    searchEmpty: 'Type a question and press Enter',
+    readerEmpty: 'Pick an indexed paper from the Library tab first',
+    noIndexedHint: 'Nothing is indexed yet: press Parse on an item, or call zotero_index from the agent',
     index: 'Parse',
     indexing: 'MinerU parsing…',
     indexHint: 'Not indexed yet — Parse turns the PDF into Markdown',
     noItems: 'No items. Use Refresh to load them from Zotero.',
-    noHits: 'No hits. Index the relevant papers first.',
+    noHits: 'No hits. Switch to Library and index the relevant papers first.',
     hitsFor: 'Passages',
     selected: 'selected',
     copyCitation: 'Copy citation',
@@ -196,6 +212,8 @@ function createPanel(t: Dict) {
     const [doc, setDoc] = useState<MarkdownView | null>(null)
     const [query, setQuery] = useState('')
     const [hits, setHits] = useState<HitView[]>([])
+    const [hasSearched, setHasSearched] = useState(false)
+    const [history, setHistory] = useState<string[]>(() => loadSearchHistory())
     const [expansionHint, setExpansionHint] = useState('')
     const [crossLingual, setCrossLingual] = useState(true)
     const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -252,9 +270,23 @@ function createPanel(t: Dict) {
       }
     }, [filter, loadItems, loadStatus, openDoc, selected])
 
+    const rememberQuery = useCallback((keyword: string) => {
+      setHistory((current) => {
+        const next = [keyword, ...current.filter((entry) => entry !== keyword)].slice(0, 10)
+        saveSearchHistory(next)
+        return next
+      })
+    }, [])
+
+    const clearHistory = useCallback(() => {
+      setHistory([])
+      saveSearchHistory([])
+    }, [])
+
     const runSearch = useCallback(async (keyword: string, itemKey?: string) => {
       setBusy('search')
       setError('')
+      setHasSearched(true)
       try {
         const result = await apiGet<{ hits: HitView[]; note?: string; expansion?: { description: string } | null }>('/api/search', {
           q: keyword,
@@ -264,6 +296,7 @@ function createPanel(t: Dict) {
         if (result.ok && result.value !== undefined) {
           setHits(result.value.hits)
           setExpansionHint(result.value.expansion?.description ?? '')
+          if (itemKey === undefined) rememberQuery(keyword)
           if (result.value.hits.length === 0) setError(result.value.note ?? t.noHits)
         } else {
           setError(result.message ?? '检索失败')
@@ -272,7 +305,7 @@ function createPanel(t: Dict) {
       } finally {
         setBusy('')
       }
-    }, [crossLingual, t.noHits])
+    }, [crossLingual, rememberQuery, t.noHits])
 
     const toggle = useCallback((chunkId: string) => {
       setChecked((current) => {
@@ -346,15 +379,23 @@ function createPanel(t: Dict) {
 
     return h('div', { style: S.root },
       h('div', { style: S.header },
-        h('span', { style: S.brand }, 'ZoteroSeek'),
+        h('img', {
+          src: zsIcon,
+          alt: '',
+          width: 18,
+          height: 18,
+          style: { display: 'block', borderRadius: 4 },
+          draggable: false,
+        }),
+        h('span', { style: S.brand }, t.appName),
         h('span', { style: S.headerSpacer }),
         h('button', { style: S.iconButton, title: t.settings, onClick: () => setSettingsOpen((open) => !open) }, '⚙'),
         h('button', { style: S.iconButton, title: t.refresh, onClick: () => { void loadItems(filter); void loadStatus() } }, '↻'),
       ),
       h('div', { style: S.segmented },
         segment(t.tabLibrary, view === 'library', () => setView('library')),
-        segment(t.tabReader, view === 'reader', () => setView('reader'), doc === null),
-        segment(t.tabHits, view === 'hits', () => setView('hits'), hits.length === 0),
+        segment(t.tabReader, view === 'reader', () => setView('reader')),
+        segment(t.tabHits, view === 'hits', () => setView('hits')),
       ),
       status !== null ? h(StatusBar, { status, t, onOpenSettings: () => setSettingsOpen(true) }) : null,
       settingsOpen ? h(SettingsDrawer, {
@@ -381,7 +422,9 @@ function createPanel(t: Dict) {
         view === 'hits' ? h(HitsView, {
           t, hits, checked, toggle, query, setQuery, busy,
           expansionHint, crossLingual, setCrossLingual,
+          hasSearched, history, clearHistory,
           runSearch: () => { if (query.trim().length > 0) void runSearch(query) },
+          pickHistory: (value: string) => { setQuery(value); void runSearch(value) },
           copyCitations,
           quoteSelected,
           openItem: (itemKey: string) => {
@@ -482,6 +525,7 @@ function LibraryView(props: {
       }),
       h('button', { style: S.button, onClick: onFilter }, t.search),
     ),
+    h('div', { style: S.libraryHint }, t.libraryHint),
     items.length === 0
       ? h('div', { style: S.empty }, t.noItems)
       : h('div', { style: S.list },
@@ -519,7 +563,7 @@ function ReaderView(props: {
   runSearch: (keyword: string, itemKey?: string) => void
 }): ReactNode {
   const { t, doc, selected } = props
-  if (selected === null) return h('div', { style: S.empty }, t.noItems)
+  if (selected === null) return h('div', { style: S.empty }, t.readerEmpty)
   const title = doc?.item.title ?? selected.title
   return h(Fragment, null,
     h('div', { style: S.readerHeader },
@@ -563,6 +607,10 @@ function HitsView(props: {
   expansionHint: string
   crossLingual: boolean
   setCrossLingual: (value: boolean) => void
+  hasSearched: boolean
+  history: string[]
+  clearHistory: () => void
+  pickHistory: (value: string) => void
   copyCitations: (format: 'author-year' | 'reference' | 'bibtex') => void
   quoteSelected: () => void
   openItem: (itemKey: string) => void
@@ -591,9 +639,18 @@ function HitsView(props: {
         ? h('span', { style: S.expansionHint }, props.expansionHint)
         : null,
     ),
-    hits.length === 0
-      ? h('div', { style: S.empty }, t.noHits)
-      : h(Fragment, null,
+    props.history.length > 0 ? h('div', { style: S.historyRow },
+      h('span', { style: S.historyLabel }, t.history),
+      ...props.history.map((entry) => h('button', {
+        key: `h-${entry}`,
+        style: S.historyChip,
+        title: entry,
+        onClick: () => props.pickHistory(entry),
+      }, entry.length > 24 ? `${entry.slice(0, 24)}…` : entry)),
+      h('button', { style: S.historyClear, onClick: props.clearHistory }, t.clearHistory),
+    ) : null,
+    hits.length > 0
+      ? h(Fragment, null,
         h('div', { style: S.list },
           hits.map((hit) => h(HitCard, {
             key: hit.chunkId,
@@ -611,7 +668,8 @@ function HitsView(props: {
           h('button', { style: S.smallButton, onClick: () => props.copyCitations('reference') }, t.copyReference),
           h('button', { style: S.smallButton, onClick: () => props.copyCitations('bibtex') }, t.copyBibtex),
         ) : null,
-      ),
+      )
+      : h('div', { style: S.empty }, props.hasSearched ? t.noHits : t.searchEmpty),
   )
 }
 
@@ -848,6 +906,30 @@ function sanitizeHtml(html: string): string {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+}
+
+// ------------------------------------------------------------------ 历史检索
+
+const SEARCH_HISTORY_KEY = 'zotero-seek/search-history/v1'
+
+/** 读取本机的检索历史；localStorage 不可用时安静降级为空列表。 */
+function loadSearchHistory(): string[] {
+  try {
+    const raw = globalThis.localStorage?.getItem(SEARCH_HISTORY_KEY)
+    if (raw === null || raw === undefined) return []
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string').slice(0, 10) : []
+  } catch {
+    return []
+  }
+}
+
+function saveSearchHistory(entries: readonly string[]): void {
+  try {
+    globalThis.localStorage?.setItem(SEARCH_HISTORY_KEY, JSON.stringify(entries))
+  } catch {
+    // 隐私模式/配额满：历史只是便利功能，不阻塞检索
+  }
 }
 
 // ------------------------------------------------------------------ 数据面
@@ -1120,6 +1202,30 @@ const S: Record<string, CSSProperties> = {
     flexWrap: 'wrap',
   },
   expansionHint: { color: 'var(--dsw-alias-brand-primary)', opacity: 0.9 },
+  libraryHint: { fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)', opacity: 0.85, marginBottom: 8 },
+  historyRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 },
+  historyLabel: { fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)' },
+  historyChip: {
+    fontSize: 10.5,
+    padding: '2px 8px',
+    borderRadius: 999,
+    border: '1px solid var(--dsw-alias-border-l1)',
+    background: 'var(--dsw-alias-bg-layer-1)',
+    color: 'var(--dsw-alias-label-secondary)',
+    cursor: 'pointer',
+    maxWidth: 180,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  historyClear: {
+    fontSize: 10.5,
+    padding: '2px 6px',
+    border: 'none',
+    background: 'transparent',
+    color: 'var(--dsw-alias-brand-primary)',
+    cursor: 'pointer',
+  },
   hitTitle: { fontSize: 12, fontWeight: 500, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   hitMeta: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)' },
   chunkId: { opacity: 0.7, fontFamily: 'ui-monospace, monospace' },
@@ -1177,8 +1283,8 @@ function createOpenButton(t: Dict, open: () => void) {
   return function ZoteroSeekOpenButton(): ReactNode {
     return h('button', {
       type: 'button',
-      title: t.title,
-      'aria-label': t.title,
+      title: t.appName + ' 文献库',
+      'aria-label': t.appName + ' 文献库',
       style: {
         display: 'inline-flex',
         alignItems: 'center',
@@ -1218,11 +1324,11 @@ export default {
       id: TAB_ID,
       kind: TAB_KIND,
       keepMounted: true,
-      title: () => translate.title,
+      title: () => translate.appName,
       guide: [{
         id: 'open-library',
         order: 40,
-        title: () => translate.title,
+        title: () => translate.appName,
         description: () => translate.searchPlaceholder,
       }],
     }), 'zotero-seek: tab type')

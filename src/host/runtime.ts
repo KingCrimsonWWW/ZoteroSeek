@@ -12,7 +12,7 @@ import { MineruClient, MineruError, type MineruErrorKind } from '../core/mineru.
 import { ZoteroClient, ZoteroError } from '../core/zotero.ts'
 import type { CitationFormat } from '../core/cite.ts'
 import { formatCitationBundle, fallbackBibtex } from '../core/cite.ts'
-import { describeExpansion } from '../core/glossary.ts'
+import { describeExpansion, expandQuery } from '../core/glossary.ts'
 import type { ParsedDocument, SearchHit, ZoteroItem } from '../core/types.ts'
 
 export interface RuntimeConfig {
@@ -156,15 +156,56 @@ export class Runtime {
     if (query.length === 0) {
       items = library.items()
     } else {
+      /**
+       * 元数据打分而不是布尔过滤：
+       * - 字面命中（标题/作者/期刊）权重 3，标签双向匹配（用户给条目打的「空洞」这类短标签，
+       *   可能只是查询的一部分）权重 2；
+       * - 再用领域双语词表把查询扩展成英文/中文术语，每个命中权重 1，累加而不是「命中一个就停」。
+       * 这样「空洞病害」既能命中标题含 void 的，也能命中标签写着「空洞」的。
+       */
+      const scores = new Map<string, number>()
+      const bump = (item: ZoteroItem, weight: number): void => {
+        scores.set(item.key, (scores.get(item.key) ?? 0) + weight)
+      }
+
       const lowered = query.toLowerCase()
-      const local = library.items().filter((item) =>
-        item.title.toLowerCase().includes(lowered)
-        || item.creators.some((creator) => creator.toLowerCase().includes(lowered))
-        || item.tags.some((tag) => tag.toLowerCase().includes(lowered)))
-      if (local.length > 0) {
-        items = local
+      for (const item of library.items()) {
+        const title = item.title.toLowerCase()
+        const creators = item.creators.map((creator) => creator.toLowerCase())
+        const journal = (item.publicationTitle ?? '').toLowerCase()
+        if (title.includes(lowered) || creators.some((creator) => creator.includes(lowered)) || journal.includes(lowered)) {
+          bump(item, 3)
+        }
+        for (const tag of item.tags) {
+          const loweredTag = tag.toLowerCase()
+          if (loweredTag.length === 0) continue
+          if (loweredTag.includes(lowered) || lowered.includes(loweredTag)) bump(item, 2)
+        }
+      }
+
+      const expansion = expandQuery(query)
+      for (const { to } of expansion.added) {
+        const needle = to.toLowerCase()
+        for (const item of library.items()) {
+          const hit = item.title.toLowerCase().includes(needle)
+            || item.creators.some((creator) => creator.toLowerCase().includes(needle))
+            || item.tags.some((tag) => tag.toLowerCase().includes(needle))
+            || (item.publicationTitle ?? '').toLowerCase().includes(needle)
+          if (hit) bump(item, 1)
+        }
+      }
+
+      if (scores.size > 0) {
+        items = library.items()
+          .filter((item) => scores.has(item.key))
+          .sort((left, right) => (scores.get(right.key) ?? 0) - (scores.get(left.key) ?? 0))
       } else {
         items = await this.zotero().searchItems(query, { limit })
+        if (items.length === 0) {
+          // 仍然为空时，用扩展后的英文词再问一次 Zotero（本地索引之外还有条目）。
+          const translated = expansion.translatedQuery.trim()
+          if (translated.length > 0) items = await this.zotero().searchItems(translated, { limit })
+        }
       }
     }
     return items.slice(0, limit).map((item) => ({ ...item, parsed: parsed[item.key] !== undefined }))
