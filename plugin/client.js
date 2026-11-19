@@ -19984,15 +19984,16 @@ function createPanel(t) {
         setBulk(null);
       }
     }, [items, filter, loadItems, loadStatus, t.indexAllDone]);
-    const openInZotero = (0, import_react.useCallback)((itemKey) => {
-      const uri = `zotero://select/library/items/${encodeURIComponent(itemKey)}`;
-      try {
-        window.open(uri, "_blank", "noopener");
+    const openInZotero = (0, import_react.useCallback)(async (itemKey) => {
+      const result = await apiPost("/api/open-zotero", { item_key: itemKey });
+      if (result.ok) {
         setToast(t.zoteroHint);
-      } catch {
-        void writeClipboard(uri).then((accepted) => setToast(accepted ? uri : t.copyFailed));
+        return;
       }
-    }, [t.copyFailed, t.zoteroHint]);
+      const uri = `zotero://select/library/items/${itemKey}`;
+      const accepted = await writeClipboard(uri);
+      setToast(accepted ? "Zotero \u672A\u80FD\u81EA\u52A8\u6253\u5F00\uFF0C\u94FE\u63A5\u5DF2\u590D\u5236" : result.message ?? "\u6253\u5F00\u5931\u8D25");
+    }, [t.zoteroHint]);
     const runIndex = (0, import_react.useCallback)(async (item) => {
       setBusy(item.key);
       setError("");
@@ -20625,7 +20626,16 @@ function HitCard(props) {
         )
       ),
       (0, import_react.createElement)("span", { style: S3.hitChunk, title: hit.chunkId }, hit.chunkId),
-      hit.scoreNorm === void 0 ? null : (0, import_react.createElement)("span", { style: S3.hitScore }, `\u76F8\u5173\u5EA6 ${Math.round(hit.scoreNorm * 100)}%`)
+      hit.scoreNorm === void 0 ? null : (0, import_react.createElement)("span", { style: S3.hitScore }, `\u76F8\u5173\u5EA6 ${Math.round(hit.scoreNorm * 100)}%`),
+      (0, import_react.createElement)("button", {
+        style: S3.zoteroButton,
+        title: t.openInZotero,
+        "aria-label": t.openInZotero,
+        onClick: (event) => {
+          event.stopPropagation();
+          props.openZotero();
+        }
+      }, "Z")
     ),
     (0, import_react.createElement)(
       "div",
@@ -20659,7 +20669,6 @@ function HitCard(props) {
             props.openItem();
           }
         }, t.openSource),
-        (0, import_react.createElement)("button", { style: S3.linkButton, onClick: props.openZotero }, t.openInZotero),
         (0, import_react.createElement)("span", { style: S3.hint }, t.expandHint)
       ) : null
     )
@@ -21172,6 +21181,19 @@ var S3 = {
   hitTop: { display: "flex", alignItems: "center", gap: 8 },
   hitBadges: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" },
   hitChunk: { marginLeft: "auto", fontFamily: "ui-monospace, monospace", fontSize: 9.5, color: "var(--dsw-alias-label-secondary)", opacity: 0.72 },
+  zoteroButton: {
+    width: 20,
+    height: 18,
+    padding: 0,
+    borderRadius: 4,
+    border: "1px solid var(--dsw-alias-border-l1)",
+    background: "transparent",
+    color: "var(--dsw-alias-label-secondary)",
+    fontSize: 10,
+    lineHeight: "16px",
+    cursor: "pointer",
+    flexShrink: 0
+  },
   hitScore: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)", fontVariantNumeric: "tabular-nums" },
   hitHead: { display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 },
   checkbox: { marginTop: 2, accentColor: "var(--dsw-alias-brand-primary)" },

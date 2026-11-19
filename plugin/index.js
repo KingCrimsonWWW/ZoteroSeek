@@ -2955,6 +2955,15 @@ async function handle(req, res, runtime) {
           if (itemKey.length === 0) return fail(res, 400, "missing-item-key", "\u7F3A\u5C11 item_key");
           return ok(res, await runtime.indexItem(itemKey));
         }
+        case "/api/open-zotero": {
+          const itemKey = String(body["item_key"] ?? "").trim();
+          if (!/^[A-Za-z0-9]{6,16}$/.test(itemKey)) {
+            return fail(res, 400, "invalid-item-key", "item_key \u975E\u6CD5");
+          }
+          const opened = await openZoteroItem(itemKey);
+          if (!opened.ok) return fail(res, 500, "open-failed", opened.message ?? "\u6253\u5F00\u5931\u8D25");
+          return ok(res, { uri: opened.uri });
+        }
         case "/api/refresh":
           return ok(res, await runtime.refresh());
         case "/api/settings":
@@ -3040,6 +3049,17 @@ async function readJsonBody(req) {
   const raw = Buffer.concat(chunks).toString("utf8");
   const parsed = JSON.parse(raw);
   return parsed !== null && typeof parsed === "object" ? parsed : {};
+}
+async function openZoteroItem(itemKey) {
+  const { execFile } = await import("node:child_process");
+  const uri = `zotero://select/library/items/${itemKey}`;
+  const [command, args] = process.platform === "win32" ? ["cmd.exe", ["/c", "start", "", uri]] : process.platform === "darwin" ? ["open", [uri]] : ["xdg-open", [uri]];
+  return await new Promise((resolve2) => {
+    execFile(command, args, { windowsHide: true, timeout: 8e3 }, (error) => {
+      if (error === null) resolve2({ ok: true, uri });
+      else resolve2({ ok: false, uri, message: `\u65E0\u6CD5\u62C9\u8D77 zotero://\uFF08${error.message}\uFF09\u3002\u94FE\u63A5\uFF1A${uri}` });
+    });
+  });
 }
 function ok(res, value) {
   respond(res, 200, { ok: true, value });

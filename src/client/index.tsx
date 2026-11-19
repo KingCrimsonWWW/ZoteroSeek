@@ -478,16 +478,20 @@ function createPanel(t: Dict) {
       }
     }, [items, filter, loadItems, loadStatus, t.indexAllDone])
 
-    /** 在 Zotero 中定位条目：走 zotero:// 协议，失败时提示（剪贴板兜底）。 */
-    const openInZotero = useCallback((itemKey: string) => {
-      const uri = `zotero://select/library/items/${encodeURIComponent(itemKey)}`
-      try {
-        window.open(uri, '_blank', 'noopener')
+    /**
+     * 在 Zotero 中定位条目：渲染进程不能直接打开自定义协议（Electron 会拦，实测点了没反应），
+     * 所以交给 Host 用系统命令拉起 zotero://；失败时把链接复制到剪贴板，至少用户能手动打开。
+     */
+    const openInZotero = useCallback(async (itemKey: string) => {
+      const result = await apiPost<{ uri: string }>('/api/open-zotero', { item_key: itemKey })
+      if (result.ok) {
         setToast(t.zoteroHint)
-      } catch {
-        void writeClipboard(uri).then((accepted) => setToast(accepted ? uri : t.copyFailed))
+        return
       }
-    }, [t.copyFailed, t.zoteroHint])
+      const uri = `zotero://select/library/items/${itemKey}`
+      const accepted = await writeClipboard(uri)
+      setToast(accepted ? 'Zotero 未能自动打开，链接已复制' : (result.message ?? '打开失败'))
+    }, [t.zoteroHint])
 
     const runIndex = useCallback(async (item: ItemView) => {
       setBusy(item.key)
@@ -1111,6 +1115,12 @@ function HitCard(props: {
       hit.scoreNorm === undefined
         ? null
         : h('span', { style: S.hitScore }, `相关度 ${Math.round(hit.scoreNorm * 100)}%`),
+      h('button', {
+        style: S.zoteroButton,
+        title: t.openInZotero,
+        'aria-label': t.openInZotero,
+        onClick: (event: { stopPropagation: () => void }) => { event.stopPropagation(); props.openZotero() },
+      }, 'Z'),
     ),
     h('div', { style: S.scoreTrack, title: `词面 ${hit.lexicalScore ?? 0} · 扩展 ${hit.expandedScore ?? 0}` },
       h('div', { style: { ...S.scoreFill, width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`, background: color } }),
@@ -1133,7 +1143,7 @@ function HitCard(props: {
             style: S.linkButton,
             onClick: (event: { stopPropagation: () => void }) => { event.stopPropagation(); props.openItem() },
           }, t.openSource),
-          h('button', { style: S.linkButton, onClick: props.openZotero }, t.openInZotero),
+
           h('span', { style: S.hint }, t.expandHint),
         )
         : null,
@@ -1831,6 +1841,19 @@ const S: Record<string, CSSProperties> = {
   hitTop: { display: 'flex', alignItems: 'center', gap: 8 },
   hitBadges: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
   hitChunk: { marginLeft: 'auto', fontFamily: 'ui-monospace, monospace', fontSize: 9.5, color: 'var(--dsw-alias-label-secondary)', opacity: 0.72 },
+  zoteroButton: {
+    width: 20,
+    height: 18,
+    padding: 0,
+    borderRadius: 4,
+    border: '1px solid var(--dsw-alias-border-l1)',
+    background: 'transparent',
+    color: 'var(--dsw-alias-label-secondary)',
+    fontSize: 10,
+    lineHeight: '16px',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
   hitScore: { fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)', fontVariantNumeric: 'tabular-nums' },
   hitHead: { display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 },
   checkbox: { marginTop: 2, accentColor: 'var(--dsw-alias-brand-primary)' },

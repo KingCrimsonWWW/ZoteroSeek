@@ -1,5 +1,14 @@
 # 变更记录
 
+## v0.3.6 — 2026-11-19
+
+- **「在 Zotero 打开」改为 Host 侧拉起**：渲染进程 `window.open('zotero://…')` 会被 Electron 拦掉
+  （点了完全没反应），新增 `POST /api/open-zotero`，由 Host 调系统命令（Windows `cmd /c start`、
+  macOS `open`、Linux `xdg-open`）打开 `zotero://select/library/items/<key>`；只接受合法 item_key，
+  失败时把链接复制到剪贴板并提示；
+- 命中卡的 `Z` 按钮移到**第一行**（与 chunk_id、相关度同一行），不再要求先展开；
+- 版本 0.3.5 → 0.3.6。
+
 ## v0.3.5 — 2026-11-19
 
 - 命中卡：chunk_id 与相关度同处第一行，进度条移到「第一行与标题之间」，标题、出处各占一行；

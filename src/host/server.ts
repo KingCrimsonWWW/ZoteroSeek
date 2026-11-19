@@ -113,6 +113,17 @@ async function handle(req: IncomingMessage, res: ServerResponse, runtime: Runtim
           if (itemKey.length === 0) return fail(res, 400, 'missing-item-key', '缺少 item_key')
           return ok(res, await runtime.indexItem(itemKey))
         }
+        case '/api/open-zotero': {
+          // 在 Zotero 里定位条目：渲染进程无法直接打开自定义协议（Electron 会拦），
+          // 这里由 Host 调系统命令拉起 zotero://，只接受合法 item_key，别的一律拒绝。
+          const itemKey = String(body['item_key'] ?? '').trim()
+          if (!/^[A-Za-z0-9]{6,16}$/.test(itemKey)) {
+            return fail(res, 400, 'invalid-item-key', 'item_key 非法')
+          }
+          const opened = await openZoteroItem(itemKey)
+          if (!opened.ok) return fail(res, 500, 'open-failed', opened.message ?? '打开失败')
+          return ok(res, { uri: opened.uri })
+        }
         case '/api/refresh':
           return ok(res, await runtime.refresh())
         case '/api/settings':
@@ -196,6 +207,22 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
   return parsed !== null && typeof parsed === 'object' ? parsed as Record<string, unknown> : {}
 }
 
+/** 用系统命令打开 zotero:// 链接（Windows 走 cmd start，macOS 走 open，Linux 走 xdg-open）。 */
+async function openZoteroItem(itemKey: string): Promise<{ ok: boolean; uri: string; message?: string }> {
+  const { execFile } = await import('node:child_process')
+  const uri = `zotero://select/library/items/${itemKey}`
+  const [command, args] = process.platform === 'win32'
+    ? ['cmd.exe', ['/c', 'start', '', uri]]
+    : process.platform === 'darwin'
+      ? ['open', [uri]]
+      : ['xdg-open', [uri]]
+  return await new Promise((resolve) => {
+    execFile(command, args, { windowsHide: true, timeout: 8000 }, (error) => {
+      if (error === null) resolve({ ok: true, uri })
+      else resolve({ ok: false, uri, message: `无法拉起 zotero://（${error.message}）。链接：${uri}` })
+    })
+  })
+}
 function ok(res: ServerResponse, value: unknown): void {
   respond(res, 200, { ok: true, value })
 }
