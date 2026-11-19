@@ -64,9 +64,9 @@ before(async () => {
 })
 
 test('页签：三个 role=tab，只有当前页签 aria-selected=true', () => {
-  const tabs = markup.match(/role="tab"/g) ?? []
+  const tabs = markup.match(/<div[^>]*role="tab"/g) ?? []
   assert.equal(tabs.length, 3, `应渲染 3 个页签，实际 ${tabs.length}`)
-  const selected = markup.match(/aria-selected="true"/g) ?? []
+  const selected = markup.match(/<div[^>]*aria-selected="true"/g) ?? []
   assert.equal(selected.length, 1, '同时只能有一个页签被选中')
 })
 

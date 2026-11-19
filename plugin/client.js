@@ -19693,6 +19693,10 @@ var DICT = {
     clearAll: "\u6E05\u7A7A",
     quoteToChat: "\u5F15\u7528\u5230\u5BF9\u8BDD",
     goLibrary: "\u53BB\u6587\u732E\u9875",
+    openInZotero: "\u5728 Zotero \u6253\u5F00",
+    indexAll: "\u5168\u90E8\u5165\u5E93",
+    indexAllDone: "\u5DF2\u5B8C\u6210",
+    zoteroHint: "\u5DF2\u5728 Zotero \u4E2D\u5B9A\u4F4D\u8BE5\u6761\u76EE",
     openSource: "\u6253\u5F00\u539F\u6587",
     expandHint: "\u5DF2\u622A\u53D6\u547D\u4E2D\u5904\u4E0A\u4E0B\u6587\uFF1B\u5168\u6587\u8BF7\u70B9\u300C\u6253\u5F00\u539F\u6587\u300D",
     quoteText: "\u5F15\u7528\u6587\u672C",
@@ -19763,6 +19767,10 @@ var DICT = {
     clearAll: "Clear",
     quoteToChat: "Quote to chat",
     goLibrary: "Open Library",
+    openInZotero: "Open in Zotero",
+    indexAll: "Index all",
+    indexAllDone: "Done",
+    zoteroHint: "Located the item in Zotero",
     openSource: "Open source",
     expandHint: "Context around the match; use Open source for the full text",
     quoteText: "Quote text",
@@ -19802,7 +19810,11 @@ var DICT = {
 var TAB_ID = "zotero-seek/panel";
 var TAB_KIND = "zotero-seek";
 var PANEL_CSS = `
-.zse-panel button:focus-visible, .zse-panel input:focus-visible {
+@keyframes zse-indeterminate {
+  from { background-position: 200% 0; }
+  to { background-position: 0 0; }
+}
+.zse-panel button:focus-visible, .zse-panel input:focus-visible, .zse-panel [role="tab"]:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: 2px;
   border-radius: 6px;
@@ -19873,6 +19885,9 @@ function createPanel(t) {
     const [busy, setBusy] = (0, import_react.useState)("");
     const [toast, setToast] = (0, import_react.useState)("");
     const [error2, setError] = (0, import_react.useState)("");
+    const [indexJob, setIndexJob] = (0, import_react.useState)(null);
+    const [tick, setTick] = (0, import_react.useState)(Date.now());
+    const [bulk, setBulk] = (0, import_react.useState)(null);
     const [status, setStatus] = (0, import_react.useState)(null);
     const [settingsOpen, setSettingsOpen] = (0, import_react.useState)(false);
     const [tokenDraft, setTokenDraft] = (0, import_react.useState)("");
@@ -19925,25 +19940,59 @@ function createPanel(t) {
         return;
       }
       if (!item.parsed) {
-        setBusy(item.key);
-        setToast("\u9996\u6B21\u6253\u5F00\uFF0C\u6B63\u5728\u81EA\u52A8\u5165\u5E93\u2026");
+        setIndexJob({ itemKey: item.key, title: item.title, startedAt: Date.now() });
+        setTick(Date.now());
+        setError("");
         try {
           const indexed = await apiPost("/api/index", { item_key: item.key });
           if (!indexed.ok) {
             setError(indexed.message ?? "\u81EA\u52A8\u5165\u5E93\u5931\u8D25");
             return;
           }
-          const refreshed = await apiGet("/api/item", { key: item.key });
-          await openDoc(refreshed.value ?? { ...item, parsed: true }, "hits");
+          setHits((current) => current.map((hit) => hit.itemKey === item.key ? { ...hit, indexed: true } : hit));
+          setToast("\u5DF2\u5165\u5E93\uFF0C\u53EF\u70B9\u51FB\u6253\u5F00");
           await loadItems(filter);
           await loadStatus();
         } finally {
-          setBusy("");
+          setIndexJob(null);
         }
         return;
       }
       await openDoc(item, "hits");
-    }, [items, openDoc, loadItems, loadStatus, t.copied]);
+    }, [items, openDoc, filter, loadItems, loadStatus, t.copied]);
+    const indexAll = (0, import_react.useCallback)(async () => {
+      const pending = items.filter((item) => !item.parsed);
+      if (pending.length === 0) {
+        setToast("\u5168\u90E8\u5DF2\u5165\u5E93");
+        return;
+      }
+      setBulk({ done: 0, total: pending.length });
+      setError("");
+      try {
+        for (const [index, item] of pending.entries()) {
+          const indexed = await apiPost("/api/index", { item_key: item.key });
+          if (!indexed.ok) {
+            setError(`${item.title.slice(0, 24)} \u5165\u5E93\u5931\u8D25\uFF1A${indexed.message ?? ""}`);
+            break;
+          }
+          setBulk({ done: index + 1, total: pending.length });
+        }
+        await loadItems(filter);
+        await loadStatus();
+        setToast(t.indexAllDone);
+      } finally {
+        setBulk(null);
+      }
+    }, [items, filter, loadItems, loadStatus, t.indexAllDone]);
+    const openInZotero = (0, import_react.useCallback)((itemKey) => {
+      const uri = `zotero://select/library/items/${encodeURIComponent(itemKey)}`;
+      try {
+        window.open(uri, "_blank", "noopener");
+        setToast(t.zoteroHint);
+      } catch {
+        void writeClipboard(uri).then((accepted) => setToast(accepted ? uri : t.copyFailed));
+      }
+    }, [t.copyFailed, t.zoteroHint]);
     const runIndex = (0, import_react.useCallback)(async (item) => {
       setBusy(item.key);
       setError("");
@@ -20052,9 +20101,14 @@ function createPanel(t) {
     }, [loadStatus, storageDraft, t.saved, tokenDraft]);
     (0, import_react.useEffect)(() => {
       if (toast.length === 0) return;
-      const id = setTimeout(() => setToast(""), 2200);
+      const id = setTimeout(() => setToast(""), 2600);
       return () => clearTimeout(id);
     }, [toast]);
+    (0, import_react.useEffect)(() => {
+      if (indexJob === null) return;
+      const id = setInterval(() => setTick(Date.now()), 1e3);
+      return () => clearInterval(id);
+    }, [indexJob]);
     const imageUrl = (0, import_react.useCallback)((src) => {
       const itemKey = doc?.item.key ?? selected?.key ?? "";
       return `/zotero-seek/file?item_key=${encodeURIComponent(itemKey)}&path=${encodeURIComponent(src)}`;
@@ -20106,6 +20160,17 @@ function createPanel(t) {
         (0, import_react.createElement)("span", { style: { flex: 1 } }, error2),
         (0, import_react.createElement)("button", { style: S3.linkButton, onClick: () => setError("") }, t.close)
       ) : null,
+      indexJob !== null ? (0, import_react.createElement)(
+        "div",
+        { style: S3.jobStrip },
+        (0, import_react.createElement)("div", { style: S3.jobBar }),
+        (0, import_react.createElement)("div", { style: S3.jobText }, `\u6B63\u5728\u5165\u5E93\u300A${indexJob.title.slice(0, 30)}\u300B\u2026 \u5DF2\u7528 ${Math.max(0, Math.round((tick - indexJob.startedAt) / 1e3))}s`)
+      ) : bulk !== null ? (0, import_react.createElement)(
+        "div",
+        { style: S3.jobStrip },
+        (0, import_react.createElement)("div", { style: S3.jobBar }),
+        (0, import_react.createElement)("div", { style: S3.jobText }, `\u6279\u91CF\u5165\u5E93 ${bulk.done}/${bulk.total}`)
+      ) : null,
       (0, import_react.createElement)(
         "div",
         { style: S3.body, ref: scrollRef },
@@ -20120,6 +20185,11 @@ function createPanel(t) {
           onRefresh: () => {
             void loadItems(filter);
           },
+          onIndexAll: () => {
+            void indexAll();
+          },
+          bulk,
+          openZotero: openInZotero,
           history,
           clearHistory,
           onFilter: () => {
@@ -20149,7 +20219,8 @@ function createPanel(t) {
           runSearch,
           onQuote: handleQuote,
           onToast: setToast,
-          scrollRef
+          scrollRef,
+          openZotero: openInZotero
         }) : null,
         view === "hits" ? (0, import_react.createElement)(HitsView, {
           t,
@@ -20175,7 +20246,8 @@ function createPanel(t) {
           quoteSelected,
           openItem: (itemKey) => {
             void openHitItem(itemKey);
-          }
+          },
+          openZotero: openInZotero
         }) : null
       ),
       toast.length > 0 ? (0, import_react.createElement)("div", { style: S3.toast, role: "status" }, toast) : null
@@ -20272,6 +20344,20 @@ function LibraryView(props) {
       (0, import_react.createElement)("button", { style: S3.button, onClick: onFilter }, t.search)
     ),
     (0, import_react.createElement)("div", { style: S3.libraryHint }, t.libraryHint),
+    (0, import_react.createElement)(
+      "div",
+      { style: S3.selectRow },
+      (0, import_react.createElement)(
+        "span",
+        { style: S3.selectHint },
+        props.bulk === null ? `${props.items.filter((item) => !item.parsed).length} \u7BC7\u672A\u5165\u5E93` : `\u5165\u5E93\u4E2D ${props.bulk.done}/${props.bulk.total}`
+      ),
+      (0, import_react.createElement)("button", {
+        style: S3.smallButton,
+        disabled: props.bulk !== null,
+        onClick: props.onIndexAll
+      }, props.bulk === null ? t.indexAll : t.indexing)
+    ),
     props.history.length > 0 ? (0, import_react.createElement)(
       "div",
       { style: S3.historyRow },
@@ -20300,6 +20386,12 @@ function LibraryView(props) {
             [item.creators[0] ?? "", item.year === null ? "" : String(item.year), item.publicationTitle ?? ""].filter((part) => part.length > 0).join(" \xB7 ")
           )
         ),
+        (0, import_react.createElement)("button", {
+          style: S3.linkButton,
+          title: t.openInZotero,
+          "aria-label": t.openInZotero,
+          onClick: () => props.openZotero(item.key)
+        }, "Z"),
         item.parsed ? (0, import_react.createElement)("span", { style: S3.badgeOk }, t.indexOk) : (0, import_react.createElement)("button", {
           style: busy === item.key ? S3.buttonDisabled : S3.button,
           disabled: busy === item.key,
@@ -20375,7 +20467,8 @@ function ReaderView(props) {
       "div",
       { style: S3.readerHeader },
       (0, import_react.createElement)("button", { style: S3.linkButton, onClick: props.onBack }, `\u2190 ${t.back}`),
-      (0, import_react.createElement)("span", { style: S3.readerTitle, title }, title)
+      (0, import_react.createElement)("span", { style: S3.readerTitle, title }, title),
+      (0, import_react.createElement)("button", { style: S3.linkButton, onClick: () => props.openZotero(selected.key) }, t.openInZotero)
     ),
     (0, import_react.createElement)(
       "div",
@@ -20473,7 +20566,8 @@ function HitsView(props) {
           hit,
           checked: checked.has(hit.chunkId),
           toggle: () => toggle(hit.chunkId),
-          openItem: () => props.openItem(hit.itemKey)
+          openItem: () => props.openItem(hit.itemKey),
+          openZotero: () => props.openZotero(hit.itemKey)
         }))
       ),
       checked.size > 0 ? (0, import_react.createElement)(
@@ -20530,7 +20624,13 @@ function HitCard(props) {
           indexed ? t.indexOk : t.unindexed
         )
       ),
+      (0, import_react.createElement)("span", { style: S3.hitChunk, title: hit.chunkId }, hit.chunkId),
       hit.scoreNorm === void 0 ? null : (0, import_react.createElement)("span", { style: S3.hitScore }, `\u76F8\u5173\u5EA6 ${Math.round(hit.scoreNorm * 100)}%`)
+    ),
+    (0, import_react.createElement)(
+      "div",
+      { style: S3.scoreTrack, title: `\u8BCD\u9762 ${hit.lexicalScore ?? 0} \xB7 \u6269\u5C55 ${hit.expandedScore ?? 0}` },
+      (0, import_react.createElement)("div", { style: { ...S3.scoreFill, width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`, background: color } })
     ),
     (0, import_react.createElement)("div", { style: S3.hitTitle, title: hit.title, onClick: props.openItem }, hit.title),
     (0, import_react.createElement)(
@@ -20540,13 +20640,7 @@ function HitCard(props) {
         isMeta ? t.metaSource : t.kindBody,
         hit.sectionPath,
         hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`
-      ].filter((part) => part.length > 0).join(" \xB7 "),
-      (0, import_react.createElement)("span", { style: S3.chunkId }, ` ${hit.chunkId}`)
-    ),
-    (0, import_react.createElement)(
-      "div",
-      { style: S3.scoreTrack, title: `\u8BCD\u9762 ${hit.lexicalScore ?? 0} \xB7 \u6269\u5C55 ${hit.expandedScore ?? 0}` },
-      (0, import_react.createElement)("div", { style: { ...S3.scoreFill, width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`, background: color } })
+      ].filter((part) => part.length > 0).join(" \xB7 ")
     ),
     (0, import_react.createElement)(
       "div",
@@ -20565,6 +20659,7 @@ function HitCard(props) {
             props.openItem();
           }
         }, t.openSource),
+        (0, import_react.createElement)("button", { style: S3.linkButton, onClick: props.openZotero }, t.openInZotero),
         (0, import_react.createElement)("span", { style: S3.hint }, t.expandHint)
       ) : null
     )
@@ -20762,6 +20857,7 @@ async function writeClipboard(text3) {
 var S3 = {
   // ---- 面板骨架：中性表面 + 1px 分隔线，只有一个强调色（品牌蓝） ----
   root: {
+    position: "relative",
     display: "flex",
     flexDirection: "column",
     height: "100%",
@@ -20803,9 +20899,12 @@ var S3 = {
   },
   segment: {
     flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     height: 30,
     padding: 0,
-    borderRadius: 6,
+    borderRadius: 7,
     border: "none",
     background: "transparent",
     color: "var(--dsw-alias-label-secondary)",
@@ -20813,14 +20912,14 @@ var S3 = {
     fontSize: 12.5,
     appearance: "none",
     WebkitAppearance: "none",
-    outline: "none"
+    outline: "none",
+    transition: "background-color .15s ease, color .15s ease"
   },
   segmentActive: {
-    background: "var(--dsw-alias-bg-layer-1)",
-    borderColor: "var(--dsw-alias-border-l1)",
-    color: "var(--dsw-alias-label-primary)",
+    background: "color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, var(--dsw-alias-bg-layer-1))",
+    color: "var(--dsw-alias-brand-primary)",
     fontWeight: 600,
-    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)"
+    boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-brand-primary) 45%, transparent)"
   },
   segmentDisabled: { opacity: 0.45, cursor: "default" },
   statusBar: {
@@ -21072,7 +21171,8 @@ var S3 = {
   hitCardChecked: { borderColor: "var(--dsw-alias-brand-primary)" },
   hitTop: { display: "flex", alignItems: "center", gap: 8 },
   hitBadges: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  hitScore: { marginLeft: "auto", fontSize: 10.5, color: "var(--dsw-alias-label-secondary)", fontVariantNumeric: "tabular-nums" },
+  hitChunk: { marginLeft: "auto", fontFamily: "ui-monospace, monospace", fontSize: 9.5, color: "var(--dsw-alias-label-secondary)", opacity: 0.72 },
+  hitScore: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)", fontVariantNumeric: "tabular-nums" },
   hitHead: { display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 },
   checkbox: { marginTop: 2, accentColor: "var(--dsw-alias-brand-primary)" },
   hitTitle: {
@@ -21182,11 +21282,11 @@ var S3 = {
   },
   actionLabel: { marginRight: "auto", fontSize: 10.5, color: "var(--dsw-alias-label-secondary)" },
   toast: {
-    position: "fixed",
+    position: "absolute",
     left: "50%",
-    bottom: 16,
+    top: 74,
     transform: "translateX(-50%)",
-    zIndex: 50,
+    zIndex: 60,
     padding: "6px 12px",
     borderRadius: 999,
     border: "1px solid var(--dsw-alias-border-l1)",
@@ -21208,6 +21308,15 @@ var S3 = {
     cursor: "pointer",
     boxShadow: "0 4px 14px rgba(0, 0, 0, 0.28)"
   },
+  jobStrip: { display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 },
+  jobBar: {
+    height: 2,
+    borderRadius: 2,
+    background: "linear-gradient(90deg, transparent, var(--dsw-alias-brand-primary), transparent)",
+    backgroundSize: "200% 100%",
+    animation: "zse-indeterminate 1.4s linear infinite"
+  },
+  jobText: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)" },
   modeRow: {},
   expansionHint: {},
   searchLegend: {},

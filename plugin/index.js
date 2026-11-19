@@ -1027,7 +1027,7 @@ var Library = class _Library {
     if (expandedRanked.length > 0) lists.push({ ids: expandedRanked.map(([id]) => id), weight: 0.9 });
     if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 });
     const fused = lists.length === 0 ? [] : fuseRrf(lists, { k: 10, topK });
-    const maxPossible = lists.reduce((sum, list) => sum + list.weight / 11, 0);
+    const topScore = fused.length === 0 ? 0 : fused[0]?.score ?? 0;
     const hits = fused.slice(0, topK).map((hit) => {
       const chunk = chunkById.get(hit.id);
       if (chunk === void 0) throw new Error(`\u7D22\u5F15\u4E0D\u4E00\u81F4\uFF1Achunk ${hit.id} \u4E0D\u5B58\u5728`);
@@ -1043,7 +1043,7 @@ var Library = class _Library {
         kind: chunk.kind,
         text: chunk.text.length > maxChars ? `${chunk.text.slice(0, maxChars)}\u2026` : chunk.text,
         score: Number(hit.score.toFixed(4)),
-        scoreNorm: Number((maxPossible > 0 ? Math.min(1, hit.score / maxPossible) : 0).toFixed(4)),
+        scoreNorm: Number((topScore > 0 ? Math.min(1, hit.score / topScore) : 0).toFixed(4)),
         route: matchKind === "mixed" ? "both" : matchKind === "expanded" ? "expanded" : "lexical",
         matchKind,
         lexicalScore: Number((lexical?.score ?? 0).toFixed(4)),

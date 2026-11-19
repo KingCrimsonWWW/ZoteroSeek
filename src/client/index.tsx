@@ -134,6 +134,10 @@ const DICT = {
     clearAll: '清空',
     quoteToChat: '引用到对话',
     goLibrary: '去文献页',
+    openInZotero: '在 Zotero 打开',
+    indexAll: '全部入库',
+    indexAllDone: '已完成',
+    zoteroHint: '已在 Zotero 中定位该条目',
     openSource: '打开原文',
     expandHint: '已截取命中处上下文；全文请点「打开原文」',
     quoteText: '引用文本',
@@ -204,6 +208,10 @@ const DICT = {
     clearAll: 'Clear',
     quoteToChat: 'Quote to chat',
     goLibrary: 'Open Library',
+    openInZotero: 'Open in Zotero',
+    indexAll: 'Index all',
+    indexAllDone: 'Done',
+    zoteroHint: 'Located the item in Zotero',
     openSource: 'Open source',
     expandHint: 'Context around the match; use Open source for the full text',
     quoteText: 'Quote text',
@@ -252,7 +260,11 @@ const TAB_KIND = 'zotero-seek'
 
 /** 键盘焦点、选区与减少动效：都走组件内 <style>，不污染宿主。 */
 const PANEL_CSS = `
-.zse-panel button:focus-visible, .zse-panel input:focus-visible {
+@keyframes zse-indeterminate {
+  from { background-position: 200% 0; }
+  to { background-position: 0 0; }
+}
+.zse-panel button:focus-visible, .zse-panel input:focus-visible, .zse-panel [role="tab"]:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: 2px;
   border-radius: 6px;
@@ -349,6 +361,11 @@ function createPanel(t: Dict) {
     const [busy, setBusy] = useState<string>('')
     const [toast, setToast] = useState<string>('')
     const [error, setError] = useState<string>('')
+    /** 单篇入库任务（用于顶部进度条与耗时显示）。 */
+    const [indexJob, setIndexJob] = useState<{ itemKey: string; title: string; startedAt: number } | null>(null)
+    const [tick, setTick] = useState(Date.now())
+    /** 批量入库进度。 */
+    const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null)
     const [status, setStatus] = useState<StatusView | null>(null)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [tokenDraft, setTokenDraft] = useState('')
@@ -411,26 +428,66 @@ function createPanel(t: Dict) {
         return
       }
       if (!item.parsed) {
-        // 未入库：先自动入库（MinerU 解析），再直接打开阅读页，不再让用户自己去找。
-        setBusy(item.key)
-        setToast('首次打开，正在自动入库…')
+        // 未入库：只入库、并把结果标成「已入库」，不替用户决定打开哪一篇。
+        setIndexJob({ itemKey: item.key, title: item.title, startedAt: Date.now() })
+        setTick(Date.now())
+        setError('')
         try {
           const indexed = await apiPost<{ chunks: number; cached: boolean }>('/api/index', { item_key: item.key })
           if (!indexed.ok) {
             setError(indexed.message ?? '自动入库失败')
             return
           }
-          const refreshed = await apiGet<ItemView>('/api/item', { key: item.key })
-          await openDoc(refreshed.value ?? { ...item, parsed: true }, 'hits')
+          setHits((current) => current.map((hit) => (
+            hit.itemKey === item.key ? { ...hit, indexed: true } : hit
+          )))
+          setToast('已入库，可点击打开')
           await loadItems(filter)
           await loadStatus()
         } finally {
-          setBusy('')
+          setIndexJob(null)
         }
         return
       }
       await openDoc(item, 'hits')
-    }, [items, openDoc, loadItems, loadStatus, t.copied])
+    }, [items, openDoc, filter, loadItems, loadStatus, t.copied])
+
+    /** 批量入库：逐篇排队，显示 done/total 进度。 */
+    const indexAll = useCallback(async () => {
+      const pending = items.filter((item) => !item.parsed)
+      if (pending.length === 0) {
+        setToast('全部已入库')
+        return
+      }
+      setBulk({ done: 0, total: pending.length })
+      setError('')
+      try {
+        for (const [index, item] of pending.entries()) {
+          const indexed = await apiPost<{ chunks: number }>('/api/index', { item_key: item.key })
+          if (!indexed.ok) {
+            setError(`${item.title.slice(0, 24)} 入库失败：${indexed.message ?? ''}`)
+            break
+          }
+          setBulk({ done: index + 1, total: pending.length })
+        }
+        await loadItems(filter)
+        await loadStatus()
+        setToast(t.indexAllDone)
+      } finally {
+        setBulk(null)
+      }
+    }, [items, filter, loadItems, loadStatus, t.indexAllDone])
+
+    /** 在 Zotero 中定位条目：走 zotero:// 协议，失败时提示（剪贴板兜底）。 */
+    const openInZotero = useCallback((itemKey: string) => {
+      const uri = `zotero://select/library/items/${encodeURIComponent(itemKey)}`
+      try {
+        window.open(uri, '_blank', 'noopener')
+        setToast(t.zoteroHint)
+      } catch {
+        void writeClipboard(uri).then((accepted) => setToast(accepted ? uri : t.copyFailed))
+      }
+    }, [t.copyFailed, t.zoteroHint])
 
     const runIndex = useCallback(async (item: ItemView) => {
       setBusy(item.key)
@@ -550,9 +607,15 @@ function createPanel(t: Dict) {
 
     useEffect(() => {
       if (toast.length === 0) return
-      const id = setTimeout(() => setToast(''), 2200)
+      const id = setTimeout(() => setToast(''), 2600)
       return () => clearTimeout(id)
     }, [toast])
+
+    useEffect(() => {
+      if (indexJob === null) return
+      const id = setInterval(() => setTick(Date.now()), 1000)
+      return () => clearInterval(id)
+    }, [indexJob])
 
     const imageUrl = useCallback((src: string) => {
       const itemKey = doc?.item.key ?? selected?.key ?? ''
@@ -590,10 +653,24 @@ function createPanel(t: Dict) {
         h('span', { style: { flex: 1 } }, error),
         h('button', { style: S.linkButton, onClick: () => setError('') }, t.close),
       ) : null,
+      indexJob !== null
+        ? h('div', { style: S.jobStrip },
+          h('div', { style: S.jobBar }),
+          h('div', { style: S.jobText }, `正在入库《${indexJob.title.slice(0, 30)}》… 已用 ${Math.max(0, Math.round((tick - indexJob.startedAt) / 1000))}s`),
+        )
+        : bulk !== null
+          ? h('div', { style: S.jobStrip },
+            h('div', { style: S.jobBar }),
+            h('div', { style: S.jobText }, `批量入库 ${bulk.done}/${bulk.total}`),
+          )
+          : null,
       h('div', { style: S.body, ref: scrollRef },
         view === 'library' ? h(LibraryView, {
           t, items, filter, setFilter, busy, runIndex, openDoc,
           onRefresh: () => { void loadItems(filter) },
+          onIndexAll: () => { void indexAll() },
+          bulk,
+          openZotero: openInZotero,
           history, clearHistory,
           onFilter: () => {
             const keyword = filter.trim()
@@ -616,6 +693,7 @@ function createPanel(t: Dict) {
           onQuote: handleQuote,
           onToast: setToast,
           scrollRef,
+          openZotero: openInZotero,
         }) : null,
         view === 'hits' ? h(HitsView, {
           t, hits, checked, toggle, toggleAll, query, setQuery, busy,
@@ -626,6 +704,7 @@ function createPanel(t: Dict) {
           copyCitations,
           quoteSelected,
           openItem: (itemKey: string) => { void openHitItem(itemKey) },
+          openZotero: openInZotero,
         }) : null,
       ),
       toast.length > 0 ? h('div', { style: S.toast, role: 'status' }, toast) : null,
@@ -719,6 +798,9 @@ function LibraryView(props: {
   runIndex: (item: ItemView) => void
   openDoc: (item: ItemView) => void
   onRefresh: () => void
+  onIndexAll: () => void
+  bulk: { done: number; total: number } | null
+  openZotero: (itemKey: string) => void
   history: string[]
   pickHistory: (value: string) => void
   clearHistory: () => void
@@ -736,6 +818,17 @@ function LibraryView(props: {
       h('button', { style: S.button, onClick: onFilter }, t.search),
     ),
     h('div', { style: S.libraryHint }, t.libraryHint),
+    h('div', { style: S.selectRow },
+      h('span', { style: S.selectHint },
+        props.bulk === null
+          ? `${props.items.filter((item) => !item.parsed).length} 篇未入库`
+          : `入库中 ${props.bulk.done}/${props.bulk.total}`),
+      h('button', {
+        style: S.smallButton,
+        disabled: props.bulk !== null,
+        onClick: props.onIndexAll,
+      }, props.bulk === null ? t.indexAll : t.indexing),
+    ),
     props.history.length > 0 ? h('div', { style: S.historyRow },
       h('span', { style: S.historyLabel }, t.history),
       ...props.history.map((entry) => h('button', {
@@ -758,6 +851,12 @@ function LibraryView(props: {
                 .filter((part) => part.length > 0).join(' · '),
             ),
           ),
+          h('button', {
+            style: S.linkButton,
+            title: t.openInZotero,
+            'aria-label': t.openInZotero,
+            onClick: () => props.openZotero(item.key),
+          }, 'Z'),
           item.parsed
             ? h('span', { style: S.badgeOk }, t.indexOk)
             : h('button', {
@@ -784,6 +883,7 @@ function ReaderView(props: {
   onQuote: (text: string) => void | Promise<void>
   onToast: (message: string) => void
   scrollRef: React.RefObject<HTMLDivElement | null>
+  openZotero: (itemKey: string) => void
 }): ReactNode {
   const { t, doc, selected } = props
   const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null)
@@ -851,6 +951,7 @@ function ReaderView(props: {
     h('div', { style: S.readerHeader },
       h('button', { style: S.linkButton, onClick: props.onBack }, `← ${t.back}`),
       h('span', { style: S.readerTitle, title }, title),
+      h('button', { style: S.linkButton, onClick: () => props.openZotero(selected.key) }, t.openInZotero),
     ),
     h('div', { style: S.readerMeta },
       [selected.year === null ? '' : String(selected.year), doc?.parsed === null || doc?.parsed === undefined ? t.notParsed : `${doc.chunks.length} ${t.chunks}`]
@@ -905,6 +1006,7 @@ function HitsView(props: {
   copyCitations: (format: 'author-year' | 'reference' | 'bibtex') => void
   quoteSelected: () => void
   openItem: (itemKey: string) => void
+  openZotero: (itemKey: string) => void
 }): ReactNode {
   const { t, hits, checked, toggle } = props
   const allChecked = hits.length > 0 && checked.size >= hits.length
@@ -951,6 +1053,7 @@ function HitsView(props: {
             checked: checked.has(hit.chunkId),
             toggle: () => toggle(hit.chunkId),
             openItem: () => props.openItem(hit.itemKey),
+            openZotero: () => props.openZotero(hit.itemKey),
           })),
         ),
         checked.size > 0 ? h('div', { style: S.actionBar },
@@ -974,6 +1077,7 @@ function HitCard(props: {
   checked: boolean
   toggle: () => void
   openItem: () => void
+  openZotero: () => void
 }): ReactNode {
   const { t, hit, checked } = props
   const [expanded, setExpanded] = useState(false)
@@ -1003,9 +1107,13 @@ function HitCard(props: {
           indexed ? t.indexOk : t.unindexed,
         ),
       ),
+      h('span', { style: S.hitChunk, title: hit.chunkId }, hit.chunkId),
       hit.scoreNorm === undefined
         ? null
         : h('span', { style: S.hitScore }, `相关度 ${Math.round(hit.scoreNorm * 100)}%`),
+    ),
+    h('div', { style: S.scoreTrack, title: `词面 ${hit.lexicalScore ?? 0} · 扩展 ${hit.expandedScore ?? 0}` },
+      h('div', { style: { ...S.scoreFill, width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`, background: color } }),
     ),
     h('div', { style: S.hitTitle, title: hit.title, onClick: props.openItem }, hit.title),
     h('div', { style: S.hitMeta },
@@ -1013,10 +1121,6 @@ function HitCard(props: {
         hit.sectionPath,
         hit.page === null ? '' : `第 ${hit.page + 1} 页`]
         .filter((part) => part.length > 0).join(' · '),
-      h('span', { style: S.chunkId }, ` ${hit.chunkId}`),
-    ),
-    h('div', { style: S.scoreTrack, title: `词面 ${hit.lexicalScore ?? 0} · 扩展 ${hit.expandedScore ?? 0}` },
-      h('div', { style: { ...S.scoreFill, width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`, background: color } }),
     ),
     h('div', {
       style: expanded ? S.hitTextExpanded : S.hitText,
@@ -1029,6 +1133,7 @@ function HitCard(props: {
             style: S.linkButton,
             onClick: (event: { stopPropagation: () => void }) => { event.stopPropagation(); props.openItem() },
           }, t.openSource),
+          h('button', { style: S.linkButton, onClick: props.openZotero }, t.openInZotero),
           h('span', { style: S.hint }, t.expandHint),
         )
         : null,
@@ -1407,6 +1512,7 @@ async function writeClipboard(text: string): Promise<boolean> {
 const S: Record<string, CSSProperties> = {
   // ---- 面板骨架：中性表面 + 1px 分隔线，只有一个强调色（品牌蓝） ----
   root: {
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
@@ -1448,9 +1554,12 @@ const S: Record<string, CSSProperties> = {
   },
   segment: {
     flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     height: 30,
     padding: 0,
-    borderRadius: 6,
+    borderRadius: 7,
     border: 'none',
     background: 'transparent',
     color: 'var(--dsw-alias-label-secondary)',
@@ -1459,13 +1568,13 @@ const S: Record<string, CSSProperties> = {
     appearance: 'none',
     WebkitAppearance: 'none',
     outline: 'none',
+    transition: 'background-color .15s ease, color .15s ease',
   },
   segmentActive: {
-    background: 'var(--dsw-alias-bg-layer-1)',
-    borderColor: 'var(--dsw-alias-border-l1)',
-    color: 'var(--dsw-alias-label-primary)',
+    background: 'color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, var(--dsw-alias-bg-layer-1))',
+    color: 'var(--dsw-alias-brand-primary)',
     fontWeight: 600,
-    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.06)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-brand-primary) 45%, transparent)',
   },
   segmentDisabled: { opacity: 0.45, cursor: 'default' },
   statusBar: {
@@ -1721,7 +1830,8 @@ const S: Record<string, CSSProperties> = {
   hitCardChecked: { borderColor: 'var(--dsw-alias-brand-primary)' },
   hitTop: { display: 'flex', alignItems: 'center', gap: 8 },
   hitBadges: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
-  hitScore: { marginLeft: 'auto', fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)', fontVariantNumeric: 'tabular-nums' },
+  hitChunk: { marginLeft: 'auto', fontFamily: 'ui-monospace, monospace', fontSize: 9.5, color: 'var(--dsw-alias-label-secondary)', opacity: 0.72 },
+  hitScore: { fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)', fontVariantNumeric: 'tabular-nums' },
   hitHead: { display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 },
   checkbox: { marginTop: 2, accentColor: 'var(--dsw-alias-brand-primary)' },
   hitTitle: {
@@ -1831,11 +1941,11 @@ const S: Record<string, CSSProperties> = {
   },
   actionLabel: { marginRight: 'auto', fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)' },
   toast: {
-    position: 'fixed',
+    position: 'absolute',
     left: '50%',
-    bottom: 16,
+    top: 74,
     transform: 'translateX(-50%)',
-    zIndex: 50,
+    zIndex: 60,
     padding: '6px 12px',
     borderRadius: 999,
     border: '1px solid var(--dsw-alias-border-l1)',
@@ -1857,6 +1967,15 @@ const S: Record<string, CSSProperties> = {
     cursor: 'pointer',
     boxShadow: '0 4px 14px rgba(0, 0, 0, 0.28)',
   },
+  jobStrip: { display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 },
+  jobBar: {
+    height: 2,
+    borderRadius: 2,
+    background: 'linear-gradient(90deg, transparent, var(--dsw-alias-brand-primary), transparent)',
+    backgroundSize: '200% 100%',
+    animation: 'zse-indeterminate 1.4s linear infinite',
+  },
+  jobText: { fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)' },
   modeRow: {},
   expansionHint: {},
   searchLegend: {},

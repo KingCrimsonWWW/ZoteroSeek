@@ -399,8 +399,9 @@ export class Library {
     if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 })
 
     const fused = lists.length === 0 ? [] : fuseRrf(lists, { k: 10, topK })
-    // 归一化基准：每一路都拿到第 1 名时的融合分（k=10），这样 scoreNorm 落在 0–1。
-    const maxPossible = lists.reduce((sum, list) => sum + list.weight / 11, 0)
+    // 归一化基准取「本次结果集的第一名」：面板上的「相关度」是相对排序，不是绝对置信度。
+    // （之前除以「所有路都拿第一」的理论上限，最好也就 30–50%，看起来像坏了。）
+    const topScore = fused.length === 0 ? 0 : (fused[0]?.score ?? 0)
 
     const hits = fused.slice(0, topK).map((hit) => {
       const chunk = chunkById.get(hit.id)
@@ -423,7 +424,7 @@ export class Library {
         kind: chunk.kind,
         text: chunk.text.length > maxChars ? `${chunk.text.slice(0, maxChars)}…` : chunk.text,
         score: Number(hit.score.toFixed(4)),
-        scoreNorm: Number((maxPossible > 0 ? Math.min(1, hit.score / maxPossible) : 0).toFixed(4)),
+        scoreNorm: Number((topScore > 0 ? Math.min(1, hit.score / topScore) : 0).toFixed(4)),
         route: (matchKind === 'mixed' ? 'both' : matchKind === 'expanded' ? 'expanded' : 'lexical') as HitRoute,
         matchKind,
         lexicalScore: Number((lexical?.score ?? 0).toFixed(4)),
