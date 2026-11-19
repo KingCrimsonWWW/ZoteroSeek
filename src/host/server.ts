@@ -12,6 +12,7 @@ import { readFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { extname, isAbsolute, normalize, resolve, sep } from 'node:path'
 import { Runtime } from './runtime.ts'
+import { zoteroUriOf } from './zotero-uri.ts'
 import type { CitationFormat } from '../core/cite.ts'
 
 const PREFIX = '/zotero-seek'
@@ -114,15 +115,18 @@ async function handle(req: IncomingMessage, res: ServerResponse, runtime: Runtim
           return ok(res, await runtime.indexItem(itemKey))
         }
         case '/api/open-zotero': {
-          // 在 Zotero 里定位条目：渲染进程无法直接打开自定义协议（Electron 会拦），
-          // 这里由 Host 调系统命令拉起 zotero://，只接受合法 item_key，别的一律拒绝。
+          // 在 Zotero 里打开：渲染进程无法直接打开自定义协议（Electron 会拦），
+          // 这里由 Host 调系统命令拉起 zotero://；有 PDF 附件就直接开 PDF 并翻到页码。
           const itemKey = String(body['item_key'] ?? '').trim()
           if (!/^[A-Za-z0-9]{6,16}$/.test(itemKey)) {
             return fail(res, 400, 'invalid-item-key', 'item_key 非法')
           }
-          const opened = await openZoteroItem(itemKey)
+          const pageRaw = body['page']
+          const page = typeof pageRaw === 'number' ? pageRaw : null
+          const item = await runtime.item(itemKey)
+          const opened = await openZoteroItem(itemKey, item?.pdfAttachmentKey ?? null, page)
           if (!opened.ok) return fail(res, 500, 'open-failed', opened.message ?? '打开失败')
-          return ok(res, { uri: opened.uri })
+          return ok(res, { uri: opened.uri, openedPdf: item?.pdfAttachmentKey !== null && item?.pdfAttachmentKey !== undefined })
         }
         case '/api/refresh':
           return ok(res, await runtime.refresh())
@@ -208,9 +212,18 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
 }
 
 /** 用系统命令打开 zotero:// 链接（Windows 走 cmd start，macOS 走 open，Linux 走 xdg-open）。 */
-async function openZoteroItem(itemKey: string): Promise<{ ok: boolean; uri: string; message?: string }> {
+async function openZoteroItem(
+  itemKey: string,
+  attachmentKey: string | null,
+  page: number | null,
+): Promise<{ ok: boolean; uri: string; message?: string }> {
   const { execFile } = await import('node:child_process')
-  const uri = `zotero://select/library/items/${itemKey}`
+  let uri: string
+  try {
+    uri = zoteroUriOf(itemKey, attachmentKey, page)
+  } catch (error) {
+    return { ok: false, uri: '', message: error instanceof Error ? error.message : '链接构造失败' }
+  }
   const [command, args] = process.platform === 'win32'
     ? ['cmd.exe', ['/c', 'start', '', uri]]
     : process.platform === 'darwin'

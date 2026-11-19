@@ -482,8 +482,11 @@ function createPanel(t: Dict) {
      * 在 Zotero 中定位条目：渲染进程不能直接打开自定义协议（Electron 会拦，实测点了没反应），
      * 所以交给 Host 用系统命令拉起 zotero://；失败时把链接复制到剪贴板，至少用户能手动打开。
      */
-    const openInZotero = useCallback(async (itemKey: string) => {
-      const result = await apiPost<{ uri: string }>('/api/open-zotero', { item_key: itemKey })
+    const openInZotero = useCallback(async (itemKey: string, page?: number | null) => {
+      const result = await apiPost<{ uri: string }>('/api/open-zotero', {
+        item_key: itemKey,
+        ...(page === undefined || page === null ? {} : { page }),
+      })
       if (result.ok) {
         setToast(t.zoteroHint)
         return
@@ -1010,7 +1013,7 @@ function HitsView(props: {
   copyCitations: (format: 'author-year' | 'reference' | 'bibtex') => void
   quoteSelected: () => void
   openItem: (itemKey: string) => void
-  openZotero: (itemKey: string) => void
+  openZotero: (itemKey: string, page?: number | null) => void
 }): ReactNode {
   const { t, hits, checked, toggle } = props
   const allChecked = hits.length > 0 && checked.size >= hits.length
@@ -1057,7 +1060,7 @@ function HitsView(props: {
             checked: checked.has(hit.chunkId),
             toggle: () => toggle(hit.chunkId),
             openItem: () => props.openItem(hit.itemKey),
-            openZotero: () => props.openZotero(hit.itemKey),
+            openZotero: () => props.openZotero(hit.itemKey, hit.page === null ? null : hit.page + 1),
           })),
         ),
         checked.size > 0 ? h('div', { style: S.actionBar },

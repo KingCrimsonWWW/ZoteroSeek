@@ -19984,8 +19984,11 @@ function createPanel(t) {
         setBulk(null);
       }
     }, [items, filter, loadItems, loadStatus, t.indexAllDone]);
-    const openInZotero = (0, import_react.useCallback)(async (itemKey) => {
-      const result = await apiPost("/api/open-zotero", { item_key: itemKey });
+    const openInZotero = (0, import_react.useCallback)(async (itemKey, page) => {
+      const result = await apiPost("/api/open-zotero", {
+        item_key: itemKey,
+        ...page === void 0 || page === null ? {} : { page }
+      });
       if (result.ok) {
         setToast(t.zoteroHint);
         return;
@@ -20568,7 +20571,7 @@ function HitsView(props) {
           checked: checked.has(hit.chunkId),
           toggle: () => toggle(hit.chunkId),
           openItem: () => props.openItem(hit.itemKey),
-          openZotero: () => props.openZotero(hit.itemKey)
+          openZotero: () => props.openZotero(hit.itemKey, hit.page === null ? null : hit.page + 1)
         }))
       ),
       checked.size > 0 ? (0, import_react.createElement)(

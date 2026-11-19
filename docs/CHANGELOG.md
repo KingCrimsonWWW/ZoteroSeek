@@ -1,5 +1,13 @@
 # 变更记录
 
+## v0.3.7 — 2026-11-19
+
+- 「在 Zotero 打开」升级为**直接打开 PDF 并翻到命中页**：Host 端合并入库时保存的
+  `pdfAttachmentKey`，构造 `zotero://open-pdf/library/items/<attachment>?page=N`；
+  没有 PDF 附件时退回 `zotero://select/library/items/<item>`；
+- 新增纯函数 `src/host/zotero-uri.ts` 与 4 个单测（有附件/无附件/页码越界/非法 key）；
+- 命中卡 Z 按钮带上该片段所在页码；版本 0.3.6 → 0.3.7。
+
 ## v0.3.6 — 2026-11-19
 
 - **「在 Zotero 打开」改为 Host 侧拉起**：渲染进程 `window.open('zotero://…')` 会被 Electron 拦掉

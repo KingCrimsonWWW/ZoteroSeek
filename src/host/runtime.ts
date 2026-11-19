@@ -363,11 +363,13 @@ export class Runtime {
   /** 面板/检索结果点条目：按 item_key 取条目快照（含是否已入库）。 */
   async item(itemKey: string): Promise<(ZoteroItem & { parsed: boolean }) | null> {
     const library = await this.library()
-    const item = (await this.zotero().getItem(itemKey).catch(() => null))
-      ?? library.items().find((candidate) => candidate.key === itemKey)
-      ?? null
+    const stored = library.items().find((candidate) => candidate.key === itemKey)
+    const item = (await this.zotero().getItem(itemKey).catch(() => null)) ?? stored ?? null
     if (item === null) return null
-    return { ...item, parsed: library.isParsed(itemKey) }
+    // Zotero 的条目 JSON 不带附件 key，附件信息是入库时 resolvePdf 存下来的，这里合并一下，
+    // 否则「在 Zotero 打开 PDF」永远只能退化成选中条目。
+    const pdfAttachmentKey = item.pdfAttachmentKey ?? stored?.pdfAttachmentKey ?? null
+    return { ...item, pdfAttachmentKey, parsed: library.isParsed(itemKey) }
   }
 
   /** 勾选引用：多条一次拼好。bibtex 优先用 Zotero 自己的导出。 */
