@@ -19901,19 +19901,49 @@ function createPanel(t) {
       if (result.ok && result.value !== void 0) setDoc(result.value);
       else setError(result.message ?? "\u52A0\u8F7D\u539F\u6587\u5931\u8D25");
     }, []);
+    const handleQuote = (0, import_react.useCallback)(async (quoteText) => {
+      const actions = props.inputActions;
+      for (const name of ["insertQuote", "quote", "insertText", "appendText", "setText"]) {
+        const candidate = actions?.[name];
+        if (typeof candidate !== "function") continue;
+        try {
+          ;
+          candidate.call(actions, quoteText);
+          setToast(t.quoteInserted);
+          return;
+        } catch {
+        }
+      }
+      const accepted = await writeClipboard(quoteText);
+      setToast(accepted ? t.copied : t.copyFailed);
+    }, [props.inputActions, t.copied, t.copyFailed, t.quoteInserted]);
     const openHitItem = (0, import_react.useCallback)(async (itemKey) => {
       const existing = items.find((candidate) => candidate.key === itemKey);
-      if (existing !== void 0) {
-        await openDoc(existing, "hits");
+      const item = existing ?? (await apiGet("/api/item", { key: itemKey })).value;
+      if (item === void 0) {
+        setToast("\u6253\u5F00\u6761\u76EE\u5931\u8D25");
         return;
       }
-      const result = await apiGet("/api/item", { key: itemKey });
-      if (!result.ok || result.value === void 0) {
-        setToast(result.message ?? "\u6253\u5F00\u6761\u76EE\u5931\u8D25");
+      if (!item.parsed) {
+        setBusy(item.key);
+        setToast("\u9996\u6B21\u6253\u5F00\uFF0C\u6B63\u5728\u81EA\u52A8\u5165\u5E93\u2026");
+        try {
+          const indexed = await apiPost("/api/index", { item_key: item.key });
+          if (!indexed.ok) {
+            setError(indexed.message ?? "\u81EA\u52A8\u5165\u5E93\u5931\u8D25");
+            return;
+          }
+          const refreshed = await apiGet("/api/item", { key: item.key });
+          await openDoc(refreshed.value ?? { ...item, parsed: true }, "hits");
+          await loadItems(filter);
+          await loadStatus();
+        } finally {
+          setBusy("");
+        }
         return;
       }
-      await openDoc(result.value, "hits");
-    }, [items, openDoc, t.copied]);
+      await openDoc(item, "hits");
+    }, [items, openDoc, loadItems, loadStatus, t.copied]);
     const runIndex = (0, import_react.useCallback)(async (item) => {
       setBusy(item.key);
       setError("");
@@ -20117,8 +20147,9 @@ function createPanel(t) {
           query,
           setQuery,
           runSearch,
-          ...props.inputActions?.insertQuote === void 0 ? {} : { insertQuote: props.inputActions.insertQuote },
-          onToast: setToast
+          onQuote: handleQuote,
+          onToast: setToast,
+          scrollRef
         }) : null,
         view === "hits" ? (0, import_react.createElement)(HitsView, {
           t,
@@ -20300,8 +20331,21 @@ function ReaderView(props) {
       return;
     }
     const rect = active.getRangeAt(0).getBoundingClientRect();
-    setSelection({ text: text3, top: rect.bottom + 6, left: Math.max(8, rect.left) });
+    const body = props.scrollRef.current;
+    const bodyRect = body?.getBoundingClientRect();
+    const scrollTop = body?.scrollTop ?? 0;
+    const scrollLeft = body?.scrollLeft ?? 0;
+    const top = bodyRect === void 0 ? rect.bottom + 6 : rect.bottom - bodyRect.top + scrollTop + 6;
+    const left = bodyRect === void 0 ? Math.max(8, rect.left) : Math.max(8, rect.left - bodyRect.left + scrollLeft);
+    setSelection({ text: text3, top, left });
   };
+  (0, import_react.useEffect)(() => {
+    const body = props.scrollRef.current;
+    if (body === null) return;
+    const clear = () => setSelection(null);
+    body.addEventListener("scroll", clear, { passive: true });
+    return () => body.removeEventListener("scroll", clear);
+  }, [props.scrollRef]);
   const quoteSelection = async () => {
     if (selection === null) return;
     setQuoting(true);
@@ -20317,13 +20361,7 @@ function ReaderView(props) {
       const quoteText = `> ${selection.text}
 
 \u2014\u2014 \u300A${title}\u300B${sectionText}${pageText}${chunkText}`;
-      if (props.insertQuote !== void 0) {
-        props.insertQuote(quoteText, "\u6587\u732E\u5F15\u6587");
-        props.onToast(t.quoteInserted);
-      } else {
-        const accepted = await writeClipboard(quoteText);
-        props.onToast(accepted ? t.copied : t.copyFailed);
-      }
+      await props.onQuote(quoteText);
       setSelection(null);
       window.getSelection()?.removeAllRanges();
     } finally {
@@ -20491,7 +20529,8 @@ function HitCard(props) {
           (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: indexed ? INDEXED_COLOR : UNINDEXED_COLOR } }),
           indexed ? t.indexOk : t.unindexed
         )
-      )
+      ),
+      hit.scoreNorm === void 0 ? null : (0, import_react.createElement)("span", { style: S3.hitScore }, `\u76F8\u5173\u5EA6 ${Math.round(hit.scoreNorm * 100)}%`)
     ),
     (0, import_react.createElement)("div", { style: S3.hitTitle, title: hit.title, onClick: props.openItem }, hit.title),
     (0, import_react.createElement)(
@@ -20500,8 +20539,7 @@ function HitCard(props) {
       [
         isMeta ? t.metaSource : t.kindBody,
         hit.sectionPath,
-        hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`,
-        hit.scoreNorm === void 0 ? "" : `\u76F8\u5173\u5EA6 ${Math.round(hit.scoreNorm * 100)}%`
+        hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`
       ].filter((part) => part.length > 0).join(" \xB7 "),
       (0, import_react.createElement)("span", { style: S3.chunkId }, ` ${hit.chunkId}`)
     ),
@@ -20820,7 +20858,7 @@ var S3 = {
     color: "var(--dsw-alias-label-primary)",
     fontSize: 11
   },
-  body: { flex: 1, minHeight: 0, overflowY: "auto", padding: "10px 12px" },
+  body: { flex: 1, minHeight: 0, overflowY: "auto", padding: "10px 12px", position: "relative" },
   // ---- 输入与按钮 ----
   searchRow: { display: "flex", gap: 6, marginBottom: 8 },
   input: {
@@ -21034,6 +21072,7 @@ var S3 = {
   hitCardChecked: { borderColor: "var(--dsw-alias-brand-primary)" },
   hitTop: { display: "flex", alignItems: "center", gap: 8 },
   hitBadges: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  hitScore: { marginLeft: "auto", fontSize: 10.5, color: "var(--dsw-alias-label-secondary)", fontVariantNumeric: "tabular-nums" },
   hitHead: { display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 },
   checkbox: { marginTop: 2, accentColor: "var(--dsw-alias-brand-primary)" },
   hitTitle: {
@@ -21157,7 +21196,7 @@ var S3 = {
     boxShadow: "0 6px 18px rgba(0, 0, 0, 0.28)"
   },
   floatingQuote: {
-    position: "fixed",
+    position: "absolute",
     zIndex: 40,
     height: 28,
     padding: "0 12px",

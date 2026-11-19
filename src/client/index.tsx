@@ -382,19 +382,55 @@ function createPanel(t: Dict) {
       else setError(result.message ?? '加载原文失败')
     }, [])
 
+    /**
+     * 把引用文本送进输入框：宿主 InputActions 的字段名在不同版本可能不同，
+     * 按候选名逐个尝试；全部不可用就退回复制（并在 toast 里说清楚）。
+     */
+    const handleQuote = useCallback(async (quoteText: string) => {
+      const actions = props.inputActions as Record<string, unknown> | undefined
+      for (const name of ['insertQuote', 'quote', 'insertText', 'appendText', 'setText']) {
+        const candidate = actions?.[name]
+        if (typeof candidate !== 'function') continue
+        try {
+          ;(candidate as (text: string) => void).call(actions, quoteText)
+          setToast(t.quoteInserted)
+          return
+        } catch {
+          // 该字段存在但不是这个签名：继续试下一个
+        }
+      }
+      const accepted = await writeClipboard(quoteText)
+      setToast(accepted ? t.copied : t.copyFailed)
+    }, [props.inputActions, t.copied, t.copyFailed, t.quoteInserted])
+
     const openHitItem = useCallback(async (itemKey: string) => {
       const existing = items.find((candidate) => candidate.key === itemKey)
-      if (existing !== undefined) {
-        await openDoc(existing, 'hits')
+      const item = existing ?? (await apiGet<ItemView>('/api/item', { key: itemKey })).value
+      if (item === undefined) {
+        setToast('打开条目失败')
         return
       }
-      const result = await apiGet<ItemView>('/api/item', { key: itemKey })
-      if (!result.ok || result.value === undefined) {
-        setToast(result.message ?? '打开条目失败')
+      if (!item.parsed) {
+        // 未入库：先自动入库（MinerU 解析），再直接打开阅读页，不再让用户自己去找。
+        setBusy(item.key)
+        setToast('首次打开，正在自动入库…')
+        try {
+          const indexed = await apiPost<{ chunks: number; cached: boolean }>('/api/index', { item_key: item.key })
+          if (!indexed.ok) {
+            setError(indexed.message ?? '自动入库失败')
+            return
+          }
+          const refreshed = await apiGet<ItemView>('/api/item', { key: item.key })
+          await openDoc(refreshed.value ?? { ...item, parsed: true }, 'hits')
+          await loadItems(filter)
+          await loadStatus()
+        } finally {
+          setBusy('')
+        }
         return
       }
-      await openDoc(result.value, 'hits')
-    }, [items, openDoc, t.copied])
+      await openDoc(item, 'hits')
+    }, [items, openDoc, loadItems, loadStatus, t.copied])
 
     const runIndex = useCallback(async (item: ItemView) => {
       setBusy(item.key)
@@ -577,8 +613,9 @@ function createPanel(t: Dict) {
             void runSearch(query, selected?.key)
           },
           query, setQuery, runSearch,
-          ...(props.inputActions?.insertQuote === undefined ? {} : { insertQuote: props.inputActions.insertQuote }),
+          onQuote: handleQuote,
           onToast: setToast,
+          scrollRef,
         }) : null,
         view === 'hits' ? h(HitsView, {
           t, hits, checked, toggle, toggleAll, query, setQuery, busy,
@@ -744,8 +781,9 @@ function ReaderView(props: {
   query: string
   setQuery: (value: string) => void
   runSearch: (keyword: string, itemKey?: string) => void
-  insertQuote?: (text: string, summary?: string) => void
+  onQuote: (text: string) => void | Promise<void>
   onToast: (message: string) => void
+  scrollRef: React.RefObject<HTMLDivElement | null>
 }): ReactNode {
   const { t, doc, selected } = props
   const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null)
@@ -768,9 +806,25 @@ function ReaderView(props: {
       setSelection(null)
       return
     }
+    // 相对滚动容器定位（绝对定位），这样按钮贴着选中的文字，而不是跟着视口漂。
     const rect = active.getRangeAt(0).getBoundingClientRect()
-    setSelection({ text, top: rect.bottom + 6, left: Math.max(8, rect.left) })
+    const body = props.scrollRef.current
+    const bodyRect = body?.getBoundingClientRect()
+    const scrollTop = body?.scrollTop ?? 0
+    const scrollLeft = body?.scrollLeft ?? 0
+    const top = bodyRect === undefined ? rect.bottom + 6 : rect.bottom - bodyRect.top + scrollTop + 6
+    const left = bodyRect === undefined ? Math.max(8, rect.left) : Math.max(8, rect.left - bodyRect.left + scrollLeft)
+    setSelection({ text, top, left })
   }
+
+  // 滚动时收起按钮：引用浮条不应该跟着列表一起跑。
+  useEffect(() => {
+    const body = props.scrollRef.current
+    if (body === null) return
+    const clear = () => setSelection(null)
+    body.addEventListener('scroll', clear, { passive: true })
+    return () => body.removeEventListener('scroll', clear)
+  }, [props.scrollRef])
 
   const quoteSelection = async (): Promise<void> => {
     if (selection === null) return
@@ -785,13 +839,7 @@ function ReaderView(props: {
       const sectionText = loc !== undefined && loc.sectionPath.length > 0 ? ` · ${loc.sectionPath}` : ''
       const chunkText = loc === undefined ? '' : `（${loc.chunkId}）`
       const quoteText = `> ${selection.text}\n\n—— 《${title}》${sectionText}${pageText}${chunkText}`
-      if (props.insertQuote !== undefined) {
-        props.insertQuote(quoteText, '文献引文')
-        props.onToast(t.quoteInserted)
-      } else {
-        const accepted = await writeClipboard(quoteText)
-        props.onToast(accepted ? t.copied : t.copyFailed)
-      }
+      await props.onQuote(quoteText)
       setSelection(null)
       window.getSelection()?.removeAllRanges()
     } finally {
@@ -955,13 +1003,15 @@ function HitCard(props: {
           indexed ? t.indexOk : t.unindexed,
         ),
       ),
+      hit.scoreNorm === undefined
+        ? null
+        : h('span', { style: S.hitScore }, `相关度 ${Math.round(hit.scoreNorm * 100)}%`),
     ),
     h('div', { style: S.hitTitle, title: hit.title, onClick: props.openItem }, hit.title),
     h('div', { style: S.hitMeta },
       [isMeta ? t.metaSource : t.kindBody,
         hit.sectionPath,
-        hit.page === null ? '' : `第 ${hit.page + 1} 页`,
-        hit.scoreNorm === undefined ? '' : `相关度 ${Math.round(hit.scoreNorm * 100)}%`]
+        hit.page === null ? '' : `第 ${hit.page + 1} 页`]
         .filter((part) => part.length > 0).join(' · '),
       h('span', { style: S.chunkId }, ` ${hit.chunkId}`),
     ),
@@ -1453,7 +1503,7 @@ const S: Record<string, CSSProperties> = {
     color: 'var(--dsw-alias-label-primary)',
     fontSize: 11,
   },
-  body: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px' },
+  body: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px', position: 'relative' },
 
   // ---- 输入与按钮 ----
   searchRow: { display: 'flex', gap: 6, marginBottom: 8 },
@@ -1671,6 +1721,7 @@ const S: Record<string, CSSProperties> = {
   hitCardChecked: { borderColor: 'var(--dsw-alias-brand-primary)' },
   hitTop: { display: 'flex', alignItems: 'center', gap: 8 },
   hitBadges: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
+  hitScore: { marginLeft: 'auto', fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)', fontVariantNumeric: 'tabular-nums' },
   hitHead: { display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 },
   checkbox: { marginTop: 2, accentColor: 'var(--dsw-alias-brand-primary)' },
   hitTitle: {
@@ -1794,7 +1845,7 @@ const S: Record<string, CSSProperties> = {
     boxShadow: '0 6px 18px rgba(0, 0, 0, 0.28)',
   },
   floatingQuote: {
-    position: 'fixed',
+    position: 'absolute',
     zIndex: 40,
     height: 28,
     padding: '0 12px',

@@ -1,6 +1,6 @@
 {
   "name": "zotero-seek-workspace",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "type": "module",
   "description": "ZoteroSeek: DSH 插件，把本地 Zotero 文献库 + MinerU Markdown 接进 DeepSeek Harness",
