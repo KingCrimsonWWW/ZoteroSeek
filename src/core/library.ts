@@ -51,7 +51,7 @@ export function normalizeVariants(query: string, raw?: readonly string[]): strin
   return variants
 }
 
-/** 多问法合并：同一片段在任一问法下的最高分胜出，命中词取并集。 */
+/** 多查询合并：同一片段在任一查询下的最高分胜出，命中词取并集。 */
 function mergeMaxHits(
   target: Map<string, { score: number; matched: string[] }>,
   hits: readonly Bm25Hit[],
@@ -69,7 +69,7 @@ function mergeMaxHits(
   }
 }
 
-/** 合并多问法的扩展解释：去重后拼成一条，供工具输出使用。 */
+/** 合并多条查询的扩展解释：去重后拼成一条，供工具输出使用。 */
 function mergeExpansions(query: string, expansions: readonly QueryExpansion[]): QueryExpansion {
   const first = expansions[0]
   if (expansions.length === 1 && first !== undefined) return first

@@ -71,7 +71,7 @@ export function validateAdmissionRules(rules: AdmissionRules, label: string): Ad
 }
 
 /**
- * 对一个候选集做准入。逐查询、逐路独立计算：多问法各自过审，
+ * 对一个候选集做准入。逐查询、逐路独立计算：多条查询各自过审，
  * 彼此不互相抬高或压低（与 dsh-zotero 的 per-phrasing 规则一致）。
  */
 export function admitCandidates(
