@@ -60,7 +60,7 @@ const clientOptions = {
   target: 'es2022',
   external: CLIENT_EXTERNAL,
   jsx: 'automatic',
-  loader: { '.css': 'text' },
+  loader: { '.css': 'text', '.png': 'dataurl' },
   sourcemap: false,
   logLevel: 'info',
 }

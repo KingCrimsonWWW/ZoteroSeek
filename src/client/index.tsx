@@ -10,6 +10,7 @@
  * 面板不 import 任何 DSH 包，React 由模块表提供。
  */
 import { createElement as h, Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import zsIcon from './assets/zs-icon.png'
 import type { CSSProperties, ReactNode } from 'react'
 
 // ------------------------------------------------------------------ 类型
@@ -1171,27 +1172,34 @@ function headingStyle(level: number): CSSProperties {
 
 // ------------------------------------------------------------------ 入口
 
-/** 「打开文献库」按钮：放在输入框左侧的工具行里。 */
+/** 「打开文献库」按钮：放在输入框左侧的工具行里；只放图标，文字靠 tooltip / aria-label。 */
 function createOpenButton(t: Dict, open: () => void) {
   return function ZoteroSeekOpenButton(): ReactNode {
     return h('button', {
       type: 'button',
       title: t.title,
+      'aria-label': t.title,
       style: {
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 4,
+        justifyContent: 'center',
+        width: 28,
         height: 26,
-        padding: '0 8px',
+        padding: 0,
         borderRadius: 6,
         border: '1px solid var(--dsw-alias-border-l1)',
         background: 'transparent',
-        color: 'var(--dsw-alias-label-secondary)',
-        fontSize: 11,
         cursor: 'pointer',
       },
       onClick: open,
-    }, '📚', h('span', null, t.title))
+    }, h('img', {
+      src: zsIcon,
+      alt: '',
+      width: 16,
+      height: 16,
+      style: { display: 'block', borderRadius: 4 },
+      draggable: false,
+    }))
   }
 }
 

@@ -39,3 +39,9 @@ declare module 'react' {
   export function useCallback<T extends (...args: never[]) => unknown>(callback: T, deps: readonly unknown[]): T
   export function useRef<T>(initial: T | null): { current: T | null }
 }
+
+/** esbuild 用 dataurl loader 把 PNG 变成字符串（图标以 base64 内联进 bundle，不额外发请求）。 */
+declare module '*.png' {
+  const source: string
+  export default source
+}
