@@ -9,7 +9,7 @@ cd E:\TheCode\ZoteroSeek
 node evals/doctor.mjs
 ```
 
-预期看到：Zotero 已连接（242 条对象 / 170 个 PDF）、MinerU token 可用、索引 7 篇 / 252 分块。
+预期看到：Zotero 已连接（242 条对象 / 170 个 PDF）、MinerU token 可用、索引 10 篇 / 281 分块。
 
 **讲点**：Zotero 只读、MinerU 是唯一解析器、token 失效会在面板状态条直接红点提示。
 
@@ -74,7 +74,7 @@ node evals/run-eval.mjs
 - 单个 DSH 插件（零运行时依赖）：Host 半边注册 5 个工具 + `/zotero-seek` 面板路由；Client 半边是右侧边栏面板；
 - MinerU 解析产物按「PDF 内容 sha1 + 解析参数」寻址缓存，同一份 PDF 换条目不会重复花钱；
 - 分块从 MinerU 的 `content_list.json`（带 `page_idx`/`bbox`）出发，章节栈 + 表格/公式原子块；
-- 检索是三路 BM25 + RRF：原查询 / 原查询+领域双语词表扩展 / 纯扩展词；中文问英文文献 recall@5 0.07→0.79；
+- 检索是两路 BM25 + 准入 + RRF：原查询 / 原查询+领域双语词表扩展；命中带 matchKind；中文问英文文献 recall@5 0.07→0.79；
 - 索引降噪：标题行、版面标签、参考文献列表都不进索引；
 - 引用写成 `[来源: chunk_id]`，可事后核对。
 
