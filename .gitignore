@@ -13,6 +13,9 @@ dist/
 /data/
 /evals/reports/
 
+# 图标源图（833 KB，插件用的是 plugin/icon.png 的压缩版；源图在 git 历史里也可取）
+/icon.png
+
 # OS / editor
 .DS_Store
 Thumbs.db
