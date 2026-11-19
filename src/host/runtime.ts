@@ -334,6 +334,32 @@ export class Runtime {
     return { chunk, item }
   }
 
+  /**
+   * 划词引用：把一段选中文本定位回它在哪一块 / 哪一页。
+   * 先做整段匹配，退化到前 24 字前缀匹配；返回 null 表示找不到（前端就只复制文本）。
+   */
+  async locate(itemKey: string, excerpt: string): Promise<{
+    chunkId: string
+    page: number | null
+    sectionPath: string
+    exact: boolean
+  } | null> {
+    const library = await this.library()
+    const needle = excerpt.replace(/\s+/g, ' ').trim()
+    if (needle.length < 4) return null
+    const head = needle.slice(0, 24)
+    for (const chunk of library.chunksOf(itemKey)) {
+      const text = chunk.text.replace(/\s+/g, ' ')
+      if (text.includes(needle)) {
+        return { chunkId: chunk.chunkId, page: chunk.page, sectionPath: chunk.sectionPath, exact: true }
+      }
+      if (head.length >= 8 && text.includes(head)) {
+        return { chunkId: chunk.chunkId, page: chunk.page, sectionPath: chunk.sectionPath, exact: false }
+      }
+    }
+    return null
+  }
+
   /** 勾选引用：多条一次拼好。bibtex 优先用 Zotero 自己的导出。 */
   async cite(itemKeys: readonly string[], format: CitationFormat): Promise<Array<{ itemKey: string; text: string }>> {
     const library = await this.library()

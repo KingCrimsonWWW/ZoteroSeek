@@ -19686,6 +19686,17 @@ var DICT = {
     kindExpanded: "\u6269\u5C55",
     kindMixed: "\u5B57\u9762+\u6269\u5C55",
     kindExpandedHint: "\u6269\u5C55\u547D\u4E2D\uFF1A\u53EA\u6709\u8BCD\u8868\u6269\u5C55\u51FA\u7684\u7B49\u4EF7\u8BCD\u5728\u6587\u4E2D\u51FA\u73B0\uFF0C\u5F15\u7528\u63AA\u8F9E\u524D\u8BF7\u6253\u5F00\u539F\u6587\u6838\u5BF9",
+    kindBody: "\u6B63\u6587",
+    metaSource: "\u5143\u6570\u636E",
+    checkboxHint: "\u52FE\u9009\u7247\u6BB5\u540E\u53EF\u590D\u5236\u5F15\u7528\u6216\u5F15\u7528\u5230\u5BF9\u8BDD",
+    selectAll: "\u5168\u9009",
+    clearAll: "\u6E05\u7A7A",
+    quoteToChat: "\u5F15\u7528\u5230\u5BF9\u8BDD",
+    openSource: "\u6253\u5F00\u539F\u6587",
+    expandHint: "\u5DF2\u622A\u53D6\u547D\u4E2D\u5904\u4E0A\u4E0B\u6587\uFF1B\u5168\u6587\u8BF7\u70B9\u300C\u6253\u5F00\u539F\u6587\u300D",
+    quoteText: "\u5F15\u7528\u6587\u672C",
+    quoteInserted: "\u5DF2\u653E\u5165\u8F93\u5165\u6846",
+    selectQuoteHint: "\u5212\u9009\u6B63\u6587\u5373\u53EF\u5F15\u7528",
     searchLegend: "\u5339\u914D\u7C7B\u578B\uFF1A\u5B57\u9762=\u67E5\u8BE2\u8BCD\u51FA\u73B0\u5728\u539F\u6587\uFF1B\u6269\u5C55=\u8BCD\u8868\u6269\u5C55\u8BCD\u547D\u4E2D\uFF08\u4E0D\u7B49\u540C\u539F\u6587\u63AA\u8F9E\uFF09\uFF1B\u5B57\u9762+\u6269\u5C55=\u4E24\u8DEF\u90FD\u547D\u4E2D",
     noHits: "\u6CA1\u6709\u547D\u4E2D\u3002\u53EF\u4EE5\u5148\u5207\u6362\u5230\u300C\u6587\u732E\u300D\uFF0C\u628A\u76F8\u5173\u6587\u732E\u5165\u5E93\u518D\u8BD5\u3002",
     hitsFor: "\u547D\u4E2D\u7247\u6BB5",
@@ -19744,6 +19755,17 @@ var DICT = {
     kindExpanded: "expanded",
     kindMixed: "mixed",
     kindExpandedHint: "Expanded hit: only a glossary synonym matched \u2014 verify the wording in the source before quoting",
+    kindBody: "full text",
+    metaSource: "metadata",
+    checkboxHint: "Select passages to copy citations or quote them into the chat",
+    selectAll: "Select all",
+    clearAll: "Clear",
+    quoteToChat: "Quote to chat",
+    openSource: "Open source",
+    expandHint: "Context around the match; use Open source for the full text",
+    quoteText: "Quote text",
+    quoteInserted: "Added to input",
+    selectQuoteHint: "Select text to quote",
     searchLegend: "Match type: literal = query words appear in the text; expanded = glossary synonym match (not the source wording); mixed = both routes hit",
     noHits: "No hits. Switch to Library and index the relevant papers first.",
     hitsFor: "Passages",
@@ -19777,6 +19799,40 @@ var DICT = {
 };
 var TAB_ID = "zotero-seek/panel";
 var TAB_KIND = "zotero-seek";
+var KIND_COLOR = { literal: "#6AA6FF", expanded: "#F2A03D", mixed: "#B58CFF" };
+var INDEXED_COLOR = "#3ECF8E";
+var UNINDEXED_COLOR = "#F2B84B";
+function kindOf(hit) {
+  if (hit.matchKind !== void 0) return hit.matchKind;
+  if (hit.route === "both") return "mixed";
+  if (hit.route === "expanded") return "expanded";
+  return "literal";
+}
+function flattenText(text3) {
+  return text3.replace(/\s+/g, " ").trim();
+}
+function snippetOf(text3, terms, radius) {
+  const flat = flattenText(text3);
+  if (flat.length <= radius * 2.2) return flat;
+  let at = -1;
+  for (const term of terms) {
+    const needle = term.trim().toLowerCase();
+    if (needle.length < 2) continue;
+    const index = flat.toLowerCase().indexOf(needle);
+    if (index >= 0 && (at < 0 || index < at)) at = index;
+  }
+  if (at < 0) return `${flat.slice(0, Math.round(radius * 2.2))}\u2026`;
+  const start = Math.max(0, at - radius);
+  const end = Math.min(flat.length, at + Math.round(radius * 1.6));
+  return `${start > 0 ? "\u2026" : ""}${flat.slice(start, end)}${end < flat.length ? "\u2026" : ""}`;
+}
+function highlightTerms(text3, terms) {
+  const needles = [...new Set(terms.map((term) => term.trim()).filter((term) => term.length >= 2))].sort((left, right) => right.length - left.length);
+  if (needles.length === 0) return [text3];
+  const escaped = needles.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+  return text3.split(pattern).map((part, index) => index % 2 === 1 ? (0, import_react.createElement)("mark", { key: `m-${index}`, style: S3.termMark }, part) : part);
+}
 function createPanel(t) {
   return function ZoteroSeekPanel(props) {
     const [view, setView] = (0, import_react.useState)("library");
@@ -19788,8 +19844,6 @@ function createPanel(t) {
     const [hits, setHits] = (0, import_react.useState)([]);
     const [hasSearched, setHasSearched] = (0, import_react.useState)(false);
     const [history, setHistory] = (0, import_react.useState)(() => loadSearchHistory());
-    const [expansionHint, setExpansionHint] = (0, import_react.useState)("");
-    const [admission, setAdmission] = (0, import_react.useState)(null);
     const [checked, setChecked] = (0, import_react.useState)(/* @__PURE__ */ new Set());
     const [busy, setBusy] = (0, import_react.useState)("");
     const [toast, setToast] = (0, import_react.useState)("");
@@ -19860,8 +19914,6 @@ function createPanel(t) {
         });
         if (result.ok && result.value !== void 0) {
           setHits(result.value.hits);
-          setExpansionHint(result.value.expansion?.description ?? "");
-          setAdmission(result.value.admission ?? null);
           if (itemKey === void 0) rememberQuery(keyword);
           if (result.value.hits.length === 0) setError(result.value.note ?? t.noHits);
         } else {
@@ -19892,6 +19944,9 @@ function createPanel(t) {
       const accepted = await writeClipboard(text3);
       setToast(accepted ? `${t.copied} \xB7 ${keys.length}` : t.copyFailed);
     }, [checked, hits, t.copied, t.copyFailed]);
+    const toggleAll = (0, import_react.useCallback)((value) => {
+      setChecked(value ? new Set(hits.map((hit) => hit.chunkId)) : /* @__PURE__ */ new Set());
+    }, [hits]);
     const quoteSelected = (0, import_react.useCallback)(async () => {
       const keys = [...new Set(hits.filter((hit) => checked.has(hit.chunkId)).map((hit) => hit.itemKey))];
       if (keys.length === 0) return;
@@ -20018,18 +20073,19 @@ function createPanel(t) {
           },
           query,
           setQuery,
-          runSearch
+          runSearch,
+          ...props.inputActions?.insertQuote === void 0 ? {} : { insertQuote: props.inputActions.insertQuote },
+          onToast: setToast
         }) : null,
         view === "hits" ? (0, import_react.createElement)(HitsView, {
           t,
           hits,
           checked,
           toggle,
+          toggleAll,
           query,
           setQuery,
           busy,
-          expansionHint,
-          admission,
           hasSearched,
           history,
           clearHistory,
@@ -20172,6 +20228,8 @@ function LibraryView(props) {
 }
 function ReaderView(props) {
   const { t, doc, selected } = props;
+  const [selection, setSelection] = (0, import_react.useState)(null);
+  const [quoting, setQuoting] = (0, import_react.useState)(false);
   const renderMarkdownToHtml = (0, import_react.useMemo)(
     () => createMarkdownRenderer({ imageUrl: props.imageUrl }),
     [props.imageUrl]
@@ -20182,6 +20240,44 @@ function ReaderView(props) {
   );
   if (selected === null) return (0, import_react.createElement)("div", { style: S3.empty }, t.readerEmpty);
   const title = doc?.item.title ?? selected.title;
+  const onSelect = () => {
+    const active = window.getSelection();
+    const text3 = active?.toString().replace(/\s+/g, " ").trim() ?? "";
+    if (active === null || text3.length < 4 || active.rangeCount === 0) {
+      setSelection(null);
+      return;
+    }
+    const rect = active.getRangeAt(0).getBoundingClientRect();
+    setSelection({ text: text3, top: rect.bottom + 6, left: Math.max(8, rect.left) });
+  };
+  const quoteSelection = async () => {
+    if (selection === null) return;
+    setQuoting(true);
+    try {
+      const located = await apiGet("/api/locate", {
+        item_key: selected.key,
+        q: selection.text
+      });
+      const loc = located.ok ? located.value : void 0;
+      const pageText = loc?.page === null || loc?.page === void 0 ? "" : `\uFF0C\u7B2C ${loc.page + 1} \u9875`;
+      const sectionText = loc !== void 0 && loc.sectionPath.length > 0 ? ` \xB7 ${loc.sectionPath}` : "";
+      const chunkText = loc === void 0 ? "" : `\uFF08${loc.chunkId}\uFF09`;
+      const quoteText = `> ${selection.text}
+
+\u2014\u2014 \u300A${title}\u300B${sectionText}${pageText}${chunkText}`;
+      if (props.insertQuote !== void 0) {
+        props.insertQuote(quoteText, "\u6587\u732E\u5F15\u6587");
+        props.onToast(t.quoteInserted);
+      } else {
+        const accepted = await writeClipboard(quoteText);
+        props.onToast(accepted ? t.copied : t.copyFailed);
+      }
+      setSelection(null);
+      window.getSelection()?.removeAllRanges();
+    } finally {
+      setQuoting(false);
+    }
+  };
   return (0, import_react.createElement)(
     import_react.Fragment,
     null,
@@ -20195,7 +20291,8 @@ function ReaderView(props) {
       "div",
       { style: S3.readerMeta },
       [selected.year === null ? "" : String(selected.year), doc?.parsed === null || doc?.parsed === void 0 ? t.notParsed : `${doc.chunks.length} ${t.chunks}`].filter((part) => part.length > 0).join(" \xB7 "),
-      doc?.parsed != null ? ` \xB7 ${t.parsedAt} ${new Date(doc.parsed.parsedAt).toLocaleString()}` : ""
+      doc?.parsed != null ? ` \xB7 ${t.parsedAt} ${new Date(doc.parsed.parsedAt).toLocaleString()}` : "",
+      ` \xB7 ${t.selectQuoteHint}`
     ),
     (0, import_react.createElement)(
       "div",
@@ -20213,15 +20310,22 @@ function ReaderView(props) {
     ),
     doc === null ? (0, import_react.createElement)("div", { style: S3.empty }, t.loading) : doc.parsed === null ? (0, import_react.createElement)("div", { style: S3.empty }, t.notParsed) : (0, import_react.createElement)(
       "div",
-      { style: S3.markdown },
+      { style: S3.markdown, onMouseUp: onSelect },
       (0, import_react.createElement)("style", { dangerouslySetInnerHTML: { __html: `${KATEX_CSS}
 ${MARKDOWN_CSS}` } }),
       (0, import_react.createElement)("div", { className: "zse-md", dangerouslySetInnerHTML: { __html: renderedHtml } })
-    )
+    ),
+    selection !== null ? (0, import_react.createElement)("button", {
+      style: { ...S3.floatingQuote, top: selection.top, left: selection.left },
+      onClick: quoteSelection,
+      disabled: quoting,
+      title: t.quoteText
+    }, quoting ? t.loading : t.quoteText) : null
   );
 }
 function HitsView(props) {
   const { t, hits, checked, toggle } = props;
+  const allChecked = hits.length > 0 && checked.size >= hits.length;
   return (0, import_react.createElement)(
     import_react.Fragment,
     null,
@@ -20239,13 +20343,16 @@ function HitsView(props) {
       }),
       (0, import_react.createElement)("button", { style: S3.button, onClick: props.runSearch }, props.busy === "search" ? t.loading : t.runSearch)
     ),
-    props.expansionHint.length > 0 ? (0, import_react.createElement)("div", { style: S3.expansionHint }, props.expansionHint) : null,
-    (0, import_react.createElement)("div", { style: S3.searchLegend }, t.searchLegend),
-    props.admission !== null && props.admission.candidates > 0 ? (0, import_react.createElement)(
+    (0, import_react.createElement)(
       "div",
-      { style: S3.admissionLine },
-      `\u6269\u5C55\u8DEF\u51C6\u5165\uFF1A\u8986\u76D6\u7387\u2265${props.admission.minCoverage}\u3001\u4F59\u91CF ${Math.round((1 - props.admission.margin) * 100)}%\uFF0C\u653E\u884C ${props.admission.admitted}/${props.admission.candidates}`
-    ) : null,
+      { style: S3.legendRow },
+      (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: KIND_COLOR.literal } }),
+      (0, import_react.createElement)("span", { style: S3.legendItem }, t.kindLiteral),
+      (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: KIND_COLOR.expanded } }),
+      (0, import_react.createElement)("span", { style: S3.legendItem }, t.kindExpanded),
+      (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: KIND_COLOR.mixed } }),
+      (0, import_react.createElement)("span", { style: S3.legendItem }, t.kindMixed)
+    ),
     props.history.length > 0 ? (0, import_react.createElement)(
       "div",
       { style: S3.historyRow },
@@ -20263,6 +20370,12 @@ function HitsView(props) {
       null,
       (0, import_react.createElement)(
         "div",
+        { style: S3.selectRow },
+        (0, import_react.createElement)("span", { style: S3.selectHint }, t.checkboxHint),
+        (0, import_react.createElement)("button", { style: S3.linkButton, onClick: () => props.toggleAll(!allChecked) }, allChecked ? t.clearAll : t.selectAll)
+      ),
+      (0, import_react.createElement)(
+        "div",
         { style: S3.list },
         hits.map((hit) => (0, import_react.createElement)(HitCard, {
           key: hit.chunkId,
@@ -20277,7 +20390,7 @@ function HitsView(props) {
         "div",
         { style: S3.actionBar },
         (0, import_react.createElement)("span", { style: S3.actionLabel }, `${t.selected} ${checked.size}`),
-        (0, import_react.createElement)("button", { style: S3.primarySmallButton, onClick: props.quoteSelected }, "\u5F15\u7528\u5230\u5BF9\u8BDD"),
+        (0, import_react.createElement)("button", { style: S3.primarySmallButton, onClick: props.quoteSelected }, t.quoteToChat),
         (0, import_react.createElement)("button", { style: S3.smallButton, onClick: () => props.copyCitations("author-year") }, t.copyCitation),
         (0, import_react.createElement)("button", { style: S3.smallButton, onClick: () => props.copyCitations("reference") }, t.copyReference),
         (0, import_react.createElement)("button", { style: S3.smallButton, onClick: () => props.copyCitations("bibtex") }, t.copyBibtex)
@@ -20288,52 +20401,76 @@ function HitsView(props) {
 function HitCard(props) {
   const { t, hit, checked } = props;
   const [expanded, setExpanded] = (0, import_react.useState)(false);
-  const kind = hit.matchKind ?? (hit.route === "expanded" ? "expanded" : hit.route === "both" ? "mixed" : "literal");
+  const kind = kindOf(hit);
+  const color = KIND_COLOR[kind];
+  const isMeta = hit.source === "meta";
+  const indexed = isMeta ? hit.indexed === true : true;
+  const terms = hit.matched ?? [];
+  const preview = snippetOf(hit.text, terms, expanded ? 260 : 90);
   const kindLabel = kind === "expanded" ? t.kindExpanded : kind === "mixed" ? t.kindMixed : t.kindLiteral;
-  const badgeStyle = kind === "expanded" ? { ...S3.hitBadge, ...S3.hitBadgeExpanded } : kind === "mixed" ? { ...S3.hitBadge, ...S3.hitBadgeMixed } : S3.hitBadge;
   return (0, import_react.createElement)(
     "div",
-    { style: { ...S3.hitCard, ...checked ? S3.hitCardChecked : {} } },
+    { style: { ...S3.hitCard, borderLeft: `3px solid ${color}`, ...checked ? S3.hitCardChecked : {} } },
     (0, import_react.createElement)(
       "div",
       { style: S3.hitHead },
-      (0, import_react.createElement)("input", { type: "checkbox", checked, onChange: props.toggle, style: S3.checkbox }),
+      (0, import_react.createElement)("input", {
+        type: "checkbox",
+        checked,
+        onChange: props.toggle,
+        title: t.checkboxHint,
+        style: { ...S3.checkbox, accentColor: color }
+      }),
       (0, import_react.createElement)(
         "div",
         { style: { flex: 1, minWidth: 0 } },
-        (0, import_react.createElement)("div", { style: S3.hitTitle, onClick: props.openItem }, hit.title),
+        (0, import_react.createElement)(
+          "div",
+          { style: S3.hitTitleRow },
+          (0, import_react.createElement)("span", { style: { ...S3.badge, color, borderColor: color } }, kindLabel),
+          (0, import_react.createElement)("span", {
+            style: { ...S3.badge, color: indexed ? INDEXED_COLOR : UNINDEXED_COLOR, borderColor: indexed ? INDEXED_COLOR : UNINDEXED_COLOR }
+          }, indexed ? t.indexOk : t.unindexed),
+          (0, import_react.createElement)("span", { style: S3.hitTitle, title: hit.title, onClick: props.openItem }, hit.title)
+        ),
         (0, import_react.createElement)(
           "div",
           { style: S3.hitMeta },
-          (0, import_react.createElement)("span", { style: badgeStyle, title: kind === "expanded" ? t.kindExpandedHint : void 0 }, kindLabel),
-          (0, import_react.createElement)(
-            "span",
-            { style: { marginLeft: 6 } },
-            [
-              hit.source === "meta" ? hit.indexed ? "\u5143\u6570\u636E" : "\u5143\u6570\u636E\xB7\u672A\u5165\u5E93" : hit.sectionPath,
-              hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`,
-              hit.source === "meta" ? "" : hit.kind,
-              `score ${hit.score}`
-            ].filter((part) => part.length > 0).join(" \xB7 ")
-          ),
+          [
+            isMeta ? t.metaSource : t.kindBody,
+            hit.sectionPath,
+            hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`,
+            hit.scoreNorm === void 0 ? "" : `\u76F8\u5173\u5EA6 ${Math.round(hit.scoreNorm * 100)}%`
+          ].filter((part) => part.length > 0).join(" \xB7 "),
           (0, import_react.createElement)("span", { style: S3.chunkId }, ` ${hit.chunkId}`)
         )
       )
     ),
-    (0, import_react.createElement)("div", {
-      style: S3.scoreTrack,
-      title: `\u8BCD\u9762 ${hit.lexicalScore ?? 0} \xB7 \u6269\u5C55 ${hit.expandedScore ?? 0} \xB7 \u878D\u5408 ${hit.scoreNorm ?? 0}`
-    }, (0, import_react.createElement)("div", {
-      style: {
-        ...S3.scoreFill,
-        width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`,
-        background: kind === "expanded" ? "var(--dsw-alias-brand-primary)" : "var(--dsw-alias-label-secondary)"
-      }
-    })),
-    (0, import_react.createElement)("div", {
-      style: expanded ? S3.hitTextExpanded : S3.hitText,
-      onClick: () => setExpanded((value) => !value)
-    }, hit.text)
+    (0, import_react.createElement)(
+      "div",
+      { style: S3.scoreTrack, title: `\u8BCD\u9762 ${hit.lexicalScore ?? 0} \xB7 \u6269\u5C55 ${hit.expandedScore ?? 0}` },
+      (0, import_react.createElement)("div", { style: { ...S3.scoreFill, width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`, background: color } })
+    ),
+    (0, import_react.createElement)(
+      "div",
+      {
+        style: expanded ? S3.hitTextExpanded : S3.hitText,
+        onClick: () => setExpanded((value) => !value)
+      },
+      highlightTerms(preview, terms),
+      expanded ? (0, import_react.createElement)(
+        "div",
+        { style: S3.hitActions },
+        (0, import_react.createElement)("button", {
+          style: S3.linkButton,
+          onClick: (event) => {
+            event.stopPropagation();
+            props.openItem();
+          }
+        }, t.openSource),
+        (0, import_react.createElement)("span", { style: S3.hint }, t.expandHint)
+      ) : null
+    )
   );
 }
 var LATEX_SYMBOLS = {
@@ -20807,6 +20944,39 @@ var S3 = {
   },
   hitTitle: { fontSize: 12, fontWeight: 500, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   hitMeta: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", display: "flex", alignItems: "center", flexWrap: "wrap" },
+  badge: {
+    fontSize: 9.5,
+    lineHeight: "15px",
+    padding: "0 5px",
+    borderRadius: 999,
+    border: "1px solid var(--dsw-alias-border-l1)",
+    flexShrink: 0
+  },
+  hitTitleRow: { display: "flex", alignItems: "center", gap: 5, minWidth: 0 },
+  termMark: {
+    background: "color-mix(in srgb, #FFD54A 30%, transparent)",
+    color: "inherit",
+    borderRadius: 2,
+    padding: "0 1px"
+  },
+  legendRow: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginBottom: 8 },
+  legendDot: { width: 7, height: 7, borderRadius: "50%", display: "inline-block" },
+  legendItem: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", marginRight: 6 },
+  selectRow: { display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 0 6px" },
+  selectHint: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", opacity: 0.85 },
+  hitActions: { display: "flex", alignItems: "center", gap: 8, marginTop: 6 },
+  floatingQuote: {
+    position: "fixed",
+    zIndex: 40,
+    padding: "4px 12px",
+    borderRadius: 999,
+    border: "1px solid var(--dsw-alias-brand-primary)",
+    background: "var(--dsw-alias-brand-primary)",
+    color: "var(--dsw-alias-bg-base)",
+    fontSize: 11.5,
+    cursor: "pointer",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.28)"
+  },
   hitBadge: {
     fontSize: 9.5,
     padding: "0 5px",

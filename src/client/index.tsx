@@ -64,6 +64,8 @@ interface HitView {
   kind: string
   text: string
   score: number
+  /** 命中的查询词（含扩展词），用于结果高亮。 */
+  matched?: string[]
   /** lexical / expanded / both：这条是怎么被找到的。 */
   route?: 'lexical' | 'expanded' | 'both'
   /** 命中类型：字面 / 扩展 / 混合（扩展命中不得表述为原文措辞）。 */
@@ -125,6 +127,17 @@ const DICT = {
     kindExpanded: '扩展',
     kindMixed: '字面+扩展',
     kindExpandedHint: '扩展命中：只有词表扩展出的等价词在文中出现，引用措辞前请打开原文核对',
+    kindBody: '正文',
+    metaSource: '元数据',
+    checkboxHint: '勾选片段后可复制引用或引用到对话',
+    selectAll: '全选',
+    clearAll: '清空',
+    quoteToChat: '引用到对话',
+    openSource: '打开原文',
+    expandHint: '已截取命中处上下文；全文请点「打开原文」',
+    quoteText: '引用文本',
+    quoteInserted: '已放入输入框',
+    selectQuoteHint: '划选正文即可引用',
     searchLegend: '匹配类型：字面=查询词出现在原文；扩展=词表扩展词命中（不等同原文措辞）；字面+扩展=两路都命中',
     noHits: '没有命中。可以先切换到「文献」，把相关文献入库再试。',
     hitsFor: '命中片段',
@@ -183,6 +196,17 @@ const DICT = {
     kindExpanded: 'expanded',
     kindMixed: 'mixed',
     kindExpandedHint: 'Expanded hit: only a glossary synonym matched — verify the wording in the source before quoting',
+    kindBody: 'full text',
+    metaSource: 'metadata',
+    checkboxHint: 'Select passages to copy citations or quote them into the chat',
+    selectAll: 'Select all',
+    clearAll: 'Clear',
+    quoteToChat: 'Quote to chat',
+    openSource: 'Open source',
+    expandHint: 'Context around the match; use Open source for the full text',
+    quoteText: 'Quote text',
+    quoteInserted: 'Added to input',
+    selectQuoteHint: 'Select text to quote',
     searchLegend: 'Match type: literal = query words appear in the text; expanded = glossary synonym match (not the source wording); mixed = both routes hit',
     noHits: 'No hits. Switch to Library and index the relevant papers first.',
     hitsFor: 'Passages',
@@ -222,6 +246,55 @@ type Dict = typeof DICT.zh
 const TAB_ID = 'zotero-seek/panel'
 const TAB_KIND = 'zotero-seek'
 
+// ------------------------------------------------------------------ 视觉与截取
+
+/** 命中类型强调色：暗色主题下也够亮，不依赖宿主 accent token。 */
+const KIND_COLOR = { literal: '#6AA6FF', expanded: '#F2A03D', mixed: '#B58CFF' } as const
+const INDEXED_COLOR = '#3ECF8E'
+const UNINDEXED_COLOR = '#F2B84B'
+
+/** 命中类型（兼容旧数据：没有 matchKind 时从 route 推）。 */
+function kindOf(hit: HitView): 'literal' | 'expanded' | 'mixed' {
+  if (hit.matchKind !== undefined) return hit.matchKind
+  if (hit.route === 'both') return 'mixed'
+  if (hit.route === 'expanded') return 'expanded'
+  return 'literal'
+}
+
+/** 空白压平，避免片段换行把卡片撑高。 */
+function flattenText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim()
+}
+
+/** 在命中词附近截一段：折叠态短、展开态长，永远不直接塞整页正文。 */
+function snippetOf(text: string, terms: readonly string[], radius: number): string {
+  const flat = flattenText(text)
+  if (flat.length <= radius * 2.2) return flat
+  let at = -1
+  for (const term of terms) {
+    const needle = term.trim().toLowerCase()
+    if (needle.length < 2) continue
+    const index = flat.toLowerCase().indexOf(needle)
+    if (index >= 0 && (at < 0 || index < at)) at = index
+  }
+  if (at < 0) return `${flat.slice(0, Math.round(radius * 2.2))}…`
+  const start = Math.max(0, at - radius)
+  const end = Math.min(flat.length, at + Math.round(radius * 1.6))
+  return `${start > 0 ? '…' : ''}${flat.slice(start, end)}${end < flat.length ? '…' : ''}`
+}
+
+/** 命中词高亮（查询词 + 扩展词，大小写不敏感）。 */
+function highlightTerms(text: string, terms: readonly string[]): ReactNode[] {
+  const needles = [...new Set(terms.map((term) => term.trim()).filter((term) => term.length >= 2))]
+    .sort((left, right) => right.length - left.length)
+  if (needles.length === 0) return [text]
+  const escaped = needles.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const pattern = new RegExp(`(${escaped.join('|')})`, 'gi')
+  return text.split(pattern).map((part, index) => (index % 2 === 1
+    ? h('mark', { key: `m-${index}`, style: S.termMark }, part)
+    : part))
+}
+
 interface PanelProps {
   sessionId?: string
   inputActions?: { insertQuote?: (text: string, summary?: string) => void }
@@ -238,8 +311,6 @@ function createPanel(t: Dict) {
     const [hits, setHits] = useState<HitView[]>([])
     const [hasSearched, setHasSearched] = useState(false)
     const [history, setHistory] = useState<string[]>(() => loadSearchHistory())
-    const [expansionHint, setExpansionHint] = useState('')
-    const [admission, setAdmission] = useState<{ minCoverage: number; margin: number; candidates: number; admitted: number } | null>(null)
     const [checked, setChecked] = useState<Set<string>>(new Set())
     const [busy, setBusy] = useState<string>('')
     const [toast, setToast] = useState<string>('')
@@ -318,8 +389,6 @@ function createPanel(t: Dict) {
         })
         if (result.ok && result.value !== undefined) {
           setHits(result.value.hits)
-          setExpansionHint(result.value.expansion?.description ?? '')
-          setAdmission(result.value.admission ?? null)
           if (itemKey === undefined) rememberQuery(keyword)
           if (result.value.hits.length === 0) setError(result.value.note ?? t.noHits)
         } else {
@@ -352,6 +421,10 @@ function createPanel(t: Dict) {
       const accepted = await writeClipboard(text)
       setToast(accepted ? `${t.copied} · ${keys.length}` : t.copyFailed)
     }, [checked, hits, t.copied, t.copyFailed])
+
+    const toggleAll = useCallback((value: boolean) => {
+      setChecked(value ? new Set(hits.map((hit) => hit.chunkId)) : new Set<string>())
+    }, [hits])
 
     const quoteSelected = useCallback(async () => {
       const keys = [...new Set(hits.filter((hit) => checked.has(hit.chunkId)).map((hit) => hit.itemKey))]
@@ -453,11 +526,11 @@ function createPanel(t: Dict) {
             void runSearch(query, selected?.key)
           },
           query, setQuery, runSearch,
+          ...(props.inputActions?.insertQuote === undefined ? {} : { insertQuote: props.inputActions.insertQuote }),
+          onToast: setToast,
         }) : null,
         view === 'hits' ? h(HitsView, {
-          t, hits, checked, toggle, query, setQuery, busy,
-          expansionHint,
-          admission,
+          t, hits, checked, toggle, toggleAll, query, setQuery, busy,
           hasSearched, history, clearHistory,
           runSearch: () => { if (query.trim().length > 0) void runSearch(query) },
           pickHistory: (value: string) => { setQuery(value); void runSearch(value) },
@@ -610,8 +683,12 @@ function ReaderView(props: {
   query: string
   setQuery: (value: string) => void
   runSearch: (keyword: string, itemKey?: string) => void
+  insertQuote?: (text: string, summary?: string) => void
+  onToast: (message: string) => void
 }): ReactNode {
   const { t, doc, selected } = props
+  const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null)
+  const [quoting, setQuoting] = useState(false)
   const renderMarkdownToHtml = useMemo(
     () => createMarkdownRenderer({ imageUrl: props.imageUrl }),
     [props.imageUrl],
@@ -622,6 +699,45 @@ function ReaderView(props: {
   )
   if (selected === null) return h('div', { style: S.empty }, t.readerEmpty)
   const title = doc?.item.title ?? selected.title
+
+  const onSelect = (): void => {
+    const active = window.getSelection()
+    const text = active?.toString().replace(/\s+/g, ' ').trim() ?? ''
+    if (active === null || text.length < 4 || active.rangeCount === 0) {
+      setSelection(null)
+      return
+    }
+    const rect = active.getRangeAt(0).getBoundingClientRect()
+    setSelection({ text, top: rect.bottom + 6, left: Math.max(8, rect.left) })
+  }
+
+  const quoteSelection = async (): Promise<void> => {
+    if (selection === null) return
+    setQuoting(true)
+    try {
+      const located = await apiGet<{ chunkId: string; page: number | null; sectionPath: string; exact: boolean }>('/api/locate', {
+        item_key: selected.key,
+        q: selection.text,
+      })
+      const loc = located.ok ? located.value : undefined
+      const pageText = loc?.page === null || loc?.page === undefined ? '' : `，第 ${loc.page + 1} 页`
+      const sectionText = loc !== undefined && loc.sectionPath.length > 0 ? ` · ${loc.sectionPath}` : ''
+      const chunkText = loc === undefined ? '' : `（${loc.chunkId}）`
+      const quoteText = `> ${selection.text}\n\n—— 《${title}》${sectionText}${pageText}${chunkText}`
+      if (props.insertQuote !== undefined) {
+        props.insertQuote(quoteText, '文献引文')
+        props.onToast(t.quoteInserted)
+      } else {
+        const accepted = await writeClipboard(quoteText)
+        props.onToast(accepted ? t.copied : t.copyFailed)
+      }
+      setSelection(null)
+      window.getSelection()?.removeAllRanges()
+    } finally {
+      setQuoting(false)
+    }
+  }
+
   return h(Fragment, null,
     h('div', { style: S.readerHeader },
       h('button', { style: S.linkButton, onClick: props.onBack }, `← ${t.back}`),
@@ -631,6 +747,7 @@ function ReaderView(props: {
       [selected.year === null ? '' : String(selected.year), doc?.parsed === null || doc?.parsed === undefined ? t.notParsed : `${doc.chunks.length} ${t.chunks}`]
         .filter((part) => part.length > 0).join(' · '),
       doc?.parsed != null ? ` · ${t.parsedAt} ${new Date(doc.parsed.parsedAt).toLocaleString()}` : '',
+      ` · ${t.selectQuoteHint}`,
     ),
     h('div', { style: S.searchRow },
       h('input', {
@@ -646,10 +763,18 @@ function ReaderView(props: {
       ? h('div', { style: S.empty }, t.loading)
       : doc.parsed === null
         ? h('div', { style: S.empty }, t.notParsed)
-        : h('div', { style: S.markdown },
+        : h('div', { style: S.markdown, onMouseUp: onSelect },
           h('style', { dangerouslySetInnerHTML: { __html: `${KATEX_CSS}\n${MARKDOWN_CSS}` } }),
           h('div', { className: 'zse-md', dangerouslySetInnerHTML: { __html: renderedHtml } }),
         ),
+    selection !== null
+      ? h('button', {
+        style: { ...S.floatingQuote, top: selection.top, left: selection.left },
+        onClick: quoteSelection,
+        disabled: quoting,
+        title: t.quoteText,
+      }, quoting ? t.loading : t.quoteText)
+      : null,
   )
 }
 
@@ -658,13 +783,12 @@ function HitsView(props: {
   hits: HitView[]
   checked: Set<string>
   toggle: (chunkId: string) => void
+  toggleAll: (checked: boolean) => void
   query: string
   setQuery: (value: string) => void
   busy: string
   runSearch: () => void
-  expansionHint: string
   hasSearched: boolean
-  admission: { minCoverage: number; margin: number; candidates: number; admitted: number } | null
   history: string[]
   clearHistory: () => void
   pickHistory: (value: string) => void
@@ -673,6 +797,7 @@ function HitsView(props: {
   openItem: (itemKey: string) => void
 }): ReactNode {
   const { t, hits, checked, toggle } = props
+  const allChecked = hits.length > 0 && checked.size >= hits.length
   return h(Fragment, null,
     h('div', { style: S.searchRow },
       h('input', {
@@ -684,14 +809,14 @@ function HitsView(props: {
       }),
       h('button', { style: S.button, onClick: props.runSearch }, props.busy === 'search' ? t.loading : t.runSearch),
     ),
-    props.expansionHint.length > 0
-      ? h('div', { style: S.expansionHint }, props.expansionHint)
-      : null,
-    h('div', { style: S.searchLegend }, t.searchLegend),
-    props.admission !== null && props.admission.candidates > 0
-      ? h('div', { style: S.admissionLine },
-        `扩展路准入：覆盖率≥${props.admission.minCoverage}、余量 ${Math.round((1 - props.admission.margin) * 100)}%，放行 ${props.admission.admitted}/${props.admission.candidates}`)
-      : null,
+    h('div', { style: S.legendRow },
+      h('span', { style: { ...S.legendDot, background: KIND_COLOR.literal } }),
+      h('span', { style: S.legendItem }, t.kindLiteral),
+      h('span', { style: { ...S.legendDot, background: KIND_COLOR.expanded } }),
+      h('span', { style: S.legendItem }, t.kindExpanded),
+      h('span', { style: { ...S.legendDot, background: KIND_COLOR.mixed } }),
+      h('span', { style: S.legendItem }, t.kindMixed),
+    ),
     props.history.length > 0 ? h('div', { style: S.historyRow },
       h('span', { style: S.historyLabel }, t.history),
       ...props.history.map((entry) => h('button', {
@@ -704,6 +829,10 @@ function HitsView(props: {
     ) : null,
     hits.length > 0
       ? h(Fragment, null,
+        h('div', { style: S.selectRow },
+          h('span', { style: S.selectHint }, t.checkboxHint),
+          h('button', { style: S.linkButton, onClick: () => props.toggleAll(!allChecked) }, allChecked ? t.clearAll : t.selectAll),
+        ),
         h('div', { style: S.list },
           hits.map((hit) => h(HitCard, {
             key: hit.chunkId,
@@ -716,7 +845,7 @@ function HitsView(props: {
         ),
         checked.size > 0 ? h('div', { style: S.actionBar },
           h('span', { style: S.actionLabel }, `${t.selected} ${checked.size}`),
-          h('button', { style: S.primarySmallButton, onClick: props.quoteSelected }, '引用到对话'),
+          h('button', { style: S.primarySmallButton, onClick: props.quoteSelected }, t.quoteToChat),
           h('button', { style: S.smallButton, onClick: () => props.copyCitations('author-year') }, t.copyCitation),
           h('button', { style: S.smallButton, onClick: () => props.copyCitations('reference') }, t.copyReference),
           h('button', { style: S.smallButton, onClick: () => props.copyCitations('bibtex') }, t.copyBibtex),
@@ -735,46 +864,58 @@ function HitCard(props: {
 }): ReactNode {
   const { t, hit, checked } = props
   const [expanded, setExpanded] = useState(false)
-  const kind = hit.matchKind ?? (hit.route === 'expanded' ? 'expanded' : hit.route === 'both' ? 'mixed' : 'literal')
+  const kind = kindOf(hit)
+  const color = KIND_COLOR[kind]
+  const isMeta = hit.source === 'meta'
+  const indexed = isMeta ? hit.indexed === true : true
+  const terms = hit.matched ?? []
+  const preview = snippetOf(hit.text, terms, expanded ? 260 : 90)
   const kindLabel = kind === 'expanded' ? t.kindExpanded : kind === 'mixed' ? t.kindMixed : t.kindLiteral
-  const badgeStyle = kind === 'expanded'
-    ? { ...S.hitBadge, ...S.hitBadgeExpanded }
-    : kind === 'mixed'
-      ? { ...S.hitBadge, ...S.hitBadgeMixed }
-      : S.hitBadge
-  return h('div', { style: { ...S.hitCard, ...(checked ? S.hitCardChecked : {}) } },
+  return h('div', { style: { ...S.hitCard, borderLeft: `3px solid ${color}`, ...(checked ? S.hitCardChecked : {}) } },
     h('div', { style: S.hitHead },
-      h('input', { type: 'checkbox', checked, onChange: props.toggle, style: S.checkbox }),
+      h('input', {
+        type: 'checkbox',
+        checked,
+        onChange: props.toggle,
+        title: t.checkboxHint,
+        style: { ...S.checkbox, accentColor: color },
+      }),
       h('div', { style: { flex: 1, minWidth: 0 } },
-        h('div', { style: S.hitTitle, onClick: props.openItem }, hit.title),
+        h('div', { style: S.hitTitleRow },
+          h('span', { style: { ...S.badge, color, borderColor: color } }, kindLabel),
+          h('span', {
+            style: { ...S.badge, color: indexed ? INDEXED_COLOR : UNINDEXED_COLOR, borderColor: indexed ? INDEXED_COLOR : UNINDEXED_COLOR },
+          }, indexed ? t.indexOk : t.unindexed),
+          h('span', { style: S.hitTitle, title: hit.title, onClick: props.openItem }, hit.title),
+        ),
         h('div', { style: S.hitMeta },
-          h('span', { style: badgeStyle, title: kind === 'expanded' ? t.kindExpandedHint : undefined }, kindLabel),
-          h('span', { style: { marginLeft: 6 } },
-            [hit.source === 'meta'
-              ? (hit.indexed ? '元数据' : '元数据·未入库')
-              : hit.sectionPath,
-              hit.page === null ? '' : `第 ${hit.page + 1} 页`,
-              hit.source === 'meta' ? '' : hit.kind,
-              `score ${hit.score}`]
-              .filter((part) => part.length > 0).join(' · ')),
+          [isMeta ? t.metaSource : t.kindBody,
+            hit.sectionPath,
+            hit.page === null ? '' : `第 ${hit.page + 1} 页`,
+            hit.scoreNorm === undefined ? '' : `相关度 ${Math.round(hit.scoreNorm * 100)}%`]
+            .filter((part) => part.length > 0).join(' · '),
           h('span', { style: S.chunkId }, ` ${hit.chunkId}`),
         ),
       ),
     ),
-    h('div', {
-      style: S.scoreTrack,
-      title: `词面 ${hit.lexicalScore ?? 0} · 扩展 ${hit.expandedScore ?? 0} · 融合 ${hit.scoreNorm ?? 0}`,
-    }, h('div', {
-      style: {
-        ...S.scoreFill,
-        width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`,
-        background: kind === 'expanded' ? 'var(--dsw-alias-brand-primary)' : 'var(--dsw-alias-label-secondary)',
-      },
-    })),
+    h('div', { style: S.scoreTrack, title: `词面 ${hit.lexicalScore ?? 0} · 扩展 ${hit.expandedScore ?? 0}` },
+      h('div', { style: { ...S.scoreFill, width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`, background: color } }),
+    ),
     h('div', {
       style: expanded ? S.hitTextExpanded : S.hitText,
       onClick: () => setExpanded((value) => !value),
-    }, hit.text),
+    },
+      highlightTerms(preview, terms),
+      expanded
+        ? h('div', { style: S.hitActions },
+          h('button', {
+            style: S.linkButton,
+            onClick: (event: { stopPropagation: () => void }) => { event.stopPropagation(); props.openItem() },
+          }, t.openSource),
+          h('span', { style: S.hint }, t.expandHint),
+        )
+        : null,
+    ),
   )
 }
 
@@ -1428,6 +1569,39 @@ const S: Record<string, CSSProperties> = {
   },
   hitTitle: { fontSize: 12, fontWeight: 500, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   hitMeta: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', display: 'flex', alignItems: 'center', flexWrap: 'wrap' },
+  badge: {
+    fontSize: 9.5,
+    lineHeight: '15px',
+    padding: '0 5px',
+    borderRadius: 999,
+    border: '1px solid var(--dsw-alias-border-l1)',
+    flexShrink: 0,
+  },
+  hitTitleRow: { display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 },
+  termMark: {
+    background: 'color-mix(in srgb, #FFD54A 30%, transparent)',
+    color: 'inherit',
+    borderRadius: 2,
+    padding: '0 1px',
+  },
+  legendRow: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginBottom: 8 },
+  legendDot: { width: 7, height: 7, borderRadius: '50%', display: 'inline-block' },
+  legendItem: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', marginRight: 6 },
+  selectRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '2px 0 6px' },
+  selectHint: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', opacity: 0.85 },
+  hitActions: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 },
+  floatingQuote: {
+    position: 'fixed',
+    zIndex: 40,
+    padding: '4px 12px',
+    borderRadius: 999,
+    border: '1px solid var(--dsw-alias-brand-primary)',
+    background: 'var(--dsw-alias-brand-primary)',
+    color: 'var(--dsw-alias-bg-base)',
+    fontSize: 11.5,
+    cursor: 'pointer',
+    boxShadow: '0 4px 14px rgba(0,0,0,0.28)',
+  },
   hitBadge: {
     fontSize: 9.5,
     padding: '0 5px',

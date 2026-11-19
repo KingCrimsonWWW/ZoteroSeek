@@ -75,6 +75,14 @@ async function handle(req: IncomingMessage, res: ServerResponse, runtime: Runtim
           if (found === null) return fail(res, 404, 'chunk-not-found', `找不到片段 ${chunkId}`)
           return ok(res, found)
         }
+        case '/api/locate': {
+          const itemKey = url.searchParams.get('item_key') ?? ''
+          const excerpt = url.searchParams.get('q') ?? ''
+          if (itemKey.length === 0 || excerpt.trim().length < 4) {
+            return fail(res, 400, 'invalid-args', 'item_key 与 q（≥4 字）必填')
+          }
+          return ok(res, await runtime.locate(itemKey, excerpt.slice(0, 400)))
+        }
         case '/api/cite': {
           const keys = (url.searchParams.get('item_keys') ?? '').split(',').map((key) => key.trim()).filter((key) => key.length > 0)
           const formatRaw = url.searchParams.get('format') ?? 'author-year'
