@@ -14,6 +14,23 @@
 /** 中文/日文汉字与全角字符区段。 */
 const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/
 
+
+/**
+ * 英文轻量词干：只处理复数与常见后缀，规则保守。
+ *
+ * 目的：`voids` 与 `void`、`defects` 与 `defect` 应算同一个词；中文没有这个问题，
+ * 但英文查询与英文论文标题/正文之间大量存在单复数差异。保守到不改 analysis / stress。
+ */
+export function stemWord(word: string): string {
+  if (word.length <= 4) return word
+  if (/(ss|us|is|as)$/.test(word)) return word
+  if (/ies$/.test(word)) return `${word.slice(0, -3)}y`
+  if (/(ches|shes|xes|ses)$/.test(word)) return word.slice(0, -2)
+  if (/s$/.test(word)) return word.slice(0, -1)
+  if (/ing$/.test(word) && word.length >= 7) return word.slice(0, -3)
+  if (/ed$/.test(word) && word.length >= 6) return word.slice(0, -2)
+  return word
+}
 /** 高频虚词：单字 token 时直接丢弃，避免「的数了在」这类噪声词主导打分。 */
 const CJK_STOP = new Set([
   '的', '了', '和', '与', '及', '在', '是', '为', '对', '中', '下', '上', '有', '无',

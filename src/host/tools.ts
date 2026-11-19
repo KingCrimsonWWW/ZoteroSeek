@@ -63,7 +63,7 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
         '在本地 Zotero 文献库已入库的正文里做检索（MinerU 解析出的 Markdown 分块，带章节路径与页码）。'
         + '回答文献内容问题前必须先调用本工具；引用时只能使用返回的 chunk_id。'
         + '每条命中标注 matchKind：literal=词面命中、expanded=词表扩展命中（不得当作原文措辞引用）、mixed=两路都命中。'
-        + 'query_variants 可提供同一问题的其它问法（最多 4 条），每路独立打分、同一片段取最高分。',
+        + 'query_variants 可提供同一问题的其它问法（最多 4 条），每路独立打分、同一片段取最高分；跨语言提问时同时给出目标语言问法能显著提高命中率。',
       parameters: {
         type: 'object',
         additionalProperties: false,

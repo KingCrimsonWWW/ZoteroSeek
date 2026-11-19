@@ -241,6 +241,95 @@ var EXPANDED_ADMISSION = {
   margin: 0.5
 };
 
+// src/core/query-anchors.ts
+var EN_STOP = /* @__PURE__ */ new Set([
+  "For",
+  "How",
+  "What",
+  "Why",
+  "The",
+  "In",
+  "On",
+  "If",
+  "Does",
+  "Do",
+  "Which",
+  "When",
+  "Where",
+  "Who",
+  "Are",
+  "Is",
+  "Was",
+  "Were",
+  "It",
+  "This",
+  "That",
+  "These",
+  "Those",
+  "And",
+  "Or",
+  "But",
+  "With",
+  "From",
+  "To",
+  "At",
+  "As",
+  "By",
+  "Using",
+  "According",
+  "Table",
+  "Figure",
+  "Fig",
+  "Tab",
+  "A",
+  "An",
+  "Of",
+  "In",
+  "By"
+]);
+function extractAnchors(query) {
+  const seen = /* @__PURE__ */ new Set();
+  const anchors = [];
+  const push = (text, kind) => {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) return;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    anchors.push({ text: trimmed, kind });
+  };
+  for (const match of query.matchAll(/\b[A-Za-z][A-Za-z0-9-]{1,}\b/g)) {
+    const word = match[0];
+    if (EN_STOP.has(word)) continue;
+    const isAcronym = /^[A-Z0-9-]{2,}$/.test(word) && word.length >= 3;
+    const hasDigit = /\d/.test(word);
+    const isCamel = /^[A-Z][a-z]+[A-Z]/.test(word);
+    if (isAcronym || hasDigit || isCamel) push(word, "acronym");
+  }
+  for (const match of query.matchAll(/\d+(?:\.\d+)?\s*(?:mm|cm|m|km|Hz|kHz|MHz|MPa|GPa|kg|g|ms|s|°C|%)/gi)) {
+    push(match[0], "number");
+  }
+  for (const match of query.matchAll(/(?:Table|Tab\.?|Fig\.?|Figure|表|图)\s*\d+(?:[-–—.]\d+)*/gi)) {
+    const ref = match[0].replace(/\s+/g, " ");
+    push(ref, "ref");
+    const num = ref.match(/\d+(?:[-–—.]\d+)*/)?.[0] ?? "";
+    const isTable = /Table|Tab|表/i.test(ref);
+    if (/表|图/.test(ref)) {
+      push(`${isTable ? "Table" : "Figure"} ${num}`, "ref");
+      push(`${isTable ? "Tab" : "Fig"} ${num}`, "ref");
+    } else {
+      push(`${isTable ? "\u8868" : "\u56FE"} ${num}`, "ref");
+    }
+  }
+  for (const match of query.matchAll(/[「“"]([^」”"]{2,30})[」”"]/g)) {
+    push(match[1] ?? "", "quote");
+  }
+  return anchors;
+}
+function hasStrongAnchor(anchors) {
+  return anchors.some((anchor) => anchor.kind === "acronym" || anchor.kind === "ref" || anchor.kind === "quote");
+}
+
 // src/core/glossary.ts
 var GLOSSARY = [
   // —— 对象与场景 ——
@@ -997,6 +1086,11 @@ var Library = class _Library {
       expansions.push(expansion2);
       mergeMaxHits(expandedMap, this.searchWithin(expansion2.expandedQuery, candidates, depth));
     }
+    const anchorTerms = mode === "hybrid" ? extractAnchors(query) : [];
+    const anchorMap = /* @__PURE__ */ new Map();
+    if (hasStrongAnchor(anchorTerms)) {
+      mergeMaxHits(anchorMap, this.searchWithin(anchorTerms.map((anchor) => anchor.text).join(" "), candidates, depth));
+    }
     const lexicalIds = new Set(lexicalMap.keys());
     const expansionOnly = [...expandedMap.entries()].filter(([id]) => !lexicalIds.has(id)).map(([id, value]) => ({ id, score: value.score, matched: value.matched }));
     const expansionTerms = new Set(expansions.flatMap((item) => item.added.map((pair) => pair.to)));
@@ -1008,12 +1102,12 @@ var Library = class _Library {
     const admittedIds = new Set(admission.admitted.map((candidate) => candidate.id));
     const expandedRanked = [...expandedMap.entries()].filter(([id]) => lexicalIds.has(id) || admittedIds.has(id)).sort((left, right) => right[1].score - left[1].score);
     const shortQuery = query.trim().length <= 12;
-    const bodySignal = lexicalMap.size + expandedRanked.length;
+    const bodySignal = lexicalMap.size + expandedRanked.length + anchorMap.size;
     const wantMeta = metaCandidates.length > 0 && (shortQuery || bodySignal === 0);
     const expansion = expansions.length === 0 ? null : mergeExpansions(query, expansions);
     const metaHits = wantMeta ? this.searchWithin(expansion?.expandedQuery ?? query, metaCandidates, Math.max(topK, 6)) : [];
     const matchedById = /* @__PURE__ */ new Map();
-    for (const source of [lexicalMap, expandedMap]) {
+    for (const source of [lexicalMap, expandedMap, anchorMap]) {
       for (const [id, value] of source) {
         matchedById.set(id, [.../* @__PURE__ */ new Set([...matchedById.get(id) ?? [], ...value.matched])]);
       }
@@ -1025,13 +1119,17 @@ var Library = class _Library {
     const lexicalRanked = [...lexicalMap.entries()].sort((left, right) => right[1].score - left[1].score);
     if (lexicalRanked.length > 0) lists.push({ ids: lexicalRanked.map(([id]) => id), weight: 1 });
     if (expandedRanked.length > 0) lists.push({ ids: expandedRanked.map(([id]) => id), weight: 0.9 });
+    if (anchorMap.size > 0) {
+      const anchorRanked = [...anchorMap.entries()].sort((left, right) => right[1].score - left[1].score);
+      lists.push({ ids: anchorRanked.map(([id]) => id), weight: 1 });
+    }
     if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 });
     const fused = lists.length === 0 ? [] : fuseRrf(lists, { k: 10, topK });
     const topScore = fused.length === 0 ? 0 : fused[0]?.score ?? 0;
     const hits = fused.slice(0, topK).map((hit) => {
       const chunk = chunkById.get(hit.id);
       if (chunk === void 0) throw new Error(`\u7D22\u5F15\u4E0D\u4E00\u81F4\uFF1Achunk ${hit.id} \u4E0D\u5B58\u5728`);
-      const lexical = lexicalMap.get(hit.id);
+      const lexical = lexicalMap.get(hit.id) ?? anchorMap.get(hit.id);
       const expanded = expandedMap.get(hit.id);
       const matchKind = lexical !== void 0 && expanded !== void 0 ? "mixed" : lexical !== void 0 ? "literal" : expanded !== void 0 ? "expanded" : "literal";
       return {
@@ -2575,7 +2673,7 @@ function buildTools(runtime, evalDeps) {
   return [
     {
       name: "zotero_search",
-      description: "\u5728\u672C\u5730 Zotero \u6587\u732E\u5E93\u5DF2\u5165\u5E93\u7684\u6B63\u6587\u91CC\u505A\u68C0\u7D22\uFF08MinerU \u89E3\u6790\u51FA\u7684 Markdown \u5206\u5757\uFF0C\u5E26\u7AE0\u8282\u8DEF\u5F84\u4E0E\u9875\u7801\uFF09\u3002\u56DE\u7B54\u6587\u732E\u5185\u5BB9\u95EE\u9898\u524D\u5FC5\u987B\u5148\u8C03\u7528\u672C\u5DE5\u5177\uFF1B\u5F15\u7528\u65F6\u53EA\u80FD\u4F7F\u7528\u8FD4\u56DE\u7684 chunk_id\u3002\u6BCF\u6761\u547D\u4E2D\u6807\u6CE8 matchKind\uFF1Aliteral=\u8BCD\u9762\u547D\u4E2D\u3001expanded=\u8BCD\u8868\u6269\u5C55\u547D\u4E2D\uFF08\u4E0D\u5F97\u5F53\u4F5C\u539F\u6587\u63AA\u8F9E\u5F15\u7528\uFF09\u3001mixed=\u4E24\u8DEF\u90FD\u547D\u4E2D\u3002query_variants \u53EF\u63D0\u4F9B\u540C\u4E00\u95EE\u9898\u7684\u5176\u5B83\u95EE\u6CD5\uFF08\u6700\u591A 4 \u6761\uFF09\uFF0C\u6BCF\u8DEF\u72EC\u7ACB\u6253\u5206\u3001\u540C\u4E00\u7247\u6BB5\u53D6\u6700\u9AD8\u5206\u3002",
+      description: "\u5728\u672C\u5730 Zotero \u6587\u732E\u5E93\u5DF2\u5165\u5E93\u7684\u6B63\u6587\u91CC\u505A\u68C0\u7D22\uFF08MinerU \u89E3\u6790\u51FA\u7684 Markdown \u5206\u5757\uFF0C\u5E26\u7AE0\u8282\u8DEF\u5F84\u4E0E\u9875\u7801\uFF09\u3002\u56DE\u7B54\u6587\u732E\u5185\u5BB9\u95EE\u9898\u524D\u5FC5\u987B\u5148\u8C03\u7528\u672C\u5DE5\u5177\uFF1B\u5F15\u7528\u65F6\u53EA\u80FD\u4F7F\u7528\u8FD4\u56DE\u7684 chunk_id\u3002\u6BCF\u6761\u547D\u4E2D\u6807\u6CE8 matchKind\uFF1Aliteral=\u8BCD\u9762\u547D\u4E2D\u3001expanded=\u8BCD\u8868\u6269\u5C55\u547D\u4E2D\uFF08\u4E0D\u5F97\u5F53\u4F5C\u539F\u6587\u63AA\u8F9E\u5F15\u7528\uFF09\u3001mixed=\u4E24\u8DEF\u90FD\u547D\u4E2D\u3002query_variants \u53EF\u63D0\u4F9B\u540C\u4E00\u95EE\u9898\u7684\u5176\u5B83\u95EE\u6CD5\uFF08\u6700\u591A 4 \u6761\uFF09\uFF0C\u6BCF\u8DEF\u72EC\u7ACB\u6253\u5206\u3001\u540C\u4E00\u7247\u6BB5\u53D6\u6700\u9AD8\u5206\uFF1B\u8DE8\u8BED\u8A00\u63D0\u95EE\u65F6\u540C\u65F6\u7ED9\u51FA\u76EE\u6807\u8BED\u8A00\u95EE\u6CD5\u80FD\u663E\u8457\u63D0\u9AD8\u547D\u4E2D\u7387\u3002",
       parameters: {
         type: "object",
         additionalProperties: false,

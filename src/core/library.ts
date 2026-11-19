@@ -11,6 +11,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Bm25Index, type Bm25Hit } from './bm25.ts'
 import { admitCandidates, coverageDenominatorOf, EXPANDED_ADMISSION, type AdmissionOutcome } from './admission.ts'
+import { extractAnchors, hasStrongAnchor } from './query-anchors.ts'
 import { expandQuery, type QueryExpansion } from './glossary.ts'
 import { fuseRrf } from './rrf.ts'
 import { blocksFromContentList, blocksFromMarkdown, buildChunks, estimateTokens } from './chunker.ts'
@@ -352,6 +353,15 @@ export class Library {
       mergeMaxHits(expandedMap, this.searchWithin(expansion.expandedQuery, candidates, depth))
     }
 
+    // 硬锚点路：问题里的缩写/型号、表图编号、引号术语单独做一次检索。
+    // 这一步主要救「英文问题、中文论文」：其余英文词会稀释 BM25 分数，
+    // 而 MFCC / PTFMSAN / 表 5-4 这类锚点在原文里是字面存在的。
+    const anchorTerms = mode === 'hybrid' ? extractAnchors(query) : []
+    const anchorMap = new Map<string, { score: number; matched: string[] }>()
+    if (hasStrongAnchor(anchorTerms)) {
+      mergeMaxHits(anchorMap, this.searchWithin(anchorTerms.map((anchor) => anchor.text).join(' '), candidates, depth))
+    }
+
     // 扩展路准入：只有扩展词撑着、词面路完全没命中的片段，必须先过置信度门槛。
     // 有词面支撑的片段（mixed）不受准入影响——它本来就出现在原文里。
     const lexicalIds = new Set(lexicalMap.keys())
@@ -375,7 +385,7 @@ export class Library {
     // 注意不能用「命中不足 topK」当条件：中文问英文文献时词面那一路天然为空，
     // 那时扩展路已经能给出正文结果，再掺元数据只会把正文排名挤下去（评测里 MRR 会掉）。
     const shortQuery = query.trim().length <= 12
-    const bodySignal = lexicalMap.size + expandedRanked.length
+    const bodySignal = lexicalMap.size + expandedRanked.length + anchorMap.size
     const wantMeta = metaCandidates.length > 0 && (shortQuery || bodySignal === 0)
     const expansion = expansions.length === 0 ? null : mergeExpansions(query, expansions)
     const metaHits = wantMeta
@@ -383,7 +393,7 @@ export class Library {
       : []
 
     const matchedById = new Map<string, string[]>()
-    for (const source of [lexicalMap, expandedMap]) {
+    for (const source of [lexicalMap, expandedMap, anchorMap]) {
       for (const [id, value] of source) {
         matchedById.set(id, [...new Set([...(matchedById.get(id) ?? []), ...value.matched])])
       }
@@ -396,6 +406,10 @@ export class Library {
     const lexicalRanked = [...lexicalMap.entries()].sort((left, right) => right[1].score - left[1].score)
     if (lexicalRanked.length > 0) lists.push({ ids: lexicalRanked.map(([id]) => id), weight: 1 })
     if (expandedRanked.length > 0) lists.push({ ids: expandedRanked.map(([id]) => id), weight: 0.9 })
+    if (anchorMap.size > 0) {
+      const anchorRanked = [...anchorMap.entries()].sort((left, right) => right[1].score - left[1].score)
+      lists.push({ ids: anchorRanked.map(([id]) => id), weight: 1 })
+    }
     if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 })
 
     const fused = lists.length === 0 ? [] : fuseRrf(lists, { k: 10, topK })
@@ -406,7 +420,7 @@ export class Library {
     const hits = fused.slice(0, topK).map((hit) => {
       const chunk = chunkById.get(hit.id)
       if (chunk === undefined) throw new Error(`索引不一致：chunk ${hit.id} 不存在`)
-      const lexical = lexicalMap.get(hit.id)
+      const lexical = lexicalMap.get(hit.id) ?? anchorMap.get(hit.id)
       const expanded = expandedMap.get(hit.id)
       const matchKind: MatchKind = lexical !== undefined && expanded !== undefined
         ? 'mixed'
