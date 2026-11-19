@@ -19692,6 +19692,7 @@ var DICT = {
     selectAll: "\u5168\u9009",
     clearAll: "\u6E05\u7A7A",
     quoteToChat: "\u5F15\u7528\u5230\u5BF9\u8BDD",
+    goLibrary: "\u53BB\u6587\u732E\u9875",
     openSource: "\u6253\u5F00\u539F\u6587",
     expandHint: "\u5DF2\u622A\u53D6\u547D\u4E2D\u5904\u4E0A\u4E0B\u6587\uFF1B\u5168\u6587\u8BF7\u70B9\u300C\u6253\u5F00\u539F\u6587\u300D",
     quoteText: "\u5F15\u7528\u6587\u672C",
@@ -19761,6 +19762,7 @@ var DICT = {
     selectAll: "Select all",
     clearAll: "Clear",
     quoteToChat: "Quote to chat",
+    goLibrary: "Open Library",
     openSource: "Open source",
     expandHint: "Context around the match; use Open source for the full text",
     quoteText: "Quote text",
@@ -19799,6 +19801,28 @@ var DICT = {
 };
 var TAB_ID = "zotero-seek/panel";
 var TAB_KIND = "zotero-seek";
+var PANEL_CSS = `
+.zse-panel button:focus-visible, .zse-panel input:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.zse-panel ::selection {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 28%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .zse-panel * { transition: none !important; animation: none !important; }
+}
+`;
+function EmptyState(props) {
+  return (0, import_react.createElement)(
+    "div",
+    { style: S3.empty },
+    (0, import_react.createElement)("div", null, props.title),
+    props.hint === void 0 ? null : (0, import_react.createElement)("div", { style: S3.hint }, props.hint),
+    props.action === void 0 ? null : (0, import_react.createElement)("button", { style: S3.primarySmallButton, onClick: props.action.onClick }, props.action.label)
+  );
+}
 var KIND_COLOR = { literal: "#6AA6FF", expanded: "#F2A03D", mixed: "#B58CFF" };
 var INDEXED_COLOR = "#3ECF8E";
 var UNINDEXED_COLOR = "#F2B84B";
@@ -19992,7 +20016,8 @@ function createPanel(t) {
     }, [doc, selected]);
     return (0, import_react.createElement)(
       "div",
-      { style: S3.root },
+      { className: "zse-panel", style: S3.root },
+      (0, import_react.createElement)("style", { dangerouslySetInnerHTML: { __html: PANEL_CSS } }),
       (0, import_react.createElement)(
         "div",
         { style: S3.header },
@@ -20006,8 +20031,8 @@ function createPanel(t) {
         }),
         (0, import_react.createElement)("span", { style: S3.brand }, t.appName),
         (0, import_react.createElement)("span", { style: S3.headerSpacer }),
-        (0, import_react.createElement)("button", { style: S3.iconButton, title: t.settings, onClick: () => setSettingsOpen((open2) => !open2) }, "\u2699"),
-        (0, import_react.createElement)("button", { style: S3.iconButton, title: t.refresh, onClick: () => {
+        (0, import_react.createElement)("button", { style: S3.iconButton, title: t.settings, "aria-label": t.settings, onClick: () => setSettingsOpen((open2) => !open2) }, "\u2699"),
+        (0, import_react.createElement)("button", { style: S3.iconButton, title: t.refresh, "aria-label": t.refresh, onClick: () => {
           void loadItems(filter);
           void loadStatus();
         } }, "\u21BB")
@@ -20047,6 +20072,9 @@ function createPanel(t) {
           busy,
           runIndex,
           openDoc,
+          onRefresh: () => {
+            void loadItems(filter);
+          },
           history,
           clearHistory,
           onFilter: () => {
@@ -20086,6 +20114,7 @@ function createPanel(t) {
           query,
           setQuery,
           busy,
+          onGoLibrary: () => setView("library"),
           hasSearched,
           history,
           clearHistory,
@@ -20104,7 +20133,7 @@ function createPanel(t) {
           }
         }) : null
       ),
-      toast.length > 0 ? (0, import_react.createElement)("div", { style: S3.toast }, toast) : null
+      toast.length > 0 ? (0, import_react.createElement)("div", { style: S3.toast, role: "status" }, toast) : null
     );
   };
 }
@@ -20201,7 +20230,7 @@ function LibraryView(props) {
       }, entry.length > 24 ? `${entry.slice(0, 24)}\u2026` : entry)),
       (0, import_react.createElement)("button", { style: S3.historyClear, onClick: props.clearHistory }, t.clearHistory)
     ) : null,
-    items.length === 0 ? (0, import_react.createElement)("div", { style: S3.empty }, t.noItems) : (0, import_react.createElement)(
+    items.length === 0 ? (0, import_react.createElement)(EmptyState, { title: t.noItems, action: { label: t.refresh, onClick: props.onRefresh } }) : (0, import_react.createElement)(
       "div",
       { style: S3.list },
       items.map((item) => (0, import_react.createElement)(
@@ -20238,7 +20267,7 @@ function ReaderView(props) {
     () => doc === null ? "" : renderMarkdownToHtml(doc.markdown),
     [doc, renderMarkdownToHtml]
   );
-  if (selected === null) return (0, import_react.createElement)("div", { style: S3.empty }, t.readerEmpty);
+  if (selected === null) return (0, import_react.createElement)(EmptyState, { title: t.readerEmpty, action: { label: t.goLibrary, onClick: props.onBack } });
   const title = doc?.item.title ?? selected.title;
   const onSelect = () => {
     const active = window.getSelection();
@@ -20395,7 +20424,10 @@ function HitsView(props) {
         (0, import_react.createElement)("button", { style: S3.smallButton, onClick: () => props.copyCitations("reference") }, t.copyReference),
         (0, import_react.createElement)("button", { style: S3.smallButton, onClick: () => props.copyCitations("bibtex") }, t.copyBibtex)
       ) : null
-    ) : (0, import_react.createElement)("div", { style: S3.empty }, props.hasSearched ? t.noHits : t.searchEmpty)
+    ) : (0, import_react.createElement)(EmptyState, {
+      title: props.hasSearched ? t.noHits : t.searchEmpty,
+      action: { label: t.goLibrary, onClick: props.onGoLibrary }
+    })
   );
 }
 function HitCard(props) {
@@ -20427,10 +20459,18 @@ function HitCard(props) {
         (0, import_react.createElement)(
           "div",
           { style: S3.hitTitleRow },
-          (0, import_react.createElement)("span", { style: { ...S3.badge, color, borderColor: color } }, kindLabel),
-          (0, import_react.createElement)("span", {
-            style: { ...S3.badge, color: indexed ? INDEXED_COLOR : UNINDEXED_COLOR, borderColor: indexed ? INDEXED_COLOR : UNINDEXED_COLOR }
-          }, indexed ? t.indexOk : t.unindexed),
+          (0, import_react.createElement)(
+            "span",
+            { style: S3.badge },
+            (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: color } }),
+            kindLabel
+          ),
+          (0, import_react.createElement)(
+            "span",
+            { style: S3.badge },
+            (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: indexed ? INDEXED_COLOR : UNINDEXED_COLOR } }),
+            indexed ? t.indexOk : t.unindexed
+          ),
           (0, import_react.createElement)("span", { style: S3.hitTitle, title: hit.title, onClick: props.openItem }, hit.title)
         ),
         (0, import_react.createElement)(
@@ -20663,6 +20703,7 @@ async function writeClipboard(text3) {
   }
 }
 var S3 = {
+  // ---- 面板骨架：中性表面 + 1px 分隔线，只有一个强调色（品牌蓝） ----
   root: {
     display: "flex",
     flexDirection: "column",
@@ -20670,53 +20711,56 @@ var S3 = {
     minHeight: 0,
     background: "var(--dsw-alias-bg-base)",
     color: "var(--dsw-alias-label-primary)",
-    fontSize: 13,
-    lineHeight: 1.55,
-    position: "relative"
+    fontSize: 12
   },
   header: {
     display: "flex",
     alignItems: "center",
-    gap: 6,
-    padding: "10px 12px 6px"
+    gap: 8,
+    padding: "10px 12px",
+    borderBottom: "1px solid var(--dsw-alias-border-l1)"
   },
-  brand: { fontWeight: 600, fontSize: 13, letterSpacing: 0.2 },
+  brand: { fontSize: 13, fontWeight: 600 },
   headerSpacer: { flex: 1 },
   iconButton: {
-    border: "1px solid var(--dsw-alias-border-l1)",
-    background: "var(--dsw-alias-bg-layer-1)",
-    color: "var(--dsw-alias-label-secondary)",
-    borderRadius: 6,
     width: 26,
     height: 26,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6,
+    border: "1px solid transparent",
+    background: "transparent",
+    color: "var(--dsw-alias-label-secondary)",
     cursor: "pointer",
-    lineHeight: 1,
     fontSize: 13
   },
-  segmented: { display: "flex", gap: 4, padding: "0 12px 8px" },
+  segmented: {
+    display: "flex",
+    gap: 4,
+    padding: "8px 12px",
+    borderBottom: "1px solid var(--dsw-alias-border-l1)"
+  },
   segment: {
     flex: 1,
-    padding: "6px 8px",
-    borderRadius: 7,
-    // 不用 border：宿主的默认 button 样式/焦点环可能在深色主题下画出白边（用户反馈过）
-    border: "none",
+    height: 28,
+    padding: 0,
+    borderRadius: 6,
+    border: "1px solid transparent",
     background: "transparent",
     color: "var(--dsw-alias-label-secondary)",
     cursor: "pointer",
     fontSize: 12,
-    outline: "none",
-    boxShadow: "none",
     appearance: "none",
     WebkitAppearance: "none",
-    WebkitTapHighlightColor: "transparent",
-    transition: "background-color .15s ease, color .15s ease"
+    outline: "none"
   },
   segmentActive: {
-    // 选中态用「品牌色淡底 + 内描边」，不依赖 border，暗色主题下也不会出现白框
-    background: "color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent)",
-    boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-brand-primary) 60%, transparent)",
+    background: "var(--dsw-alias-bg-layer-1)",
+    borderColor: "var(--dsw-alias-border-l1)",
     color: "var(--dsw-alias-label-primary)",
-    fontWeight: 650
+    fontWeight: 600,
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)"
   },
   segmentDisabled: { opacity: 0.45, cursor: "default" },
   statusBar: {
@@ -20724,130 +20768,181 @@ var S3 = {
     alignItems: "center",
     gap: 6,
     padding: "6px 12px",
-    borderTop: "1px solid var(--dsw-alias-border-l1)",
     borderBottom: "1px solid var(--dsw-alias-border-l1)",
     color: "var(--dsw-alias-label-secondary)",
-    fontSize: 11,
+    fontSize: 10.5,
     flexWrap: "wrap"
   },
-  dot: { width: 6, height: 6, borderRadius: 3, display: "inline-block" },
-  statusText: { marginRight: 4 },
+  dot: { width: 6, height: 6, borderRadius: "50%", display: "inline-block", flexShrink: 0 },
+  statusText: { color: "var(--dsw-alias-label-secondary)" },
   drawer: {
-    padding: "10px 12px",
-    background: "var(--dsw-alias-bg-layer-1)",
-    borderBottom: "1px solid var(--dsw-alias-border-l1)",
     display: "flex",
     flexDirection: "column",
-    gap: 8
+    gap: 10,
+    padding: "10px 12px",
+    borderBottom: "1px solid var(--dsw-alias-border-l1)",
+    background: "var(--dsw-alias-bg-layer-1)"
   },
   field: { display: "flex", flexDirection: "column", gap: 4 },
-  fieldLabel: { fontSize: 11, color: "var(--dsw-alias-label-secondary)" },
-  hint: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", opacity: 0.8 },
+  fieldLabel: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)" },
+  hint: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", opacity: 0.9 },
   error: {
     display: "flex",
-    alignItems: "center",
     gap: 8,
-    margin: "8px 12px 0",
-    padding: "6px 8px",
+    alignItems: "flex-start",
+    margin: "8px 12px",
+    padding: "8px 10px",
     borderRadius: 6,
-    background: "color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent)",
-    color: "var(--dsw-alias-state-error-primary)",
-    fontSize: 12
+    border: "1px solid color-mix(in srgb, #E8A13A 40%, transparent)",
+    background: "color-mix(in srgb, #E8A13A 12%, transparent)",
+    color: "var(--dsw-alias-label-primary)",
+    fontSize: 11
   },
-  body: { flex: 1, minHeight: 0, overflowY: "auto", padding: "8px 12px 24px" },
+  body: { flex: 1, minHeight: 0, overflowY: "auto", padding: "10px 12px" },
+  // ---- 输入与按钮 ----
   searchRow: { display: "flex", gap: 6, marginBottom: 8 },
   input: {
     flex: 1,
-    minWidth: 0,
-    padding: "6px 8px",
+    height: 30,
+    padding: "0 8px",
     borderRadius: 6,
     border: "1px solid var(--dsw-alias-border-l1)",
     background: "var(--dsw-alias-bg-layer-1)",
     color: "var(--dsw-alias-label-primary)",
-    fontSize: 12,
+    fontSize: 11.5,
     outline: "none"
   },
   button: {
-    padding: "6px 10px",
+    height: 30,
+    padding: "0 12px",
+    borderRadius: 6,
+    border: "1px solid var(--dsw-alias-border-l1)",
+    background: "var(--dsw-alias-bg-layer-1)",
+    color: "var(--dsw-alias-label-primary)",
+    fontSize: 11.5,
+    fontWeight: 500,
+    cursor: "pointer"
+  },
+  buttonDisabled: {
+    height: 30,
+    padding: "0 12px",
     borderRadius: 6,
     border: "1px solid var(--dsw-alias-border-l1)",
     background: "var(--dsw-alias-bg-layer-2)",
-    color: "var(--dsw-alias-label-primary)",
-    cursor: "pointer",
-    fontSize: 12,
-    whiteSpace: "nowrap"
+    color: "var(--dsw-alias-label-secondary)",
+    fontSize: 11.5,
+    cursor: "default",
+    opacity: 0.6
   },
-  buttonDisabled: { opacity: 0.5, cursor: "default" },
   primaryButton: {
-    padding: "6px 10px",
+    height: 30,
+    padding: "0 12px",
     borderRadius: 6,
     border: "1px solid var(--dsw-alias-brand-primary)",
     background: "var(--dsw-alias-brand-primary)",
     color: "var(--dsw-alias-bg-base)",
-    cursor: "pointer",
-    fontSize: 12
+    fontSize: 11.5,
+    fontWeight: 600,
+    cursor: "pointer"
   },
   smallButton: {
-    padding: "4px 8px",
+    height: 26,
+    padding: "0 10px",
     borderRadius: 6,
     border: "1px solid var(--dsw-alias-border-l1)",
-    background: "var(--dsw-alias-bg-layer-2)",
-    color: "var(--dsw-alias-label-primary)",
-    cursor: "pointer",
+    background: "transparent",
+    color: "var(--dsw-alias-label-secondary)",
     fontSize: 11,
-    whiteSpace: "nowrap"
+    cursor: "pointer"
   },
   primarySmallButton: {
-    padding: "4px 8px",
+    height: 26,
+    padding: "0 10px",
     borderRadius: 6,
     border: "1px solid var(--dsw-alias-brand-primary)",
     background: "var(--dsw-alias-brand-primary)",
     color: "var(--dsw-alias-bg-base)",
-    cursor: "pointer",
     fontSize: 11,
-    whiteSpace: "nowrap"
+    fontWeight: 600,
+    cursor: "pointer"
   },
   linkButton: {
+    padding: 0,
     border: "none",
     background: "transparent",
     color: "var(--dsw-alias-brand-primary)",
-    cursor: "pointer",
     fontSize: 11,
-    padding: 0
+    cursor: "pointer"
   },
+  // ---- 列表 ----
   list: { display: "flex", flexDirection: "column", gap: 6 },
   itemRow: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    padding: "7px 8px",
-    borderRadius: 8,
+    padding: "8px 10px",
     border: "1px solid var(--dsw-alias-border-l1)",
+    borderRadius: 8,
     background: "var(--dsw-alias-bg-layer-1)"
   },
-  itemMain: { flex: 1, minWidth: 0, cursor: "pointer" },
-  itemTitle: { fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" },
-  itemMeta: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", marginTop: 2 },
-  badgeOk: {
-    fontSize: 10,
-    padding: "2px 6px",
-    borderRadius: 10,
-    color: "var(--dsw-alias-state-success-primary)",
-    border: "1px solid color-mix(in srgb, var(--dsw-alias-state-success-primary) 40%, transparent)",
+  itemMain: { flex: 1, minWidth: 0, cursor: "pointer", display: "flex", flexDirection: "column", gap: 2 },
+  itemTitle: {
+    fontSize: 12,
+    fontWeight: 500,
+    lineHeight: 1.45,
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: "2",
+    WebkitBoxOrient: "vertical"
+  },
+  itemMeta: {
+    fontSize: 10.5,
+    color: "var(--dsw-alias-label-secondary)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
     whiteSpace: "nowrap"
   },
-  empty: { padding: "24px 8px", color: "var(--dsw-alias-label-secondary)", fontSize: 12, textAlign: "center" },
-  readerHeader: { display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 },
-  readerTitle: { fontSize: 12, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  readerMeta: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", marginBottom: 8 },
+  badgeOk: {
+    flexShrink: 0,
+    padding: "0 6px",
+    lineHeight: "16px",
+    borderRadius: 999,
+    border: "1px solid color-mix(in srgb, #3ECF8E 45%, transparent)",
+    color: "#3ECF8E",
+    fontSize: 9.5
+  },
+  empty: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: "28px 16px",
+    color: "var(--dsw-alias-label-secondary)",
+    fontSize: 11.5,
+    textAlign: "center"
+  },
+  // ---- 阅读页 ----
+  readerHeader: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 },
+  readerTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 12.5,
+    fontWeight: 600,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
+  },
+  readerMeta: {
+    display: "flex",
+    gap: 6,
+    flexWrap: "wrap",
+    fontSize: 10.5,
+    color: "var(--dsw-alias-label-secondary)",
+    marginBottom: 8
+  },
   markdown: { fontSize: 12.5, lineHeight: 1.7 },
   paragraph: { margin: "0 0 8px" },
-  heading1: { fontSize: 15, margin: "14px 0 6px", fontWeight: 700 },
-  heading2: { fontSize: 14, margin: "12px 0 6px", fontWeight: 700 },
-  heading3: { fontSize: 13, margin: "10px 0 4px", fontWeight: 600 },
-  heading4: { fontSize: 12.5, margin: "8px 0 4px", fontWeight: 600 },
-  heading5: { fontSize: 12, margin: "8px 0 4px", fontWeight: 600 },
-  heading6: { fontSize: 12, margin: "8px 0 4px", fontWeight: 600 },
   ul: { margin: "0 0 8px", paddingLeft: 18 },
   quote: {
     margin: "0 0 8px",
@@ -20866,15 +20961,14 @@ var S3 = {
   },
   formula: {
     margin: "0 0 8px",
-    padding: 8,
+    padding: "8px 10px",
     borderRadius: 6,
-    background: "var(--dsw-alias-bg-layer-2)",
+    border: "1px solid var(--dsw-alias-border-l1)",
+    background: "var(--dsw-alias-bg-layer-1)",
     overflowX: "auto",
-    fontSize: 11.5,
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-    textAlign: "center"
+    fontSize: 11
   },
-  mathInline: { fontFamily: '"Cambria Math", "Latin Modern Math", serif', fontSize: 12.5, fontStyle: "italic" },
+  mathInline: { fontFamily: "serif", fontSize: 12.5, fontStyle: "italic" },
   formulaBlock: {
     margin: "0 0 10px",
     padding: "8px 10px",
@@ -20883,176 +20977,177 @@ var S3 = {
     background: "var(--dsw-alias-bg-layer-1)",
     overflowX: "auto"
   },
-  formulaText: {
-    fontFamily: '"Cambria Math", "Latin Modern Math", "STIX Two Math", serif',
-    fontSize: 12.5,
-    lineHeight: 1.7,
-    whiteSpace: "pre-wrap"
-  },
+  formulaText: { fontSize: 12.5, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: "serif" },
   formulaNote: { marginTop: 4, fontSize: 9.5, color: "var(--dsw-alias-label-secondary)", opacity: 0.7 },
-  inlineCode: { background: "var(--dsw-alias-bg-layer-2)", borderRadius: 4, padding: "0 3px", fontSize: 11.5 },
-  tableWrap: { overflowX: "auto", margin: "0 0 10px" },
-  table: { borderCollapse: "collapse", fontSize: 11.5, width: "100%" },
-  th: { border: "1px solid var(--dsw-alias-border-l1)", padding: "4px 6px", background: "var(--dsw-alias-bg-layer-2)", textAlign: "left" },
-  td: { border: "1px solid var(--dsw-alias-border-l1)", padding: "4px 6px" },
-  figure: { margin: "0 0 10px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 },
-  image: { maxWidth: "100%", borderRadius: 6, border: "1px solid var(--dsw-alias-border-l1)" },
-  caption: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)" },
-  hitCard: {
+  inlineCode: {
+    padding: "0 3px",
+    borderRadius: 4,
+    background: "var(--dsw-alias-bg-layer-2)",
+    fontFamily: "ui-monospace, monospace",
+    fontSize: 11
+  },
+  tableWrap: { overflowX: "auto", marginBottom: 8 },
+  table: { borderCollapse: "collapse", width: "100%", fontSize: 11 },
+  th: {
     border: "1px solid var(--dsw-alias-border-l1)",
-    background: "var(--dsw-alias-bg-layer-1)",
+    padding: "4px 6px",
+    textAlign: "left",
+    fontWeight: 600,
+    background: "var(--dsw-alias-bg-layer-2)"
+  },
+  td: { border: "1px solid var(--dsw-alias-border-l1)", padding: "4px 6px", textAlign: "left", verticalAlign: "top" },
+  figure: { margin: "0 0 10px" },
+  image: { maxWidth: "100%", borderRadius: 6, border: "1px solid var(--dsw-alias-border-l1)", display: "block" },
+  caption: { marginTop: 3, fontSize: 10, color: "var(--dsw-alias-label-secondary)" },
+  // ---- 命中卡 ----
+  hitCard: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    padding: "8px 10px",
+    border: "1px solid var(--dsw-alias-border-l1)",
     borderRadius: 8,
-    padding: "7px 8px"
+    background: "var(--dsw-alias-bg-layer-1)"
   },
   hitCardChecked: { borderColor: "var(--dsw-alias-brand-primary)" },
-  hitHead: { display: "flex", gap: 8, alignItems: "flex-start" },
+  hitHead: { display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 },
   checkbox: { marginTop: 2, accentColor: "var(--dsw-alias-brand-primary)" },
-  modeRow: {
+  hitTitle: {
+    fontSize: 12.5,
+    fontWeight: 600,
+    lineHeight: 1.45,
+    cursor: "pointer",
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: "2",
+    WebkitBoxOrient: "vertical"
+  },
+  hitTitleRow: { display: "flex", alignItems: "center", gap: 6, minWidth: 0, flexWrap: "wrap" },
+  hitMeta: {
     display: "flex",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 8,
+    flexWrap: "wrap",
     fontSize: 10.5,
     color: "var(--dsw-alias-label-secondary)",
-    cursor: "pointer",
-    flexWrap: "wrap"
+    fontVariantNumeric: "tabular-nums"
   },
-  expansionHint: { fontSize: 10.5, color: "var(--dsw-alias-brand-primary)", opacity: 0.9, marginBottom: 8 },
-  libraryHint: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)", opacity: 0.85, marginBottom: 8 },
+  badge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    height: 16,
+    padding: "0 6px",
+    borderRadius: 999,
+    border: "1px solid var(--dsw-alias-border-l1)",
+    color: "var(--dsw-alias-label-secondary)",
+    fontSize: 9.5,
+    flexShrink: 0
+  },
+  hitBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    height: 16,
+    padding: "0 6px",
+    borderRadius: 999,
+    border: "1px solid var(--dsw-alias-border-l1)",
+    color: "var(--dsw-alias-label-secondary)",
+    fontSize: 9.5
+  },
+  hitBadgeExpanded: {},
+  hitBadgeMixed: {},
+  scoreTrack: { height: 2, margin: "2px 0", borderRadius: 2, background: "var(--dsw-alias-bg-layer-2)", overflow: "hidden" },
+  scoreFill: { height: "100%", borderRadius: 2, opacity: 0.8 },
+  chunkId: { marginLeft: 6, opacity: 0.7, fontFamily: "ui-monospace, monospace", fontSize: 9.5 },
+  hitText: {
+    fontSize: 11.5,
+    lineHeight: 1.55,
+    color: "var(--dsw-alias-label-secondary)",
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: "2",
+    WebkitBoxOrient: "vertical",
+    cursor: "pointer"
+  },
+  hitTextExpanded: { fontSize: 11.5, lineHeight: 1.6, color: "var(--dsw-alias-label-secondary)", cursor: "pointer" },
+  hitActions: { display: "flex", alignItems: "center", gap: 8, marginTop: 6 },
+  termMark: {
+    borderRadius: 2,
+    padding: "0 1px",
+    background: "color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent)",
+    color: "inherit"
+  },
+  legendRow: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginBottom: 8 },
+  legendDot: { width: 7, height: 7, borderRadius: "50%", display: "inline-block", flexShrink: 0 },
+  legendItem: { marginRight: 6, fontSize: 10, color: "var(--dsw-alias-label-secondary)" },
+  selectRow: { display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 0 6px" },
+  selectHint: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", opacity: 0.85 },
+  libraryHint: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)", marginBottom: 8, lineHeight: 1.5 },
   historyRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 8 },
   historyLabel: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)" },
   historyChip: {
-    fontSize: 10.5,
-    padding: "2px 8px",
+    maxWidth: 180,
+    height: 24,
+    padding: "0 8px",
     borderRadius: 999,
     border: "1px solid var(--dsw-alias-border-l1)",
-    background: "var(--dsw-alias-bg-layer-1)",
+    background: "transparent",
     color: "var(--dsw-alias-label-secondary)",
+    fontSize: 10.5,
     cursor: "pointer",
-    maxWidth: 180,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap"
   },
   historyClear: {
-    fontSize: 10.5,
-    padding: "2px 6px",
+    height: 24,
+    padding: "0 6px",
     border: "none",
     background: "transparent",
     color: "var(--dsw-alias-brand-primary)",
+    fontSize: 10.5,
     cursor: "pointer"
   },
-  hitTitle: { fontSize: 12, fontWeight: 500, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  hitMeta: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", display: "flex", alignItems: "center", flexWrap: "wrap" },
-  badge: {
-    fontSize: 9.5,
-    lineHeight: "15px",
-    padding: "0 5px",
+  actionBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTop: "1px solid var(--dsw-alias-border-l1)"
+  },
+  actionLabel: { marginRight: "auto", fontSize: 10.5, color: "var(--dsw-alias-label-secondary)" },
+  toast: {
+    position: "fixed",
+    left: "50%",
+    bottom: 16,
+    transform: "translateX(-50%)",
+    zIndex: 50,
+    padding: "6px 12px",
     borderRadius: 999,
     border: "1px solid var(--dsw-alias-border-l1)",
-    flexShrink: 0
+    background: "var(--dsw-alias-bg-layer-2)",
+    color: "var(--dsw-alias-label-primary)",
+    fontSize: 11,
+    boxShadow: "0 6px 18px rgba(0, 0, 0, 0.28)"
   },
-  hitTitleRow: { display: "flex", alignItems: "center", gap: 5, minWidth: 0 },
-  termMark: {
-    background: "color-mix(in srgb, #FFD54A 30%, transparent)",
-    color: "inherit",
-    borderRadius: 2,
-    padding: "0 1px"
-  },
-  legendRow: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginBottom: 8 },
-  legendDot: { width: 7, height: 7, borderRadius: "50%", display: "inline-block" },
-  legendItem: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", marginRight: 6 },
-  selectRow: { display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 0 6px" },
-  selectHint: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", opacity: 0.85 },
-  hitActions: { display: "flex", alignItems: "center", gap: 8, marginTop: 6 },
   floatingQuote: {
     position: "fixed",
     zIndex: 40,
-    padding: "4px 12px",
+    height: 28,
+    padding: "0 12px",
     borderRadius: 999,
     border: "1px solid var(--dsw-alias-brand-primary)",
     background: "var(--dsw-alias-brand-primary)",
     color: "var(--dsw-alias-bg-base)",
     fontSize: 11.5,
     cursor: "pointer",
-    boxShadow: "0 4px 14px rgba(0,0,0,0.28)"
+    boxShadow: "0 4px 14px rgba(0, 0, 0, 0.28)"
   },
-  hitBadge: {
-    fontSize: 9.5,
-    padding: "0 5px",
-    borderRadius: 999,
-    border: "1px solid var(--dsw-alias-border-l1)",
-    color: "var(--dsw-alias-label-secondary)",
-    lineHeight: "15px",
-    flexShrink: 0
-  },
-  hitBadgeExpanded: {
-    borderColor: "var(--dsw-alias-brand-primary)",
-    color: "var(--dsw-alias-brand-primary)"
-  },
-  hitBadgeMixed: {
-    borderColor: "var(--dsw-alias-brand-primary)",
-    background: "color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent)",
-    color: "var(--dsw-alias-brand-primary)"
-  },
-  scoreTrack: {
-    height: 2,
-    margin: "4px 0 2px",
-    borderRadius: 2,
-    background: "var(--dsw-alias-bg-layer-2)",
-    overflow: "hidden"
-  },
-  scoreFill: { height: "100%", borderRadius: 2, opacity: 0.75 },
-  searchLegend: {
-    fontSize: 10,
-    color: "var(--dsw-alias-label-secondary)",
-    opacity: 0.85,
-    marginBottom: 6,
-    lineHeight: 1.5
-  },
-  admissionLine: { fontSize: 10, color: "var(--dsw-alias-brand-primary)", opacity: 0.9, marginBottom: 8 },
-  chunkId: { opacity: 0.7, fontFamily: "ui-monospace, monospace" },
-  hitText: {
-    marginTop: 4,
-    fontSize: 11.5,
-    color: "var(--dsw-alias-label-secondary)",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    display: "-webkit-box",
-    WebkitLineClamp: 3,
-    WebkitBoxOrient: "vertical",
-    cursor: "pointer"
-  },
-  hitTextExpanded: { marginTop: 4, fontSize: 11.5, whiteSpace: "pre-wrap", cursor: "pointer" },
-  actionBar: {
-    position: "sticky",
-    bottom: 0,
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "8px 0 4px",
-    background: "var(--dsw-alias-bg-base)",
-    borderTop: "1px solid var(--dsw-alias-border-l1)",
-    flexWrap: "wrap"
-  },
-  actionLabel: { fontSize: 11, color: "var(--dsw-alias-label-secondary)", marginRight: "auto" },
-  toast: {
-    position: "absolute",
-    left: "50%",
-    bottom: 14,
-    transform: "translateX(-50%)",
-    padding: "5px 10px",
-    borderRadius: 999,
-    background: "var(--dsw-alias-bg-overlay)",
-    border: "1px solid var(--dsw-alias-border-l1)",
-    color: "var(--dsw-alias-label-primary)",
-    fontSize: 11,
-    boxShadow: "0 4px 16px rgba(0,0,0,.18)",
-    maxWidth: "90%",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap"
-  }
+  modeRow: {},
+  expansionHint: {},
+  searchLegend: {},
+  admissionLine: {}
 };
 function createOpenButton(t, open2) {
   return function ZoteroSeekOpenButton() {

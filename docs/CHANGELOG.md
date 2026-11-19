@@ -1,5 +1,17 @@
 # 变更记录
 
+## v0.3.2 — 2026-11-19
+
+**按 UI Skills（baseline-ui）重做面板视觉**
+
+- 引入 `skills/baseline-ui`、`skills/improve-ui`（来自 ibelick/ui-skills，MIT），README 增加「界面设计基线」一节；
+- 视觉统一：中性表面 + 1px 分隔线、单一强调色（品牌蓝）、4/8/12 间距、8px 卡片圆角；
+- 命中卡：双徽标改为「彩色圆点 + 中性文字」，右侧相关度进度条，标题两行截断，正文两行截断（展开才放开）；
+- 面板级 CSS：键盘 `:focus-visible` 描边、`::selection` 品牌色、`prefers-reduced-motion` 下关闭动效；
+- 空状态：每处只给一句话 + 一个明确的下一步按钮（刷新 / 去文献页）；
+- 图标按钮补 `aria-label`，toast 加 `role="status"`；
+- 版本 0.3.1 → 0.3.2。
+
 ## v0.3.1 — 2026-11-19
 
 **检索结果与阅读页改版（来自真实使用反馈）**
