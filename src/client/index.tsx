@@ -342,6 +342,8 @@ function createPanel(t: Dict) {
     const [query, setQuery] = useState('')
     const [hits, setHits] = useState<HitView[]>([])
     const [hasSearched, setHasSearched] = useState(false)
+    /** 阅读页「返回」回到进入前的页签（从检索进去就回检索）。 */
+    const [returnView, setReturnView] = useState<'library' | 'hits'>('library')
     const [history, setHistory] = useState<string[]>(() => loadSearchHistory())
     const [checked, setChecked] = useState<Set<string>>(new Set())
     const [busy, setBusy] = useState<string>('')
@@ -370,7 +372,8 @@ function createPanel(t: Dict) {
       void loadItems('')
     }, [loadStatus, loadItems])
 
-    const openDoc = useCallback(async (item: ItemView) => {
+    const openDoc = useCallback(async (item: ItemView, from: 'library' | 'hits' = 'library') => {
+      setReturnView(from)
       setSelected(item)
       setDoc(null)
       setView('reader')
@@ -378,6 +381,20 @@ function createPanel(t: Dict) {
       if (result.ok && result.value !== undefined) setDoc(result.value)
       else setError(result.message ?? '加载原文失败')
     }, [])
+
+    const openHitItem = useCallback(async (itemKey: string) => {
+      const existing = items.find((candidate) => candidate.key === itemKey)
+      if (existing !== undefined) {
+        await openDoc(existing, 'hits')
+        return
+      }
+      const result = await apiGet<ItemView>('/api/item', { key: itemKey })
+      if (!result.ok || result.value === undefined) {
+        setToast(result.message ?? '打开条目失败')
+        return
+      }
+      await openDoc(result.value, 'hits')
+    }, [items, openDoc, t.copied])
 
     const runIndex = useCallback(async (item: ItemView) => {
       setBusy(item.key)
@@ -554,7 +571,7 @@ function createPanel(t: Dict) {
           },
         }) : null,
         view === 'reader' ? h(ReaderView, {
-          t, doc, selected, imageUrl, busy, onBack: () => setView('library'),
+          t, doc, selected, imageUrl, busy, onBack: () => setView(returnView),
           onSearchHere: () => {
             if (query.trim().length === 0) return
             void runSearch(query, selected?.key)
@@ -571,10 +588,7 @@ function createPanel(t: Dict) {
           pickHistory: (value: string) => { setQuery(value); void runSearch(value) },
           copyCitations,
           quoteSelected,
-          openItem: (itemKey: string) => {
-            const item = items.find((candidate) => candidate.key === itemKey)
-            if (item !== undefined) void openDoc(item)
-          },
+          openItem: (itemKey: string) => { void openHitItem(itemKey) },
         }) : null,
       ),
       toast.length > 0 ? h('div', { style: S.toast, role: 'status' }, toast) : null,
@@ -585,11 +599,22 @@ function createPanel(t: Dict) {
 // ------------------------------------------------------------------ 子视图
 
 function segment(label: string, active: boolean, onClick: () => void, disabled = false): ReactNode {
-  return h('button', {
+  // 用 div + role=tab 而不是 <button>：宿主/UA 对按钮的默认边框与焦点环在深色主题下会
+  // 画出白框（用户反馈过两次），换成带 aria-selected 的 tab 元素后完全由样式接管。
+  return h('div', {
     key: label,
+    role: 'tab',
+    'aria-selected': active,
+    tabIndex: active ? 0 : -1,
+    onClick: disabled ? undefined : onClick,
+    onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+      if (disabled) return
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        onClick()
+      }
+    },
     style: { ...S.segment, ...(active ? S.segmentActive : {}), ...(disabled ? S.segmentDisabled : {}) },
-    disabled,
-    onClick,
   }, label)
 }
 
@@ -911,8 +936,8 @@ function HitCard(props: {
   const terms = hit.matched ?? []
   const preview = snippetOf(hit.text, terms, expanded ? 260 : 90)
   const kindLabel = kind === 'expanded' ? t.kindExpanded : kind === 'mixed' ? t.kindMixed : t.kindLiteral
-  return h('div', { style: { ...S.hitCard, borderLeft: `3px solid ${color}`, ...(checked ? S.hitCardChecked : {}) } },
-    h('div', { style: S.hitHead },
+  return h('div', { style: { ...S.hitCard, ...(checked ? S.hitCardChecked : {}) } },
+    h('div', { style: S.hitTop },
       h('input', {
         type: 'checkbox',
         checked,
@@ -920,27 +945,25 @@ function HitCard(props: {
         title: t.checkboxHint,
         style: { ...S.checkbox, accentColor: color },
       }),
-      h('div', { style: { flex: 1, minWidth: 0 } },
-        h('div', { style: S.hitTitleRow },
-          h('span', { style: S.badge },
-            h('span', { style: { ...S.legendDot, background: color } }),
-            kindLabel,
-          ),
-          h('span', { style: S.badge },
-            h('span', { style: { ...S.legendDot, background: indexed ? INDEXED_COLOR : UNINDEXED_COLOR } }),
-            indexed ? t.indexOk : t.unindexed,
-          ),
-          h('span', { style: S.hitTitle, title: hit.title, onClick: props.openItem }, hit.title),
+      h('div', { style: S.hitBadges },
+        h('span', { style: S.badge },
+          h('span', { style: { ...S.legendDot, background: color } }),
+          kindLabel,
         ),
-        h('div', { style: S.hitMeta },
-          [isMeta ? t.metaSource : t.kindBody,
-            hit.sectionPath,
-            hit.page === null ? '' : `第 ${hit.page + 1} 页`,
-            hit.scoreNorm === undefined ? '' : `相关度 ${Math.round(hit.scoreNorm * 100)}%`]
-            .filter((part) => part.length > 0).join(' · '),
-          h('span', { style: S.chunkId }, ` ${hit.chunkId}`),
+        h('span', { style: S.badge },
+          h('span', { style: { ...S.legendDot, background: indexed ? INDEXED_COLOR : UNINDEXED_COLOR } }),
+          indexed ? t.indexOk : t.unindexed,
         ),
       ),
+    ),
+    h('div', { style: S.hitTitle, title: hit.title, onClick: props.openItem }, hit.title),
+    h('div', { style: S.hitMeta },
+      [isMeta ? t.metaSource : t.kindBody,
+        hit.sectionPath,
+        hit.page === null ? '' : `第 ${hit.page + 1} 页`,
+        hit.scoreNorm === undefined ? '' : `相关度 ${Math.round(hit.scoreNorm * 100)}%`]
+        .filter((part) => part.length > 0).join(' · '),
+      h('span', { style: S.chunkId }, ` ${hit.chunkId}`),
     ),
     h('div', { style: S.scoreTrack, title: `词面 ${hit.lexicalScore ?? 0} · 扩展 ${hit.expandedScore ?? 0}` },
       h('div', { style: { ...S.scoreFill, width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`, background: color } }),
@@ -1340,7 +1363,10 @@ const S: Record<string, CSSProperties> = {
     minHeight: 0,
     background: 'var(--dsw-alias-bg-base)',
     color: 'var(--dsw-alias-label-primary)',
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 1.6,
+    letterSpacing: '0.01em',
+    fontFamily: '"Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
   },
   header: {
     display: 'flex',
@@ -1349,7 +1375,7 @@ const S: Record<string, CSSProperties> = {
     padding: '10px 12px',
     borderBottom: '1px solid var(--dsw-alias-border-l1)',
   },
-  brand: { fontSize: 13, fontWeight: 600 },
+  brand: { fontSize: 13.5, fontWeight: 600, letterSpacing: '0.01em' },
   headerSpacer: { flex: 1 },
   iconButton: {
     width: 26,
@@ -1372,14 +1398,14 @@ const S: Record<string, CSSProperties> = {
   },
   segment: {
     flex: 1,
-    height: 28,
+    height: 30,
     padding: 0,
     borderRadius: 6,
-    border: '1px solid transparent',
+    border: 'none',
     background: 'transparent',
     color: 'var(--dsw-alias-label-secondary)',
     cursor: 'pointer',
-    fontSize: 12,
+    fontSize: 12.5,
     appearance: 'none',
     WebkitAppearance: 'none',
     outline: 'none',
@@ -1433,28 +1459,28 @@ const S: Record<string, CSSProperties> = {
   searchRow: { display: 'flex', gap: 6, marginBottom: 8 },
   input: {
     flex: 1,
-    height: 30,
-    padding: '0 8px',
+    height: 32,
+    padding: '0 9px',
     borderRadius: 6,
     border: '1px solid var(--dsw-alias-border-l1)',
     background: 'var(--dsw-alias-bg-layer-1)',
     color: 'var(--dsw-alias-label-primary)',
-    fontSize: 11.5,
+    fontSize: 12,
     outline: 'none',
   },
   button: {
-    height: 30,
+    height: 32,
     padding: '0 12px',
     borderRadius: 6,
     border: '1px solid var(--dsw-alias-border-l1)',
     background: 'var(--dsw-alias-bg-layer-1)',
     color: 'var(--dsw-alias-label-primary)',
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: 500,
     cursor: 'pointer',
   },
   buttonDisabled: {
-    height: 30,
+    height: 32,
     padding: '0 12px',
     borderRadius: 6,
     border: '1px solid var(--dsw-alias-border-l1)',
@@ -1465,7 +1491,7 @@ const S: Record<string, CSSProperties> = {
     opacity: 0.6,
   },
   primaryButton: {
-    height: 30,
+    height: 32,
     padding: '0 12px',
     borderRadius: 6,
     border: '1px solid var(--dsw-alias-brand-primary)',
@@ -1559,7 +1585,7 @@ const S: Record<string, CSSProperties> = {
   readerTitle: {
     flex: 1,
     minWidth: 0,
-    fontSize: 12.5,
+    fontSize: 13.5,
     fontWeight: 600,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -1569,11 +1595,11 @@ const S: Record<string, CSSProperties> = {
     display: 'flex',
     gap: 6,
     flexWrap: 'wrap',
-    fontSize: 10.5,
+    fontSize: 11,
     color: 'var(--dsw-alias-label-secondary)',
     marginBottom: 8,
   },
-  markdown: { fontSize: 12.5, lineHeight: 1.7 },
+  markdown: { fontSize: 13, lineHeight: 1.8 },
   paragraph: { margin: '0 0 8px' },
   ul: { margin: '0 0 8px', paddingLeft: 18 },
   quote: {
@@ -1643,12 +1669,15 @@ const S: Record<string, CSSProperties> = {
     background: 'var(--dsw-alias-bg-layer-1)',
   },
   hitCardChecked: { borderColor: 'var(--dsw-alias-brand-primary)' },
+  hitTop: { display: 'flex', alignItems: 'center', gap: 8 },
+  hitBadges: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
   hitHead: { display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 },
   checkbox: { marginTop: 2, accentColor: 'var(--dsw-alias-brand-primary)' },
   hitTitle: {
-    fontSize: 12.5,
+    fontSize: 13.5,
     fontWeight: 600,
-    lineHeight: 1.45,
+    lineHeight: 1.55,
+    marginTop: 2,
     cursor: 'pointer',
     overflow: 'hidden',
     display: '-webkit-box',
@@ -1660,7 +1689,7 @@ const S: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     flexWrap: 'wrap',
-    fontSize: 10.5,
+    fontSize: 11,
     color: 'var(--dsw-alias-label-secondary)',
     fontVariantNumeric: 'tabular-nums',
   },
@@ -1692,8 +1721,8 @@ const S: Record<string, CSSProperties> = {
   scoreFill: { height: '100%', borderRadius: 2, opacity: 0.8 },
   chunkId: { marginLeft: 6, opacity: 0.7, fontFamily: 'ui-monospace, monospace', fontSize: 9.5 },
   hitText: {
-    fontSize: 11.5,
-    lineHeight: 1.55,
+    fontSize: 12,
+    lineHeight: 1.68,
     color: 'var(--dsw-alias-label-secondary)',
     overflow: 'hidden',
     display: '-webkit-box',
@@ -1701,7 +1730,7 @@ const S: Record<string, CSSProperties> = {
     WebkitBoxOrient: 'vertical',
     cursor: 'pointer',
   },
-  hitTextExpanded: { fontSize: 11.5, lineHeight: 1.6, color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer' },
+  hitTextExpanded: { fontSize: 12, lineHeight: 1.72, color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer' },
   hitActions: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 },
   termMark: {
     borderRadius: 2,

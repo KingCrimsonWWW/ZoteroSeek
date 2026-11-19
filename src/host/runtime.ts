@@ -360,6 +360,16 @@ export class Runtime {
     return null
   }
 
+  /** 面板/检索结果点条目：按 item_key 取条目快照（含是否已入库）。 */
+  async item(itemKey: string): Promise<(ZoteroItem & { parsed: boolean }) | null> {
+    const library = await this.library()
+    const item = (await this.zotero().getItem(itemKey).catch(() => null))
+      ?? library.items().find((candidate) => candidate.key === itemKey)
+      ?? null
+    if (item === null) return null
+    return { ...item, parsed: library.isParsed(itemKey) }
+  }
+
   /** 勾选引用：多条一次拼好。bibtex 优先用 Zotero 自己的导出。 */
   async cite(itemKeys: readonly string[], format: CitationFormat): Promise<Array<{ itemKey: string; text: string }>> {
     const library = await this.library()

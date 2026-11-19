@@ -2227,6 +2227,13 @@ var Runtime = class {
     }
     return null;
   }
+  /** 面板/检索结果点条目：按 item_key 取条目快照（含是否已入库）。 */
+  async item(itemKey) {
+    const library = await this.library();
+    const item = await this.zotero().getItem(itemKey).catch(() => null) ?? library.items().find((candidate) => candidate.key === itemKey) ?? null;
+    if (item === null) return null;
+    return { ...item, parsed: library.isParsed(itemKey) };
+  }
   /** 勾选引用：多条一次拼好。bibtex 优先用 Zotero 自己的导出。 */
   async cite(itemKeys, format) {
     const library = await this.library();
@@ -2909,6 +2916,13 @@ async function handle(req, res, runtime) {
           const found = await runtime.chunk(chunkId);
           if (found === null) return fail(res, 404, "chunk-not-found", `\u627E\u4E0D\u5230\u7247\u6BB5 ${chunkId}`);
           return ok(res, found);
+        }
+        case "/api/item": {
+          const key = url.searchParams.get("key") ?? "";
+          if (key.length === 0) return fail(res, 400, "invalid-args", "key \u5FC5\u586B");
+          const item = await runtime.item(key);
+          if (item === null) return fail(res, 404, "item-not-found", `\u627E\u4E0D\u5230\u6761\u76EE ${key}`);
+          return ok(res, item);
         }
         case "/api/locate": {
           const itemKey = url.searchParams.get("item_key") ?? "";

@@ -19867,6 +19867,7 @@ function createPanel(t) {
     const [query, setQuery] = (0, import_react.useState)("");
     const [hits, setHits] = (0, import_react.useState)([]);
     const [hasSearched, setHasSearched] = (0, import_react.useState)(false);
+    const [returnView, setReturnView] = (0, import_react.useState)("library");
     const [history, setHistory] = (0, import_react.useState)(() => loadSearchHistory());
     const [checked, setChecked] = (0, import_react.useState)(/* @__PURE__ */ new Set());
     const [busy, setBusy] = (0, import_react.useState)("");
@@ -19891,7 +19892,8 @@ function createPanel(t) {
       void loadStatus();
       void loadItems("");
     }, [loadStatus, loadItems]);
-    const openDoc = (0, import_react.useCallback)(async (item) => {
+    const openDoc = (0, import_react.useCallback)(async (item, from = "library") => {
+      setReturnView(from);
       setSelected(item);
       setDoc(null);
       setView("reader");
@@ -19899,6 +19901,19 @@ function createPanel(t) {
       if (result.ok && result.value !== void 0) setDoc(result.value);
       else setError(result.message ?? "\u52A0\u8F7D\u539F\u6587\u5931\u8D25");
     }, []);
+    const openHitItem = (0, import_react.useCallback)(async (itemKey) => {
+      const existing = items.find((candidate) => candidate.key === itemKey);
+      if (existing !== void 0) {
+        await openDoc(existing, "hits");
+        return;
+      }
+      const result = await apiGet("/api/item", { key: itemKey });
+      if (!result.ok || result.value === void 0) {
+        setToast(result.message ?? "\u6253\u5F00\u6761\u76EE\u5931\u8D25");
+        return;
+      }
+      await openDoc(result.value, "hits");
+    }, [items, openDoc, t.copied]);
     const runIndex = (0, import_react.useCallback)(async (item) => {
       setBusy(item.key);
       setError("");
@@ -20094,7 +20109,7 @@ function createPanel(t) {
           selected,
           imageUrl,
           busy,
-          onBack: () => setView("library"),
+          onBack: () => setView(returnView),
           onSearchHere: () => {
             if (query.trim().length === 0) return;
             void runSearch(query, selected?.key);
@@ -20128,8 +20143,7 @@ function createPanel(t) {
           copyCitations,
           quoteSelected,
           openItem: (itemKey) => {
-            const item = items.find((candidate) => candidate.key === itemKey);
-            if (item !== void 0) void openDoc(item);
+            void openHitItem(itemKey);
           }
         }) : null
       ),
@@ -20138,11 +20152,20 @@ function createPanel(t) {
   };
 }
 function segment(label, active, onClick, disabled = false) {
-  return (0, import_react.createElement)("button", {
+  return (0, import_react.createElement)("div", {
     key: label,
-    style: { ...S3.segment, ...active ? S3.segmentActive : {}, ...disabled ? S3.segmentDisabled : {} },
-    disabled,
-    onClick
+    role: "tab",
+    "aria-selected": active,
+    tabIndex: active ? 0 : -1,
+    onClick: disabled ? void 0 : onClick,
+    onKeyDown: (event) => {
+      if (disabled) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onClick();
+      }
+    },
+    style: { ...S3.segment, ...active ? S3.segmentActive : {}, ...disabled ? S3.segmentDisabled : {} }
   }, label);
 }
 function StatusBar(props) {
@@ -20442,10 +20465,10 @@ function HitCard(props) {
   const kindLabel = kind === "expanded" ? t.kindExpanded : kind === "mixed" ? t.kindMixed : t.kindLiteral;
   return (0, import_react.createElement)(
     "div",
-    { style: { ...S3.hitCard, borderLeft: `3px solid ${color}`, ...checked ? S3.hitCardChecked : {} } },
+    { style: { ...S3.hitCard, ...checked ? S3.hitCardChecked : {} } },
     (0, import_react.createElement)(
       "div",
-      { style: S3.hitHead },
+      { style: S3.hitTop },
       (0, import_react.createElement)("input", {
         type: "checkbox",
         checked,
@@ -20455,36 +20478,32 @@ function HitCard(props) {
       }),
       (0, import_react.createElement)(
         "div",
-        { style: { flex: 1, minWidth: 0 } },
+        { style: S3.hitBadges },
         (0, import_react.createElement)(
-          "div",
-          { style: S3.hitTitleRow },
-          (0, import_react.createElement)(
-            "span",
-            { style: S3.badge },
-            (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: color } }),
-            kindLabel
-          ),
-          (0, import_react.createElement)(
-            "span",
-            { style: S3.badge },
-            (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: indexed ? INDEXED_COLOR : UNINDEXED_COLOR } }),
-            indexed ? t.indexOk : t.unindexed
-          ),
-          (0, import_react.createElement)("span", { style: S3.hitTitle, title: hit.title, onClick: props.openItem }, hit.title)
+          "span",
+          { style: S3.badge },
+          (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: color } }),
+          kindLabel
         ),
         (0, import_react.createElement)(
-          "div",
-          { style: S3.hitMeta },
-          [
-            isMeta ? t.metaSource : t.kindBody,
-            hit.sectionPath,
-            hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`,
-            hit.scoreNorm === void 0 ? "" : `\u76F8\u5173\u5EA6 ${Math.round(hit.scoreNorm * 100)}%`
-          ].filter((part) => part.length > 0).join(" \xB7 "),
-          (0, import_react.createElement)("span", { style: S3.chunkId }, ` ${hit.chunkId}`)
+          "span",
+          { style: S3.badge },
+          (0, import_react.createElement)("span", { style: { ...S3.legendDot, background: indexed ? INDEXED_COLOR : UNINDEXED_COLOR } }),
+          indexed ? t.indexOk : t.unindexed
         )
       )
+    ),
+    (0, import_react.createElement)("div", { style: S3.hitTitle, title: hit.title, onClick: props.openItem }, hit.title),
+    (0, import_react.createElement)(
+      "div",
+      { style: S3.hitMeta },
+      [
+        isMeta ? t.metaSource : t.kindBody,
+        hit.sectionPath,
+        hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`,
+        hit.scoreNorm === void 0 ? "" : `\u76F8\u5173\u5EA6 ${Math.round(hit.scoreNorm * 100)}%`
+      ].filter((part) => part.length > 0).join(" \xB7 "),
+      (0, import_react.createElement)("span", { style: S3.chunkId }, ` ${hit.chunkId}`)
     ),
     (0, import_react.createElement)(
       "div",
@@ -20711,7 +20730,10 @@ var S3 = {
     minHeight: 0,
     background: "var(--dsw-alias-bg-base)",
     color: "var(--dsw-alias-label-primary)",
-    fontSize: 12
+    fontSize: 13,
+    lineHeight: 1.6,
+    letterSpacing: "0.01em",
+    fontFamily: '"Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif'
   },
   header: {
     display: "flex",
@@ -20720,7 +20742,7 @@ var S3 = {
     padding: "10px 12px",
     borderBottom: "1px solid var(--dsw-alias-border-l1)"
   },
-  brand: { fontSize: 13, fontWeight: 600 },
+  brand: { fontSize: 13.5, fontWeight: 600, letterSpacing: "0.01em" },
   headerSpacer: { flex: 1 },
   iconButton: {
     width: 26,
@@ -20743,14 +20765,14 @@ var S3 = {
   },
   segment: {
     flex: 1,
-    height: 28,
+    height: 30,
     padding: 0,
     borderRadius: 6,
-    border: "1px solid transparent",
+    border: "none",
     background: "transparent",
     color: "var(--dsw-alias-label-secondary)",
     cursor: "pointer",
-    fontSize: 12,
+    fontSize: 12.5,
     appearance: "none",
     WebkitAppearance: "none",
     outline: "none"
@@ -20803,28 +20825,28 @@ var S3 = {
   searchRow: { display: "flex", gap: 6, marginBottom: 8 },
   input: {
     flex: 1,
-    height: 30,
-    padding: "0 8px",
+    height: 32,
+    padding: "0 9px",
     borderRadius: 6,
     border: "1px solid var(--dsw-alias-border-l1)",
     background: "var(--dsw-alias-bg-layer-1)",
     color: "var(--dsw-alias-label-primary)",
-    fontSize: 11.5,
+    fontSize: 12,
     outline: "none"
   },
   button: {
-    height: 30,
+    height: 32,
     padding: "0 12px",
     borderRadius: 6,
     border: "1px solid var(--dsw-alias-border-l1)",
     background: "var(--dsw-alias-bg-layer-1)",
     color: "var(--dsw-alias-label-primary)",
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: 500,
     cursor: "pointer"
   },
   buttonDisabled: {
-    height: 30,
+    height: 32,
     padding: "0 12px",
     borderRadius: 6,
     border: "1px solid var(--dsw-alias-border-l1)",
@@ -20835,7 +20857,7 @@ var S3 = {
     opacity: 0.6
   },
   primaryButton: {
-    height: 30,
+    height: 32,
     padding: "0 12px",
     borderRadius: 6,
     border: "1px solid var(--dsw-alias-brand-primary)",
@@ -20927,7 +20949,7 @@ var S3 = {
   readerTitle: {
     flex: 1,
     minWidth: 0,
-    fontSize: 12.5,
+    fontSize: 13.5,
     fontWeight: 600,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -20937,11 +20959,11 @@ var S3 = {
     display: "flex",
     gap: 6,
     flexWrap: "wrap",
-    fontSize: 10.5,
+    fontSize: 11,
     color: "var(--dsw-alias-label-secondary)",
     marginBottom: 8
   },
-  markdown: { fontSize: 12.5, lineHeight: 1.7 },
+  markdown: { fontSize: 13, lineHeight: 1.8 },
   paragraph: { margin: "0 0 8px" },
   ul: { margin: "0 0 8px", paddingLeft: 18 },
   quote: {
@@ -21010,12 +21032,15 @@ var S3 = {
     background: "var(--dsw-alias-bg-layer-1)"
   },
   hitCardChecked: { borderColor: "var(--dsw-alias-brand-primary)" },
+  hitTop: { display: "flex", alignItems: "center", gap: 8 },
+  hitBadges: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" },
   hitHead: { display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 },
   checkbox: { marginTop: 2, accentColor: "var(--dsw-alias-brand-primary)" },
   hitTitle: {
-    fontSize: 12.5,
+    fontSize: 13.5,
     fontWeight: 600,
-    lineHeight: 1.45,
+    lineHeight: 1.55,
+    marginTop: 2,
     cursor: "pointer",
     overflow: "hidden",
     display: "-webkit-box",
@@ -21027,7 +21052,7 @@ var S3 = {
     display: "flex",
     alignItems: "center",
     flexWrap: "wrap",
-    fontSize: 10.5,
+    fontSize: 11,
     color: "var(--dsw-alias-label-secondary)",
     fontVariantNumeric: "tabular-nums"
   },
@@ -21059,8 +21084,8 @@ var S3 = {
   scoreFill: { height: "100%", borderRadius: 2, opacity: 0.8 },
   chunkId: { marginLeft: 6, opacity: 0.7, fontFamily: "ui-monospace, monospace", fontSize: 9.5 },
   hitText: {
-    fontSize: 11.5,
-    lineHeight: 1.55,
+    fontSize: 12,
+    lineHeight: 1.68,
     color: "var(--dsw-alias-label-secondary)",
     overflow: "hidden",
     display: "-webkit-box",
@@ -21068,7 +21093,7 @@ var S3 = {
     WebkitBoxOrient: "vertical",
     cursor: "pointer"
   },
-  hitTextExpanded: { fontSize: 11.5, lineHeight: 1.6, color: "var(--dsw-alias-label-secondary)", cursor: "pointer" },
+  hitTextExpanded: { fontSize: 12, lineHeight: 1.72, color: "var(--dsw-alias-label-secondary)", cursor: "pointer" },
   hitActions: { display: "flex", alignItems: "center", gap: 8, marginTop: 6 },
   termMark: {
     borderRadius: 2,

@@ -75,6 +75,13 @@ async function handle(req: IncomingMessage, res: ServerResponse, runtime: Runtim
           if (found === null) return fail(res, 404, 'chunk-not-found', `找不到片段 ${chunkId}`)
           return ok(res, found)
         }
+        case '/api/item': {
+          const key = url.searchParams.get('key') ?? ''
+          if (key.length === 0) return fail(res, 400, 'invalid-args', 'key 必填')
+          const item = await runtime.item(key)
+          if (item === null) return fail(res, 404, 'item-not-found', `找不到条目 ${key}`)
+          return ok(res, item)
+        }
         case '/api/locate': {
           const itemKey = url.searchParams.get('item_key') ?? ''
           const excerpt = url.searchParams.get('q') ?? ''
