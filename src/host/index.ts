@@ -99,6 +99,8 @@ function createEvalDeps(ctx: HostContextLike): { complete: (parts: { system: str
 const CITATION_CONTRACT = `## 文献库（ZoteroSeek）
 回答涉及用户文献内容的问题时，先用 \`zotero_search\` 检索，再基于返回片段作答。
 - 每条引用写 \`[来源: chunk_id]\`，chunk_id 必须原样复制检索结果里的值，禁止自己拼或改写。
+- 检索结果带 \`matchKind\`：\`literal\` 是查询词本身出现在原文；\`expanded\` 只是**词表扩展出来的等价词**命中（中文问英文文献时常见），**不得把扩展命中表述为原文措辞**；\`mixed\` 两路都命中。
+- 引用 \`expanded\` 片段的具体措辞前，先用 \`zotero_read\` 打开原文核对；只复述主题大意则可以直接引用。
 - 检索结果里没有的事实不要写；片段不足时直接说「文献库中没有相关内容」，并指出可以先 \`zotero_index\` 哪篇。
 - 不编造标题、作者、年份、页码与数值；页码、章节以检索结果给出的为准。
 - 需要读整篇结构或完整片段时用 \`zotero_read\`；需要引用格式时用 \`zotero_cite\`。`

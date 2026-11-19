@@ -218,12 +218,16 @@ export class Runtime {
     itemKey?: string
     source?: 'tool' | 'panel'
     mode?: 'hybrid' | 'lexical'
+    /** 同一问题的其它问法（最多 4 条），每路独立打分、同一片段取最高分。 */
+    variants?: readonly string[]
   } = {}): Promise<{
     hits: SearchHit[]
     metadataOnly: ZoteroItem[]
     /** 跨语言扩展的解释；没有命中词表时为 null。 */
     expansion: { description: string; added: Array<{ from: string; to: string }> } | null
     mode: 'hybrid' | 'lexical'
+    /** 扩展路准入摘要（覆盖率下限 / 分数余量 / 被拦下的片段数）。 */
+    admission: { minCoverage: number; margin: number; candidates: number; admitted: number; rejected: number; gated: boolean } | null
     note?: string
   }> {
     const library = await this.library()
@@ -232,6 +236,7 @@ export class Runtime {
       topK,
       ...(options.itemKey === undefined ? {} : { itemKey: options.itemKey }),
       ...(options.mode === undefined ? {} : { mode: options.mode }),
+      ...(options.variants === undefined ? {} : { variants: options.variants }),
     })
     const hits = detail.hits
     const expansion = detail.expansion === null || detail.expansion.added.length === 0
@@ -248,7 +253,17 @@ export class Runtime {
       hits: hits.length,
       chunkIds: hits.map((hit) => hit.chunkId),
     })
-    if (hits.length > 0) return { hits, metadataOnly: [], expansion, mode: detail.mode }
+    const admission = detail.admission === null
+      ? null
+      : {
+        minCoverage: detail.admission.minCoverage,
+        margin: detail.admission.margin,
+        candidates: detail.admission.candidates,
+        admitted: detail.admission.admitted,
+        rejected: detail.admission.rejected,
+        gated: detail.admission.gated,
+      }
+    if (hits.length > 0) return { hits, metadataOnly: [], expansion, mode: detail.mode, admission }
     // 检索不到时给「可能是你想找但还没入库的文献」，避免 Agent 直接编造。
     const metadataOnly = await this.zotero().searchItems(query, { limit: 5 }).catch(() => [])
     const parsed = library.parsedItems()
@@ -258,6 +273,7 @@ export class Runtime {
       metadataOnly: unindexed,
       expansion,
       mode: detail.mode,
+      admission,
       note: unindexed.length > 0
         ? '文献库里没有已入库正文命中；下面这些条目匹配元数据但还没入库，先调用 zotero_index 解析入库再检索。'
         : '文献库里没有相关内容（已入库文献的正文里没有匹配片段）。',

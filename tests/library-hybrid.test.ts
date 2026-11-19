@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Library } from '../src/core/library.ts'
+import { Library, normalizeVariants } from '../src/core/library.ts'
 import { blocksFromMarkdown, buildChunks } from '../src/core/chunker.ts'
 import type { LibraryIndex, ZoteroItem } from '../src/core/types.ts'
 
@@ -25,6 +25,8 @@ const ITEM: ZoteroItem = {
   pdfPath: null,
 }
 
+// 语料刻意覆盖多个领域词（void / cavity / hollow / delamination / detection / method），
+// 这样扩展路的「覆盖率准入」才有可判的样本——真实论文里这些词也常一起出现。
 const MARKDOWN = [
   '# 1 Introduction',
   '',
@@ -34,6 +36,7 @@ const MARKDOWN = [
   '',
   'Ground penetrating radar (GPR) is used to image the voids behind the reinforced concrete lining.',
   'The detection method combines back projection imaging with a sliding window inversion.',
+  'Cavity and hollow defects are compared with delamination cases in the measurement campaign.',
   '',
   '## 3 Results',
   '',
@@ -69,7 +72,7 @@ test('hybrid 检索：中文问题能命中英文文献，纯词面检索命中�
     const bodyHits = hybrid.filter((hit) => hit.source === 'body')
     assert.ok(bodyHits.length > 0, '应包含正文命中')
     assert.ok(
-      bodyHits.every((hit) => hit.route === 'expanded' || hit.route === 'both'),
+      bodyHits.every((hit) => hit.matchKind === 'expanded' || hit.matchKind === 'mixed'),
       '正文命中应标注为扩展或两路命中',
     )
     assert.ok(hybrid.some((hit) => hit.matched.some((term) => term === 'void' || term === 'detection')))
@@ -112,4 +115,39 @@ test('词面模式下英文查询依然正常', async () => {
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+})
+
+test('命中类型与归一分数：matchKind 三态、scoreNorm 落在 0–1', async () => {
+  const { library, dir } = await openLibrary()
+  try {
+    const detail = library.searchDetailed('隧道衬砌空洞的探地雷达识别', { topK: 5 })
+    assert.ok(detail.hits.length > 0)
+    for (const hit of detail.hits) {
+      assert.ok(['literal', 'expanded', 'mixed'].includes(hit.matchKind), `非法 matchKind：${hit.matchKind}`)
+      assert.ok(hit.scoreNorm >= 0 && hit.scoreNorm <= 1, `scoreNorm 越界：${hit.scoreNorm}`)
+    }
+    assert.ok(detail.admission !== null)
+    assert.ok(detail.admission.minCoverage > 0)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('query_variants：附加问法参与打分，且同一片段取最高分', async () => {
+  const { library, dir } = await openLibrary()
+  try {
+    const without = library.search('空洞', { mode: 'hybrid', topK: 5 })
+    const withVariants = library.search('空洞', { mode: 'hybrid', topK: 5, variants: ['void detection', 'ground penetrating radar'] })
+    assert.ok(withVariants.length > 0)
+    assert.ok(withVariants.length >= without.length)
+    assert.ok(withVariants.some((hit) => hit.matched.some((term) => term === 'void' || term === 'radar')))
+    assert.ok(withVariants.every((hit) => hit.scoreNorm >= 0 && hit.scoreNorm <= 1))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('normalizeVariants：去空白、去重、去掉主查询本身、最多 4 条', () => {
+  assert.deepEqual(normalizeVariants('空洞', ['  ', '空洞', 'void', 'void', 'cavity', 'radar', 'gpr', 'extra']), ['void', 'cavity', 'radar', 'gpr'])
+  assert.deepEqual(normalizeVariants('空洞', undefined), [])
 })

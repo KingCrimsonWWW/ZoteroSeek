@@ -1,5 +1,18 @@
 # 变更记录
 
+## v0.3.0 — 2026-11-19
+
+**检索算法升级（借鉴 dsh-zotero 的可信边界设计）**
+
+- **matchKind 三态**：literal（词面命中）/ expanded（词表扩展命中）/ mixed（两路都命中）；
+  工具输出、系统提示词与面板徽标三处一致，明确规定「扩展命中不得表述为原文措辞」，引用措辞前先 `zotero_read`；
+- **扩展路校准准入**：`覆盖率 = 命中扩展词数 / 扩展词总数`，`minCoverage=0.4`、`margin=0.5`，
+  由 `evals/calibrate-admission.mjs` 用 answer-removed 对照组标定；放行条数 18.0 → 2.2/题，检索指标不变；
+- **query_variants**：`zotero_search` 新增参数，最多 4 条问法，每路独立打分、同一片段取最高分；
+- **scoreNorm**：RRF 融合分归一化到 0–1（只表示排序强弱，不表示匹配置信度）；工具与面板同时展示逐路原始分；
+- 标定报告 `evals/reports/admission-calibration.json` 记录了「分数绝对下限不可移植」的负结果；
+- 单测 50 → 60；版本 0.2.6 → 0.3.0。
+
 ## v0.2.6 — 2026-11-19
 
 **阅读页换渲染引擎：markdown-it + KaTeX**

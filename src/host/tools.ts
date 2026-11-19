@@ -61,12 +61,20 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
       name: 'zotero_search',
       description:
         '在本地 Zotero 文献库已入库的正文里做检索（MinerU 解析出的 Markdown 分块，带章节路径与页码）。'
-        + '回答文献内容问题前必须先调用本工具；引用时只能使用返回的 chunk_id。',
+        + '回答文献内容问题前必须先调用本工具；引用时只能使用返回的 chunk_id。'
+        + '每条命中标注 matchKind：literal=词面命中、expanded=词表扩展命中（不得当作原文措辞引用）、mixed=两路都命中。'
+        + 'query_variants 可提供同一问题的其它问法（最多 4 条），每路独立打分、同一片段取最高分。',
       parameters: {
         type: 'object',
         additionalProperties: false,
         properties: {
           query: { type: 'string', description: '检索问题，中英文均可，可用技术术语与编号' },
+          query_variants: {
+            type: 'array',
+            maxItems: 4,
+            items: { type: 'string' },
+            description: '同一问题的其它问法（最多 4 条）。适合中英混排：英文问法能补中文查询的召回，反之亦然',
+          },
           top_k: { type: 'integer', minimum: 1, maximum: 20, description: `返回片段数，默认 ${defaultTopK}` },
           item_key: { type: 'string', description: '只在这一篇文献内检索时填写其 Zotero item_key' },
           mode: {
@@ -90,8 +98,17 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
         const topK = typeof args['top_k'] === 'number' ? args['top_k'] : defaultTopK
         const itemKey = typeof args['item_key'] === 'string' ? args['item_key'] : undefined
         const mode = args['mode'] === 'lexical' ? 'lexical' as const : 'hybrid' as const
+        const variants = Array.isArray(args['query_variants'])
+          ? args['query_variants'].filter((value): value is string => typeof value === 'string').slice(0, 4)
+          : []
         if (query.length === 0) return { text: '参数错误：query 不能为空。', hits: [] }
-        const result = await runtime.search(query, { topK, source: 'tool', mode, ...(itemKey === undefined ? {} : { itemKey }) })
+        const result = await runtime.search(query, {
+          topK,
+          source: 'tool',
+          mode,
+          ...(itemKey === undefined ? {} : { itemKey }),
+          ...(variants.length === 0 ? {} : { variants }),
+        })
         const lines: string[] = []
         if (result.hits.length === 0) {
           lines.push(result.note ?? '文献库中没有相关内容。')
@@ -105,21 +122,32 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
           const modeLabel = result.mode === 'hybrid' ? 'BM25 词面 + 领域双语词表扩展，RRF 融合' : 'BM25 词面'
           lines.push(`检索命中 ${result.hits.length} 个片段（${modeLabel}；正文与条目元数据都参与检索）。引用格式：[来源: chunk_id]`)
           if (result.expansion !== null) lines.push(result.expansion.description)
+          if (result.admission !== null) {
+            lines.push(
+              `扩展路准入：覆盖率≥${result.admission.minCoverage} 且分数在最佳值的 ${Math.round((1 - result.admission.margin) * 100)}% 以内；`
+              + `本次 ${result.admission.admitted}/${result.admission.candidates} 条过审${result.admission.gated ? '（其余因覆盖率不足被拦）' : ''}`,
+            )
+          }
           let metaCount = 0
           let unindexedMetaCount = 0
+          let expandedOnlyCount = 0
           result.hits.forEach((hit, index) => {
             const isMeta = hit.source === 'meta'
             if (isMeta) metaCount += 1
             if (isMeta && !hit.indexed) unindexedMetaCount += 1
+            if (hit.matchKind === 'expanded' && !isMeta) expandedOnlyCount += 1
             const page = hit.page === null ? '' : ` · 第 ${hit.page + 1} 页`
             const section = hit.sectionPath.length > 0 ? ` · ${hit.sectionPath}` : ''
-            const route = hit.route === 'both' ? '词面+扩展' : hit.route === 'expanded' ? '跨语言扩展' : '词面'
+            const kindLabel = hit.matchKind === 'mixed' ? '字面+扩展' : hit.matchKind === 'expanded' ? '扩展' : '字面'
             const source = isMeta
               ? (hit.indexed ? '来源=元数据' : '来源=元数据（未入库）')
               : `类型=${hit.kind}`
-            lines.push('', `[${index + 1}] chunk_id=${hit.chunkId} · 《${hit.title}》${section}${page} · ${source} · 命中=${route} · score=${hit.score}`)
-            lines.push(hit.text)
+            lines.push('', `[${index + 1}] chunk_id=${hit.chunkId} · 《${hit.title}》${section}${page} · ${source} · matchKind=${kindLabel} · score=${hit.score}（归一 ${hit.scoreNorm}）`)
+          lines.push(hit.text)
           })
+          if (expandedOnlyCount > 0) {
+            lines.push('', `提示：其中 ${expandedOnlyCount} 条是扩展命中（matchKind=expanded）——只说明扩展词在文中出现，不等于原文这么说；引用其措辞前先用 zotero_read 打开原文。`)
+          }
           if (metaCount > 0) {
             lines.push('', `提示：其中 ${metaCount} 条来自条目元数据（标题/作者/标签/摘要/关键词）${unindexedMetaCount > 0 ? `，有 ${unindexedMetaCount} 条尚未入库、没有正文片段` : ''}。要引用正文细节请先对相应条目调用 zotero_index。`)
           }

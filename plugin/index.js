@@ -209,6 +209,38 @@ var Bm25Index = class {
   }
 };
 
+// src/core/admission.ts
+function coverageDenominatorOf(termCount) {
+  return Math.max(1, Math.trunc(termCount));
+}
+function coverageOf(candidate, denominator) {
+  const terms = new Set(candidate.matched.filter((term) => term.trim().length > 0));
+  return Math.min(1, terms.size / Math.max(1, denominator));
+}
+function admitCandidates(candidates, rules = EXPANDED_ADMISSION, denominator = 1) {
+  if (candidates.length === 0) return { admitted: [], best: 0, threshold: 0, gated: false, rejected: 0 };
+  const covered = [];
+  let rejected = 0;
+  for (const candidate of candidates) {
+    if (!Number.isFinite(candidate.score) || candidate.score <= 0) continue;
+    const coverage = coverageOf(candidate, denominator);
+    if (coverage < rules.minCoverage) {
+      rejected += 1;
+      continue;
+    }
+    covered.push(candidate);
+  }
+  if (covered.length === 0) return { admitted: [], best: 0, threshold: 0, gated: rejected > 0, rejected };
+  const best = covered.reduce((high, candidate) => candidate.score > high ? candidate.score : high, 0);
+  const threshold = best * (1 - rules.margin);
+  const admitted = covered.filter((candidate) => candidate.score >= threshold).sort((left, right) => right.score - left.score || left.id.localeCompare(right.id));
+  return { admitted, best, threshold, gated: rejected > 0, rejected };
+}
+var EXPANDED_ADMISSION = {
+  minCoverage: 0.4,
+  margin: 0.5
+};
+
 // src/core/glossary.ts
 var GLOSSARY = [
   // —— 对象与场景 ——
@@ -723,6 +755,53 @@ function dominantKind(blocks) {
 
 // src/core/library.ts
 var INDEX_FILE = "index.json";
+var QUERY_VARIANT_CAP = 4;
+function normalizeVariants(query, raw) {
+  if (raw === void 0 || raw.length === 0) return [];
+  const seen = /* @__PURE__ */ new Set([query.trim()]);
+  const variants = [];
+  for (const value of raw) {
+    const trimmed = typeof value === "string" ? value.trim() : "";
+    if (trimmed.length === 0 || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    variants.push(trimmed);
+    if (variants.length >= QUERY_VARIANT_CAP) break;
+  }
+  return variants;
+}
+function mergeMaxHits(target, hits) {
+  for (const hit of hits) {
+    const previous = target.get(hit.id);
+    if (previous === void 0) {
+      target.set(hit.id, { score: hit.score, matched: [...hit.matched] });
+      continue;
+    }
+    target.set(hit.id, {
+      score: Math.max(previous.score, hit.score),
+      matched: [.../* @__PURE__ */ new Set([...previous.matched, ...hit.matched])]
+    });
+  }
+}
+function mergeExpansions(query, expansions) {
+  const first = expansions[0];
+  if (expansions.length === 1 && first !== void 0) return first;
+  const seen = /* @__PURE__ */ new Set();
+  const added = [];
+  for (const expansion of expansions) {
+    for (const pair of expansion.added) {
+      const key = `${pair.from}\u2192${pair.to}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      added.push(pair);
+    }
+  }
+  return {
+    query,
+    expandedQuery: [query, ...added.map((pair) => pair.to)].join(" "),
+    translatedQuery: added.map((pair) => pair.to).join(" "),
+    added
+  };
+}
 function buildMetadataChunk(item) {
   const str = (value) => typeof value === "string" && value.trim().length > 0 ? value : "";
   const list = (value) => Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
@@ -896,7 +975,7 @@ var Library = class _Library {
   search(query, options = {}) {
     return this.searchDetailed(query, options).hits;
   }
-  /** 与 search 相同，但额外返回扩展解释，供工具输出与面板展示。 */
+  /** 与 search 相同，但额外返回扩展解释与准入摘要，供工具输出与面板展示。 */
   searchDetailed(query, options = {}) {
     const topK = Math.max(1, options.topK ?? 8);
     const mode = options.mode ?? "hybrid";
@@ -906,40 +985,55 @@ var Library = class _Library {
     const candidates = scoped.filter((chunk) => chunk.source !== "meta");
     const metaCandidates = scoped.filter((chunk) => chunk.source === "meta");
     const depth = Math.max(topK * 4, 20);
-    const lexical = this.searchWithin(query, candidates, depth);
-    const expansion = mode === "hybrid" ? expandQuery(query) : null;
-    const expanded = expansion !== null && expansion.added.length > 0 ? this.searchWithin(expansion.expandedQuery, candidates, depth) : [];
+    const phrasings = [query, ...normalizeVariants(query, options.variants)];
+    const lexicalMap = /* @__PURE__ */ new Map();
+    const expandedMap = /* @__PURE__ */ new Map();
+    const expansions = [];
+    for (const phrasing of phrasings) {
+      mergeMaxHits(lexicalMap, this.searchWithin(phrasing, candidates, depth));
+      if (mode !== "hybrid") continue;
+      const expansion2 = expandQuery(phrasing);
+      if (expansion2.added.length === 0) continue;
+      expansions.push(expansion2);
+      mergeMaxHits(expandedMap, this.searchWithin(expansion2.expandedQuery, candidates, depth));
+    }
+    const lexicalIds = new Set(lexicalMap.keys());
+    const expansionOnly = [...expandedMap.entries()].filter(([id]) => !lexicalIds.has(id)).map(([id, value]) => ({ id, score: value.score, matched: value.matched }));
+    const expansionTerms = new Set(expansions.flatMap((item) => item.added.map((pair) => pair.to)));
+    const admission = admitCandidates(
+      expansionOnly,
+      EXPANDED_ADMISSION,
+      coverageDenominatorOf(expansionTerms.size)
+    );
+    const admittedIds = new Set(admission.admitted.map((candidate) => candidate.id));
+    const expandedRanked = [...expandedMap.entries()].filter(([id]) => lexicalIds.has(id) || admittedIds.has(id)).sort((left, right) => right[1].score - left[1].score);
     const shortQuery = query.trim().length <= 12;
-    const bodySignal = lexical.length + expanded.length;
+    const bodySignal = lexicalMap.size + expandedRanked.length;
     const wantMeta = metaCandidates.length > 0 && (shortQuery || bodySignal === 0);
-    const lexicalRank = new Map(lexical.map((hit, index) => [hit.id, index + 1]));
-    const expandedRank = new Map(expanded.map((hit, index) => [hit.id, index + 1]));
+    const expansion = expansions.length === 0 ? null : mergeExpansions(query, expansions);
     const metaHits = wantMeta ? this.searchWithin(expansion?.expandedQuery ?? query, metaCandidates, Math.max(topK, 6)) : [];
-    const metaRank = new Map(metaHits.map((hit, index) => [hit.id, index + 1]));
     const matchedById = /* @__PURE__ */ new Map();
-    for (const hit of [...lexical, ...expanded, ...metaHits]) {
-      const existing = matchedById.get(hit.id) ?? [];
-      matchedById.set(hit.id, [.../* @__PURE__ */ new Set([...existing, ...hit.matched])]);
+    for (const source of [lexicalMap, expandedMap]) {
+      for (const [id, value] of source) {
+        matchedById.set(id, [.../* @__PURE__ */ new Set([...matchedById.get(id) ?? [], ...value.matched])]);
+      }
     }
-    let ranked;
-    if (expanded.length === 0 && metaHits.length === 0) {
-      ranked = lexical.map((hit) => ({ id: hit.id, score: hit.score, route: "lexical" }));
-    } else {
-      const lists = [
-        { ids: lexical.map((hit) => hit.id), weight: 1 }
-      ];
-      if (expanded.length > 0) lists.push({ ids: expanded.map((hit) => hit.id), weight: 0.9 });
-      if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 });
-      const fused = fuseRrf(lists, { k: 10, topK });
-      ranked = fused.map((hit) => ({
-        id: hit.id,
-        score: hit.score,
-        route: lexicalRank.has(hit.id) && expandedRank.has(hit.id) ? "both" : lexicalRank.has(hit.id) ? "lexical" : expandedRank.has(hit.id) ? "expanded" : "lexical"
-      }));
+    for (const hit of metaHits) {
+      matchedById.set(hit.id, [.../* @__PURE__ */ new Set([...matchedById.get(hit.id) ?? [], ...hit.matched])]);
     }
-    const hits = ranked.slice(0, topK).map((hit) => {
+    const lists = [];
+    const lexicalRanked = [...lexicalMap.entries()].sort((left, right) => right[1].score - left[1].score);
+    if (lexicalRanked.length > 0) lists.push({ ids: lexicalRanked.map(([id]) => id), weight: 1 });
+    if (expandedRanked.length > 0) lists.push({ ids: expandedRanked.map(([id]) => id), weight: 0.9 });
+    if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 });
+    const fused = lists.length === 0 ? [] : fuseRrf(lists, { k: 10, topK });
+    const maxPossible = lists.reduce((sum, list) => sum + list.weight / 11, 0);
+    const hits = fused.slice(0, topK).map((hit) => {
       const chunk = chunkById.get(hit.id);
       if (chunk === void 0) throw new Error(`\u7D22\u5F15\u4E0D\u4E00\u81F4\uFF1Achunk ${hit.id} \u4E0D\u5B58\u5728`);
+      const lexical = lexicalMap.get(hit.id);
+      const expanded = expandedMap.get(hit.id);
+      const matchKind = lexical !== void 0 && expanded !== void 0 ? "mixed" : lexical !== void 0 ? "literal" : expanded !== void 0 ? "expanded" : "literal";
       return {
         chunkId: chunk.chunkId,
         itemKey: chunk.itemKey,
@@ -949,13 +1043,31 @@ var Library = class _Library {
         kind: chunk.kind,
         text: chunk.text.length > maxChars ? `${chunk.text.slice(0, maxChars)}\u2026` : chunk.text,
         score: Number(hit.score.toFixed(4)),
-        route: hit.route,
+        scoreNorm: Number((maxPossible > 0 ? Math.min(1, hit.score / maxPossible) : 0).toFixed(4)),
+        route: matchKind === "mixed" ? "both" : matchKind === "expanded" ? "expanded" : "lexical",
+        matchKind,
+        lexicalScore: Number((lexical?.score ?? 0).toFixed(4)),
+        expandedScore: Number((expanded?.score ?? 0).toFixed(4)),
         matched: matchedById.get(hit.id) ?? [],
         source: chunk.source ?? "body",
         indexed: this.index.parsed[chunk.itemKey] !== void 0
       };
     });
-    return { hits, expansion, mode };
+    return {
+      hits,
+      expansion,
+      mode,
+      admission: mode === "hybrid" ? {
+        minCoverage: EXPANDED_ADMISSION.minCoverage,
+        margin: EXPANDED_ADMISSION.margin,
+        best: Number(admission.best.toFixed(4)),
+        threshold: Number(admission.threshold.toFixed(4)),
+        gated: admission.gated,
+        rejected: admission.rejected,
+        candidates: expansionOnly.length,
+        admitted: admission.admitted.length
+      } : null
+    };
   }
   searchWithin(query, candidates, topK) {
     if (candidates.length === this.index.chunks.length) {
@@ -2013,7 +2125,8 @@ var Runtime = class {
     const detail = library.searchDetailed(query, {
       topK,
       ...options.itemKey === void 0 ? {} : { itemKey: options.itemKey },
-      ...options.mode === void 0 ? {} : { mode: options.mode }
+      ...options.mode === void 0 ? {} : { mode: options.mode },
+      ...options.variants === void 0 ? {} : { variants: options.variants }
     });
     const hits = detail.hits;
     const expansion = detail.expansion === null || detail.expansion.added.length === 0 ? null : {
@@ -2028,7 +2141,15 @@ var Runtime = class {
       hits: hits.length,
       chunkIds: hits.map((hit) => hit.chunkId)
     });
-    if (hits.length > 0) return { hits, metadataOnly: [], expansion, mode: detail.mode };
+    const admission = detail.admission === null ? null : {
+      minCoverage: detail.admission.minCoverage,
+      margin: detail.admission.margin,
+      candidates: detail.admission.candidates,
+      admitted: detail.admission.admitted,
+      rejected: detail.admission.rejected,
+      gated: detail.admission.gated
+    };
+    if (hits.length > 0) return { hits, metadataOnly: [], expansion, mode: detail.mode, admission };
     const metadataOnly = await this.zotero().searchItems(query, { limit: 5 }).catch(() => []);
     const parsed = library.parsedItems();
     const unindexed = metadataOnly.filter((item) => parsed[item.key] === void 0);
@@ -2037,6 +2158,7 @@ var Runtime = class {
       metadataOnly: unindexed,
       expansion,
       mode: detail.mode,
+      admission,
       note: unindexed.length > 0 ? "\u6587\u732E\u5E93\u91CC\u6CA1\u6709\u5DF2\u5165\u5E93\u6B63\u6587\u547D\u4E2D\uFF1B\u4E0B\u9762\u8FD9\u4E9B\u6761\u76EE\u5339\u914D\u5143\u6570\u636E\u4F46\u8FD8\u6CA1\u5165\u5E93\uFF0C\u5148\u8C03\u7528 zotero_index \u89E3\u6790\u5165\u5E93\u518D\u68C0\u7D22\u3002" : "\u6587\u732E\u5E93\u91CC\u6CA1\u6709\u76F8\u5173\u5185\u5BB9\uFF08\u5DF2\u5165\u5E93\u6587\u732E\u7684\u6B63\u6587\u91CC\u6CA1\u6709\u5339\u914D\u7247\u6BB5\uFF09\u3002"
     };
   }
@@ -2424,12 +2546,18 @@ function buildTools(runtime, evalDeps) {
   return [
     {
       name: "zotero_search",
-      description: "\u5728\u672C\u5730 Zotero \u6587\u732E\u5E93\u5DF2\u5165\u5E93\u7684\u6B63\u6587\u91CC\u505A\u68C0\u7D22\uFF08MinerU \u89E3\u6790\u51FA\u7684 Markdown \u5206\u5757\uFF0C\u5E26\u7AE0\u8282\u8DEF\u5F84\u4E0E\u9875\u7801\uFF09\u3002\u56DE\u7B54\u6587\u732E\u5185\u5BB9\u95EE\u9898\u524D\u5FC5\u987B\u5148\u8C03\u7528\u672C\u5DE5\u5177\uFF1B\u5F15\u7528\u65F6\u53EA\u80FD\u4F7F\u7528\u8FD4\u56DE\u7684 chunk_id\u3002",
+      description: "\u5728\u672C\u5730 Zotero \u6587\u732E\u5E93\u5DF2\u5165\u5E93\u7684\u6B63\u6587\u91CC\u505A\u68C0\u7D22\uFF08MinerU \u89E3\u6790\u51FA\u7684 Markdown \u5206\u5757\uFF0C\u5E26\u7AE0\u8282\u8DEF\u5F84\u4E0E\u9875\u7801\uFF09\u3002\u56DE\u7B54\u6587\u732E\u5185\u5BB9\u95EE\u9898\u524D\u5FC5\u987B\u5148\u8C03\u7528\u672C\u5DE5\u5177\uFF1B\u5F15\u7528\u65F6\u53EA\u80FD\u4F7F\u7528\u8FD4\u56DE\u7684 chunk_id\u3002\u6BCF\u6761\u547D\u4E2D\u6807\u6CE8 matchKind\uFF1Aliteral=\u8BCD\u9762\u547D\u4E2D\u3001expanded=\u8BCD\u8868\u6269\u5C55\u547D\u4E2D\uFF08\u4E0D\u5F97\u5F53\u4F5C\u539F\u6587\u63AA\u8F9E\u5F15\u7528\uFF09\u3001mixed=\u4E24\u8DEF\u90FD\u547D\u4E2D\u3002query_variants \u53EF\u63D0\u4F9B\u540C\u4E00\u95EE\u9898\u7684\u5176\u5B83\u95EE\u6CD5\uFF08\u6700\u591A 4 \u6761\uFF09\uFF0C\u6BCF\u8DEF\u72EC\u7ACB\u6253\u5206\u3001\u540C\u4E00\u7247\u6BB5\u53D6\u6700\u9AD8\u5206\u3002",
       parameters: {
         type: "object",
         additionalProperties: false,
         properties: {
           query: { type: "string", description: "\u68C0\u7D22\u95EE\u9898\uFF0C\u4E2D\u82F1\u6587\u5747\u53EF\uFF0C\u53EF\u7528\u6280\u672F\u672F\u8BED\u4E0E\u7F16\u53F7" },
+          query_variants: {
+            type: "array",
+            maxItems: 4,
+            items: { type: "string" },
+            description: "\u540C\u4E00\u95EE\u9898\u7684\u5176\u5B83\u95EE\u6CD5\uFF08\u6700\u591A 4 \u6761\uFF09\u3002\u9002\u5408\u4E2D\u82F1\u6DF7\u6392\uFF1A\u82F1\u6587\u95EE\u6CD5\u80FD\u8865\u4E2D\u6587\u67E5\u8BE2\u7684\u53EC\u56DE\uFF0C\u53CD\u4E4B\u4EA6\u7136"
+          },
           top_k: { type: "integer", minimum: 1, maximum: 20, description: `\u8FD4\u56DE\u7247\u6BB5\u6570\uFF0C\u9ED8\u8BA4 ${defaultTopK}` },
           item_key: { type: "string", description: "\u53EA\u5728\u8FD9\u4E00\u7BC7\u6587\u732E\u5185\u68C0\u7D22\u65F6\u586B\u5199\u5176 Zotero item_key" },
           mode: {
@@ -2453,8 +2581,15 @@ function buildTools(runtime, evalDeps) {
         const topK = typeof args["top_k"] === "number" ? args["top_k"] : defaultTopK;
         const itemKey = typeof args["item_key"] === "string" ? args["item_key"] : void 0;
         const mode = args["mode"] === "lexical" ? "lexical" : "hybrid";
+        const variants = Array.isArray(args["query_variants"]) ? args["query_variants"].filter((value) => typeof value === "string").slice(0, 4) : [];
         if (query.length === 0) return { text: "\u53C2\u6570\u9519\u8BEF\uFF1Aquery \u4E0D\u80FD\u4E3A\u7A7A\u3002", hits: [] };
-        const result = await runtime.search(query, { topK, source: "tool", mode, ...itemKey === void 0 ? {} : { itemKey } });
+        const result = await runtime.search(query, {
+          topK,
+          source: "tool",
+          mode,
+          ...itemKey === void 0 ? {} : { itemKey },
+          ...variants.length === 0 ? {} : { variants }
+        });
         const lines = [];
         if (result.hits.length === 0) {
           lines.push(result.note ?? "\u6587\u732E\u5E93\u4E2D\u6CA1\u6709\u76F8\u5173\u5185\u5BB9\u3002");
@@ -2468,19 +2603,29 @@ function buildTools(runtime, evalDeps) {
           const modeLabel = result.mode === "hybrid" ? "BM25 \u8BCD\u9762 + \u9886\u57DF\u53CC\u8BED\u8BCD\u8868\u6269\u5C55\uFF0CRRF \u878D\u5408" : "BM25 \u8BCD\u9762";
           lines.push(`\u68C0\u7D22\u547D\u4E2D ${result.hits.length} \u4E2A\u7247\u6BB5\uFF08${modeLabel}\uFF1B\u6B63\u6587\u4E0E\u6761\u76EE\u5143\u6570\u636E\u90FD\u53C2\u4E0E\u68C0\u7D22\uFF09\u3002\u5F15\u7528\u683C\u5F0F\uFF1A[\u6765\u6E90: chunk_id]`);
           if (result.expansion !== null) lines.push(result.expansion.description);
+          if (result.admission !== null) {
+            lines.push(
+              `\u6269\u5C55\u8DEF\u51C6\u5165\uFF1A\u8986\u76D6\u7387\u2265${result.admission.minCoverage} \u4E14\u5206\u6570\u5728\u6700\u4F73\u503C\u7684 ${Math.round((1 - result.admission.margin) * 100)}% \u4EE5\u5185\uFF1B\u672C\u6B21 ${result.admission.admitted}/${result.admission.candidates} \u6761\u8FC7\u5BA1${result.admission.gated ? "\uFF08\u5176\u4F59\u56E0\u8986\u76D6\u7387\u4E0D\u8DB3\u88AB\u62E6\uFF09" : ""}`
+            );
+          }
           let metaCount = 0;
           let unindexedMetaCount = 0;
+          let expandedOnlyCount = 0;
           result.hits.forEach((hit, index) => {
             const isMeta = hit.source === "meta";
             if (isMeta) metaCount += 1;
             if (isMeta && !hit.indexed) unindexedMetaCount += 1;
+            if (hit.matchKind === "expanded" && !isMeta) expandedOnlyCount += 1;
             const page = hit.page === null ? "" : ` \xB7 \u7B2C ${hit.page + 1} \u9875`;
             const section = hit.sectionPath.length > 0 ? ` \xB7 ${hit.sectionPath}` : "";
-            const route = hit.route === "both" ? "\u8BCD\u9762+\u6269\u5C55" : hit.route === "expanded" ? "\u8DE8\u8BED\u8A00\u6269\u5C55" : "\u8BCD\u9762";
+            const kindLabel = hit.matchKind === "mixed" ? "\u5B57\u9762+\u6269\u5C55" : hit.matchKind === "expanded" ? "\u6269\u5C55" : "\u5B57\u9762";
             const source = isMeta ? hit.indexed ? "\u6765\u6E90=\u5143\u6570\u636E" : "\u6765\u6E90=\u5143\u6570\u636E\uFF08\u672A\u5165\u5E93\uFF09" : `\u7C7B\u578B=${hit.kind}`;
-            lines.push("", `[${index + 1}] chunk_id=${hit.chunkId} \xB7 \u300A${hit.title}\u300B${section}${page} \xB7 ${source} \xB7 \u547D\u4E2D=${route} \xB7 score=${hit.score}`);
+            lines.push("", `[${index + 1}] chunk_id=${hit.chunkId} \xB7 \u300A${hit.title}\u300B${section}${page} \xB7 ${source} \xB7 matchKind=${kindLabel} \xB7 score=${hit.score}\uFF08\u5F52\u4E00 ${hit.scoreNorm}\uFF09`);
             lines.push(hit.text);
           });
+          if (expandedOnlyCount > 0) {
+            lines.push("", `\u63D0\u793A\uFF1A\u5176\u4E2D ${expandedOnlyCount} \u6761\u662F\u6269\u5C55\u547D\u4E2D\uFF08matchKind=expanded\uFF09\u2014\u2014\u53EA\u8BF4\u660E\u6269\u5C55\u8BCD\u5728\u6587\u4E2D\u51FA\u73B0\uFF0C\u4E0D\u7B49\u4E8E\u539F\u6587\u8FD9\u4E48\u8BF4\uFF1B\u5F15\u7528\u5176\u63AA\u8F9E\u524D\u5148\u7528 zotero_read \u6253\u5F00\u539F\u6587\u3002`);
+          }
           if (metaCount > 0) {
             lines.push("", `\u63D0\u793A\uFF1A\u5176\u4E2D ${metaCount} \u6761\u6765\u81EA\u6761\u76EE\u5143\u6570\u636E\uFF08\u6807\u9898/\u4F5C\u8005/\u6807\u7B7E/\u6458\u8981/\u5173\u952E\u8BCD\uFF09${unindexedMetaCount > 0 ? `\uFF0C\u6709 ${unindexedMetaCount} \u6761\u5C1A\u672A\u5165\u5E93\u3001\u6CA1\u6709\u6B63\u6587\u7247\u6BB5` : ""}\u3002\u8981\u5F15\u7528\u6B63\u6587\u7EC6\u8282\u8BF7\u5148\u5BF9\u76F8\u5E94\u6761\u76EE\u8C03\u7528 zotero_index\u3002`);
           }
@@ -2927,6 +3072,8 @@ function createEvalDeps(ctx) {
 var CITATION_CONTRACT = `## \u6587\u732E\u5E93\uFF08ZoteroSeek\uFF09
 \u56DE\u7B54\u6D89\u53CA\u7528\u6237\u6587\u732E\u5185\u5BB9\u7684\u95EE\u9898\u65F6\uFF0C\u5148\u7528 \`zotero_search\` \u68C0\u7D22\uFF0C\u518D\u57FA\u4E8E\u8FD4\u56DE\u7247\u6BB5\u4F5C\u7B54\u3002
 - \u6BCF\u6761\u5F15\u7528\u5199 \`[\u6765\u6E90: chunk_id]\`\uFF0Cchunk_id \u5FC5\u987B\u539F\u6837\u590D\u5236\u68C0\u7D22\u7ED3\u679C\u91CC\u7684\u503C\uFF0C\u7981\u6B62\u81EA\u5DF1\u62FC\u6216\u6539\u5199\u3002
+- \u68C0\u7D22\u7ED3\u679C\u5E26 \`matchKind\`\uFF1A\`literal\` \u662F\u67E5\u8BE2\u8BCD\u672C\u8EAB\u51FA\u73B0\u5728\u539F\u6587\uFF1B\`expanded\` \u53EA\u662F**\u8BCD\u8868\u6269\u5C55\u51FA\u6765\u7684\u7B49\u4EF7\u8BCD**\u547D\u4E2D\uFF08\u4E2D\u6587\u95EE\u82F1\u6587\u6587\u732E\u65F6\u5E38\u89C1\uFF09\uFF0C**\u4E0D\u5F97\u628A\u6269\u5C55\u547D\u4E2D\u8868\u8FF0\u4E3A\u539F\u6587\u63AA\u8F9E**\uFF1B\`mixed\` \u4E24\u8DEF\u90FD\u547D\u4E2D\u3002
+- \u5F15\u7528 \`expanded\` \u7247\u6BB5\u7684\u5177\u4F53\u63AA\u8F9E\u524D\uFF0C\u5148\u7528 \`zotero_read\` \u6253\u5F00\u539F\u6587\u6838\u5BF9\uFF1B\u53EA\u590D\u8FF0\u4E3B\u9898\u5927\u610F\u5219\u53EF\u4EE5\u76F4\u63A5\u5F15\u7528\u3002
 - \u68C0\u7D22\u7ED3\u679C\u91CC\u6CA1\u6709\u7684\u4E8B\u5B9E\u4E0D\u8981\u5199\uFF1B\u7247\u6BB5\u4E0D\u8DB3\u65F6\u76F4\u63A5\u8BF4\u300C\u6587\u732E\u5E93\u4E2D\u6CA1\u6709\u76F8\u5173\u5185\u5BB9\u300D\uFF0C\u5E76\u6307\u51FA\u53EF\u4EE5\u5148 \`zotero_index\` \u54EA\u7BC7\u3002
 - \u4E0D\u7F16\u9020\u6807\u9898\u3001\u4F5C\u8005\u3001\u5E74\u4EFD\u3001\u9875\u7801\u4E0E\u6570\u503C\uFF1B\u9875\u7801\u3001\u7AE0\u8282\u4EE5\u68C0\u7D22\u7ED3\u679C\u7ED9\u51FA\u7684\u4E3A\u51C6\u3002
 - \u9700\u8981\u8BFB\u6574\u7BC7\u7ED3\u6784\u6216\u5B8C\u6574\u7247\u6BB5\u65F6\u7528 \`zotero_read\`\uFF1B\u9700\u8981\u5F15\u7528\u683C\u5F0F\u65F6\u7528 \`zotero_cite\`\u3002`;

@@ -66,6 +66,13 @@ interface HitView {
   score: number
   /** lexical / expanded / both：这条是怎么被找到的。 */
   route?: 'lexical' | 'expanded' | 'both'
+  /** 命中类型：字面 / 扩展 / 混合（扩展命中不得表述为原文措辞）。 */
+  matchKind?: 'literal' | 'expanded' | 'mixed'
+  /** RRF 融合分的归一化值（0–1，仅用于展示排序强弱）。 */
+  scoreNorm?: number
+  /** 词面路 / 扩展路的原始分。 */
+  lexicalScore?: number
+  expandedScore?: number
   /** body = MinerU 正文块；meta = 条目元数据块。 */
   source?: 'body' | 'meta'
   /** 该条目是否已入库（元数据命中可能来自未入库条目）。 */
@@ -114,6 +121,11 @@ const DICT = {
     indexing: 'MinerU 解析中…',
     indexHint: '未入库，点「入库」用 MinerU 解析成 Markdown',
     noItems: '没有条目。先点右上角「刷新」从 Zotero 拉取。',
+    kindLiteral: '字面',
+    kindExpanded: '扩展',
+    kindMixed: '字面+扩展',
+    kindExpandedHint: '扩展命中：只有词表扩展出的等价词在文中出现，引用措辞前请打开原文核对',
+    searchLegend: '匹配类型：字面=查询词出现在原文；扩展=词表扩展词命中（不等同原文措辞）；字面+扩展=两路都命中',
     noHits: '没有命中。可以先切换到「文献」，把相关文献入库再试。',
     hitsFor: '命中片段',
     selected: '已选',
@@ -167,6 +179,11 @@ const DICT = {
     indexing: 'MinerU parsing…',
     indexHint: 'Not indexed yet — Parse turns the PDF into Markdown',
     noItems: 'No items. Use Refresh to load them from Zotero.',
+    kindLiteral: 'literal',
+    kindExpanded: 'expanded',
+    kindMixed: 'mixed',
+    kindExpandedHint: 'Expanded hit: only a glossary synonym matched — verify the wording in the source before quoting',
+    searchLegend: 'Match type: literal = query words appear in the text; expanded = glossary synonym match (not the source wording); mixed = both routes hit',
     noHits: 'No hits. Switch to Library and index the relevant papers first.',
     hitsFor: 'Passages',
     selected: 'selected',
@@ -222,6 +239,7 @@ function createPanel(t: Dict) {
     const [hasSearched, setHasSearched] = useState(false)
     const [history, setHistory] = useState<string[]>(() => loadSearchHistory())
     const [expansionHint, setExpansionHint] = useState('')
+    const [admission, setAdmission] = useState<{ minCoverage: number; margin: number; candidates: number; admitted: number } | null>(null)
     const [checked, setChecked] = useState<Set<string>>(new Set())
     const [busy, setBusy] = useState<string>('')
     const [toast, setToast] = useState<string>('')
@@ -294,13 +312,14 @@ function createPanel(t: Dict) {
       setError('')
       setHasSearched(true)
       try {
-        const result = await apiGet<{ hits: HitView[]; note?: string; expansion?: { description: string } | null }>('/api/search', {
+        const result = await apiGet<{ hits: HitView[]; note?: string; expansion?: { description: string } | null; admission?: { minCoverage: number; margin: number; candidates: number; admitted: number } | null }>('/api/search', {
           q: keyword,
           ...(itemKey === undefined ? {} : { item_key: itemKey }),
         })
         if (result.ok && result.value !== undefined) {
           setHits(result.value.hits)
           setExpansionHint(result.value.expansion?.description ?? '')
+          setAdmission(result.value.admission ?? null)
           if (itemKey === undefined) rememberQuery(keyword)
           if (result.value.hits.length === 0) setError(result.value.note ?? t.noHits)
         } else {
@@ -438,6 +457,7 @@ function createPanel(t: Dict) {
         view === 'hits' ? h(HitsView, {
           t, hits, checked, toggle, query, setQuery, busy,
           expansionHint,
+          admission,
           hasSearched, history, clearHistory,
           runSearch: () => { if (query.trim().length > 0) void runSearch(query) },
           pickHistory: (value: string) => { setQuery(value); void runSearch(value) },
@@ -644,6 +664,7 @@ function HitsView(props: {
   runSearch: () => void
   expansionHint: string
   hasSearched: boolean
+  admission: { minCoverage: number; margin: number; candidates: number; admitted: number } | null
   history: string[]
   clearHistory: () => void
   pickHistory: (value: string) => void
@@ -665,6 +686,11 @@ function HitsView(props: {
     ),
     props.expansionHint.length > 0
       ? h('div', { style: S.expansionHint }, props.expansionHint)
+      : null,
+    h('div', { style: S.searchLegend }, t.searchLegend),
+    props.admission !== null && props.admission.candidates > 0
+      ? h('div', { style: S.admissionLine },
+        `扩展路准入：覆盖率≥${props.admission.minCoverage}、余量 ${Math.round((1 - props.admission.margin) * 100)}%，放行 ${props.admission.admitted}/${props.admission.candidates}`)
       : null,
     props.history.length > 0 ? h('div', { style: S.historyRow },
       h('span', { style: S.historyLabel }, t.history),
@@ -707,26 +733,44 @@ function HitCard(props: {
   toggle: () => void
   openItem: () => void
 }): ReactNode {
-  const { hit, checked } = props
+  const { t, hit, checked } = props
   const [expanded, setExpanded] = useState(false)
+  const kind = hit.matchKind ?? (hit.route === 'expanded' ? 'expanded' : hit.route === 'both' ? 'mixed' : 'literal')
+  const kindLabel = kind === 'expanded' ? t.kindExpanded : kind === 'mixed' ? t.kindMixed : t.kindLiteral
+  const badgeStyle = kind === 'expanded'
+    ? { ...S.hitBadge, ...S.hitBadgeExpanded }
+    : kind === 'mixed'
+      ? { ...S.hitBadge, ...S.hitBadgeMixed }
+      : S.hitBadge
   return h('div', { style: { ...S.hitCard, ...(checked ? S.hitCardChecked : {}) } },
     h('div', { style: S.hitHead },
       h('input', { type: 'checkbox', checked, onChange: props.toggle, style: S.checkbox }),
       h('div', { style: { flex: 1, minWidth: 0 } },
         h('div', { style: S.hitTitle, onClick: props.openItem }, hit.title),
         h('div', { style: S.hitMeta },
-          [hit.source === 'meta'
-            ? (hit.indexed ? '元数据' : '元数据·未入库')
-            : hit.sectionPath,
-            hit.page === null ? '' : `第 ${hit.page + 1} 页`,
-            hit.source === 'meta' ? '' : hit.kind,
-            hit.route === 'both' ? '词面+扩展' : hit.route === 'expanded' ? '跨语言' : hit.route === 'lexical' ? '词面' : '',
-            `score ${hit.score}`]
-            .filter((part) => part.length > 0).join(' · '),
+          h('span', { style: badgeStyle, title: kind === 'expanded' ? t.kindExpandedHint : undefined }, kindLabel),
+          h('span', { style: { marginLeft: 6 } },
+            [hit.source === 'meta'
+              ? (hit.indexed ? '元数据' : '元数据·未入库')
+              : hit.sectionPath,
+              hit.page === null ? '' : `第 ${hit.page + 1} 页`,
+              hit.source === 'meta' ? '' : hit.kind,
+              `score ${hit.score}`]
+              .filter((part) => part.length > 0).join(' · ')),
           h('span', { style: S.chunkId }, ` ${hit.chunkId}`),
         ),
       ),
     ),
+    h('div', {
+      style: S.scoreTrack,
+      title: `词面 ${hit.lexicalScore ?? 0} · 扩展 ${hit.expandedScore ?? 0} · 融合 ${hit.scoreNorm ?? 0}`,
+    }, h('div', {
+      style: {
+        ...S.scoreFill,
+        width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`,
+        background: kind === 'expanded' ? 'var(--dsw-alias-brand-primary)' : 'var(--dsw-alias-label-secondary)',
+      },
+    })),
     h('div', {
       style: expanded ? S.hitTextExpanded : S.hitText,
       onClick: () => setExpanded((value) => !value),
@@ -1383,7 +1427,41 @@ const S: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   hitTitle: { fontSize: 12, fontWeight: 500, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  hitMeta: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)' },
+  hitMeta: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', display: 'flex', alignItems: 'center', flexWrap: 'wrap' },
+  hitBadge: {
+    fontSize: 9.5,
+    padding: '0 5px',
+    borderRadius: 999,
+    border: '1px solid var(--dsw-alias-border-l1)',
+    color: 'var(--dsw-alias-label-secondary)',
+    lineHeight: '15px',
+    flexShrink: 0,
+  },
+  hitBadgeExpanded: {
+    borderColor: 'var(--dsw-alias-brand-primary)',
+    color: 'var(--dsw-alias-brand-primary)',
+  },
+  hitBadgeMixed: {
+    borderColor: 'var(--dsw-alias-brand-primary)',
+    background: 'color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent)',
+    color: 'var(--dsw-alias-brand-primary)',
+  },
+  scoreTrack: {
+    height: 2,
+    margin: '4px 0 2px',
+    borderRadius: 2,
+    background: 'var(--dsw-alias-bg-layer-2)',
+    overflow: 'hidden',
+  },
+  scoreFill: { height: '100%', borderRadius: 2, opacity: 0.75 },
+  searchLegend: {
+    fontSize: 10,
+    color: 'var(--dsw-alias-label-secondary)',
+    opacity: 0.85,
+    marginBottom: 6,
+    lineHeight: 1.5,
+  },
+  admissionLine: { fontSize: 10, color: 'var(--dsw-alias-brand-primary)', opacity: 0.9, marginBottom: 8 },
   chunkId: { opacity: 0.7, fontFamily: 'ui-monospace, monospace' },
   hitText: {
     marginTop: 4,

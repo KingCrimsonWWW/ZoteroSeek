@@ -80,6 +80,14 @@ export interface Chunk {
 /** 检索命中的来源：原始词面 / 跨语言扩展 / 两路都命中。 */
 export type HitRoute = 'lexical' | 'expanded' | 'both'
 
+/**
+ * 命中类型（对模型与用户的公开口径）。
+ * - literal：查询词本身出现在片段里；
+ * - expanded：只有词表扩展出的等价词命中（不得当作原文措辞引用）；
+ * - mixed：两路都命中。
+ */
+export type MatchKind = 'literal' | 'expanded' | 'mixed'
+
 /** 一次检索命中。 */
 export interface SearchHit {
   chunkId: string
@@ -95,6 +103,14 @@ export interface SearchHit {
   route: HitRoute
   /** 命中的查询词（含扩展词），用于解释与调参。 */
   matched: string[]
+  /** 命中类型：字面 / 扩展 / 混合（扩展命中不得表述为原文措辞）。 */
+  matchKind: MatchKind
+  /** 词面路原始 BM25 分；未参与词面路时为 0。 */
+  lexicalScore: number
+  /** 扩展路原始 BM25 分；未过准入或未命中时为 0。 */
+  expandedScore: number
+  /** RRF 融合分的归一化值（0–1，仅用于排序展示，不代表匹配强度）。 */
+  scoreNorm: number
   /** 命中来自正文片段还是条目元数据。 */
   source: ChunkSource
   /** 该条目是否已入库（未入库的元数据命中不可引用正文）。 */

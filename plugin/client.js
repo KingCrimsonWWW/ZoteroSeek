@@ -19682,6 +19682,11 @@ var DICT = {
     indexing: "MinerU \u89E3\u6790\u4E2D\u2026",
     indexHint: "\u672A\u5165\u5E93\uFF0C\u70B9\u300C\u5165\u5E93\u300D\u7528 MinerU \u89E3\u6790\u6210 Markdown",
     noItems: "\u6CA1\u6709\u6761\u76EE\u3002\u5148\u70B9\u53F3\u4E0A\u89D2\u300C\u5237\u65B0\u300D\u4ECE Zotero \u62C9\u53D6\u3002",
+    kindLiteral: "\u5B57\u9762",
+    kindExpanded: "\u6269\u5C55",
+    kindMixed: "\u5B57\u9762+\u6269\u5C55",
+    kindExpandedHint: "\u6269\u5C55\u547D\u4E2D\uFF1A\u53EA\u6709\u8BCD\u8868\u6269\u5C55\u51FA\u7684\u7B49\u4EF7\u8BCD\u5728\u6587\u4E2D\u51FA\u73B0\uFF0C\u5F15\u7528\u63AA\u8F9E\u524D\u8BF7\u6253\u5F00\u539F\u6587\u6838\u5BF9",
+    searchLegend: "\u5339\u914D\u7C7B\u578B\uFF1A\u5B57\u9762=\u67E5\u8BE2\u8BCD\u51FA\u73B0\u5728\u539F\u6587\uFF1B\u6269\u5C55=\u8BCD\u8868\u6269\u5C55\u8BCD\u547D\u4E2D\uFF08\u4E0D\u7B49\u540C\u539F\u6587\u63AA\u8F9E\uFF09\uFF1B\u5B57\u9762+\u6269\u5C55=\u4E24\u8DEF\u90FD\u547D\u4E2D",
     noHits: "\u6CA1\u6709\u547D\u4E2D\u3002\u53EF\u4EE5\u5148\u5207\u6362\u5230\u300C\u6587\u732E\u300D\uFF0C\u628A\u76F8\u5173\u6587\u732E\u5165\u5E93\u518D\u8BD5\u3002",
     hitsFor: "\u547D\u4E2D\u7247\u6BB5",
     selected: "\u5DF2\u9009",
@@ -19735,6 +19740,11 @@ var DICT = {
     indexing: "MinerU parsing\u2026",
     indexHint: "Not indexed yet \u2014 Parse turns the PDF into Markdown",
     noItems: "No items. Use Refresh to load them from Zotero.",
+    kindLiteral: "literal",
+    kindExpanded: "expanded",
+    kindMixed: "mixed",
+    kindExpandedHint: "Expanded hit: only a glossary synonym matched \u2014 verify the wording in the source before quoting",
+    searchLegend: "Match type: literal = query words appear in the text; expanded = glossary synonym match (not the source wording); mixed = both routes hit",
     noHits: "No hits. Switch to Library and index the relevant papers first.",
     hitsFor: "Passages",
     selected: "selected",
@@ -19779,6 +19789,7 @@ function createPanel(t) {
     const [hasSearched, setHasSearched] = (0, import_react.useState)(false);
     const [history, setHistory] = (0, import_react.useState)(() => loadSearchHistory());
     const [expansionHint, setExpansionHint] = (0, import_react.useState)("");
+    const [admission, setAdmission] = (0, import_react.useState)(null);
     const [checked, setChecked] = (0, import_react.useState)(/* @__PURE__ */ new Set());
     const [busy, setBusy] = (0, import_react.useState)("");
     const [toast, setToast] = (0, import_react.useState)("");
@@ -19850,6 +19861,7 @@ function createPanel(t) {
         if (result.ok && result.value !== void 0) {
           setHits(result.value.hits);
           setExpansionHint(result.value.expansion?.description ?? "");
+          setAdmission(result.value.admission ?? null);
           if (itemKey === void 0) rememberQuery(keyword);
           if (result.value.hits.length === 0) setError(result.value.note ?? t.noHits);
         } else {
@@ -20017,6 +20029,7 @@ function createPanel(t) {
           setQuery,
           busy,
           expansionHint,
+          admission,
           hasSearched,
           history,
           clearHistory,
@@ -20227,6 +20240,12 @@ function HitsView(props) {
       (0, import_react.createElement)("button", { style: S3.button, onClick: props.runSearch }, props.busy === "search" ? t.loading : t.runSearch)
     ),
     props.expansionHint.length > 0 ? (0, import_react.createElement)("div", { style: S3.expansionHint }, props.expansionHint) : null,
+    (0, import_react.createElement)("div", { style: S3.searchLegend }, t.searchLegend),
+    props.admission !== null && props.admission.candidates > 0 ? (0, import_react.createElement)(
+      "div",
+      { style: S3.admissionLine },
+      `\u6269\u5C55\u8DEF\u51C6\u5165\uFF1A\u8986\u76D6\u7387\u2265${props.admission.minCoverage}\u3001\u4F59\u91CF ${Math.round((1 - props.admission.margin) * 100)}%\uFF0C\u653E\u884C ${props.admission.admitted}/${props.admission.candidates}`
+    ) : null,
     props.history.length > 0 ? (0, import_react.createElement)(
       "div",
       { style: S3.historyRow },
@@ -20267,8 +20286,11 @@ function HitsView(props) {
   );
 }
 function HitCard(props) {
-  const { hit, checked } = props;
+  const { t, hit, checked } = props;
   const [expanded, setExpanded] = (0, import_react.useState)(false);
+  const kind = hit.matchKind ?? (hit.route === "expanded" ? "expanded" : hit.route === "both" ? "mixed" : "literal");
+  const kindLabel = kind === "expanded" ? t.kindExpanded : kind === "mixed" ? t.kindMixed : t.kindLiteral;
+  const badgeStyle = kind === "expanded" ? { ...S3.hitBadge, ...S3.hitBadgeExpanded } : kind === "mixed" ? { ...S3.hitBadge, ...S3.hitBadgeMixed } : S3.hitBadge;
   return (0, import_react.createElement)(
     "div",
     { style: { ...S3.hitCard, ...checked ? S3.hitCardChecked : {} } },
@@ -20283,17 +20305,31 @@ function HitCard(props) {
         (0, import_react.createElement)(
           "div",
           { style: S3.hitMeta },
-          [
-            hit.source === "meta" ? hit.indexed ? "\u5143\u6570\u636E" : "\u5143\u6570\u636E\xB7\u672A\u5165\u5E93" : hit.sectionPath,
-            hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`,
-            hit.source === "meta" ? "" : hit.kind,
-            hit.route === "both" ? "\u8BCD\u9762+\u6269\u5C55" : hit.route === "expanded" ? "\u8DE8\u8BED\u8A00" : hit.route === "lexical" ? "\u8BCD\u9762" : "",
-            `score ${hit.score}`
-          ].filter((part) => part.length > 0).join(" \xB7 "),
+          (0, import_react.createElement)("span", { style: badgeStyle, title: kind === "expanded" ? t.kindExpandedHint : void 0 }, kindLabel),
+          (0, import_react.createElement)(
+            "span",
+            { style: { marginLeft: 6 } },
+            [
+              hit.source === "meta" ? hit.indexed ? "\u5143\u6570\u636E" : "\u5143\u6570\u636E\xB7\u672A\u5165\u5E93" : hit.sectionPath,
+              hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`,
+              hit.source === "meta" ? "" : hit.kind,
+              `score ${hit.score}`
+            ].filter((part) => part.length > 0).join(" \xB7 ")
+          ),
           (0, import_react.createElement)("span", { style: S3.chunkId }, ` ${hit.chunkId}`)
         )
       )
     ),
+    (0, import_react.createElement)("div", {
+      style: S3.scoreTrack,
+      title: `\u8BCD\u9762 ${hit.lexicalScore ?? 0} \xB7 \u6269\u5C55 ${hit.expandedScore ?? 0} \xB7 \u878D\u5408 ${hit.scoreNorm ?? 0}`
+    }, (0, import_react.createElement)("div", {
+      style: {
+        ...S3.scoreFill,
+        width: `${Math.round((hit.scoreNorm ?? 0) * 100)}%`,
+        background: kind === "expanded" ? "var(--dsw-alias-brand-primary)" : "var(--dsw-alias-label-secondary)"
+      }
+    })),
     (0, import_react.createElement)("div", {
       style: expanded ? S3.hitTextExpanded : S3.hitText,
       onClick: () => setExpanded((value) => !value)
@@ -20770,7 +20806,41 @@ var S3 = {
     cursor: "pointer"
   },
   hitTitle: { fontSize: 12, fontWeight: 500, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  hitMeta: { fontSize: 10, color: "var(--dsw-alias-label-secondary)" },
+  hitMeta: { fontSize: 10, color: "var(--dsw-alias-label-secondary)", display: "flex", alignItems: "center", flexWrap: "wrap" },
+  hitBadge: {
+    fontSize: 9.5,
+    padding: "0 5px",
+    borderRadius: 999,
+    border: "1px solid var(--dsw-alias-border-l1)",
+    color: "var(--dsw-alias-label-secondary)",
+    lineHeight: "15px",
+    flexShrink: 0
+  },
+  hitBadgeExpanded: {
+    borderColor: "var(--dsw-alias-brand-primary)",
+    color: "var(--dsw-alias-brand-primary)"
+  },
+  hitBadgeMixed: {
+    borderColor: "var(--dsw-alias-brand-primary)",
+    background: "color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent)",
+    color: "var(--dsw-alias-brand-primary)"
+  },
+  scoreTrack: {
+    height: 2,
+    margin: "4px 0 2px",
+    borderRadius: 2,
+    background: "var(--dsw-alias-bg-layer-2)",
+    overflow: "hidden"
+  },
+  scoreFill: { height: "100%", borderRadius: 2, opacity: 0.75 },
+  searchLegend: {
+    fontSize: 10,
+    color: "var(--dsw-alias-label-secondary)",
+    opacity: 0.85,
+    marginBottom: 6,
+    lineHeight: 1.5
+  },
+  admissionLine: { fontSize: 10, color: "var(--dsw-alias-brand-primary)", opacity: 0.9, marginBottom: 8 },
   chunkId: { opacity: 0.7, fontFamily: "ui-monospace, monospace" },
   hitText: {
     marginTop: 4,

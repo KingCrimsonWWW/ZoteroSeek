@@ -10,12 +10,13 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Bm25Index, type Bm25Hit } from './bm25.ts'
+import { admitCandidates, coverageDenominatorOf, EXPANDED_ADMISSION, type AdmissionOutcome } from './admission.ts'
 import { expandQuery, type QueryExpansion } from './glossary.ts'
 import { fuseRrf } from './rrf.ts'
 import { blocksFromContentList, blocksFromMarkdown, buildChunks, estimateTokens } from './chunker.ts'
 import type { MineruClient } from './mineru.ts'
 import type { ZoteroClient } from './zotero.ts'
-import type { Chunk, ContentBlock, LibraryIndex, ParsedDocument, SearchHit, ZoteroItem } from './types.ts'
+import type { Chunk, ContentBlock, HitRoute, LibraryIndex, MatchKind, ParsedDocument, SearchHit, ZoteroItem } from './types.ts'
 
 const INDEX_FILE = 'index.json'
 
@@ -27,6 +28,66 @@ export interface SearchOptions {
   itemKey?: string
   maxCharsPerHit?: number
   mode?: SearchMode
+  /** 同一问题的其它问法（最多 4 条）：每路独立打分，同一片段取最高分。 */
+  variants?: readonly string[]
+}
+
+/** 单次检索最多接受的问法数量（每多一条问法就是一次完整打分）。 */
+export const QUERY_VARIANT_CAP = 4
+
+/** 归一化问法：去空白、去重、去掉与主查询相同的项，最多 QUERY_VARIANT_CAP 条。 */
+export function normalizeVariants(query: string, raw?: readonly string[]): string[] {
+  if (raw === undefined || raw.length === 0) return []
+  const seen = new Set([query.trim()])
+  const variants: string[] = []
+  for (const value of raw) {
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    if (trimmed.length === 0 || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    variants.push(trimmed)
+    if (variants.length >= QUERY_VARIANT_CAP) break
+  }
+  return variants
+}
+
+/** 多问法合并：同一片段在任一问法下的最高分胜出，命中词取并集。 */
+function mergeMaxHits(
+  target: Map<string, { score: number; matched: string[] }>,
+  hits: readonly Bm25Hit[],
+): void {
+  for (const hit of hits) {
+    const previous = target.get(hit.id)
+    if (previous === undefined) {
+      target.set(hit.id, { score: hit.score, matched: [...hit.matched] })
+      continue
+    }
+    target.set(hit.id, {
+      score: Math.max(previous.score, hit.score),
+      matched: [...new Set([...previous.matched, ...hit.matched])],
+    })
+  }
+}
+
+/** 合并多问法的扩展解释：去重后拼成一条，供工具输出使用。 */
+function mergeExpansions(query: string, expansions: readonly QueryExpansion[]): QueryExpansion {
+  const first = expansions[0]
+  if (expansions.length === 1 && first !== undefined) return first
+  const seen = new Set<string>()
+  const added: QueryExpansion['added'] = []
+  for (const expansion of expansions) {
+    for (const pair of expansion.added) {
+      const key = `${pair.from}→${pair.to}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      added.push(pair)
+    }
+  }
+  return {
+    query,
+    expandedQuery: [query, ...added.map((pair) => pair.to)].join(' '),
+    translatedQuery: added.map((pair) => pair.to).join(' '),
+    added,
+  }
 }
 
 export interface LibraryStats {
@@ -247,11 +308,22 @@ export class Library {
     return this.searchDetailed(query, options).hits
   }
 
-  /** 与 search 相同，但额外返回扩展解释，供工具输出与面板展示。 */
+  /** 与 search 相同，但额外返回扩展解释与准入摘要，供工具输出与面板展示。 */
   searchDetailed(query: string, options: SearchOptions = {}): {
     hits: SearchHit[]
     expansion: QueryExpansion | null
     mode: SearchMode
+    /** 扩展路准入的摘要；没有扩展路时为 null。 */
+    admission: {
+      minCoverage: number
+      margin: number
+      best: number
+      threshold: number
+      gated: boolean
+      rejected: number
+      candidates: number
+      admitted: number
+    } | null
   } {
     const topK = Math.max(1, options.topK ?? 8)
     const mode: SearchMode = options.mode ?? 'hybrid'
@@ -266,57 +338,82 @@ export class Library {
 
     // 每路多取一些候选，融合后再截到 topK：RRF 需要看到两路的排名才有意义。
     const depth = Math.max(topK * 4, 20)
-    const lexical = this.searchWithin(query, candidates, depth)
-    const expansion = mode === 'hybrid' ? expandQuery(query) : null
-    const expanded = expansion !== null && expansion.added.length > 0
-      ? this.searchWithin(expansion.expandedQuery, candidates, depth)
-      : []
+    const phrasings = [query, ...normalizeVariants(query, options.variants)]
+    const lexicalMap = new Map<string, { score: number; matched: string[] }>()
+    const expandedMap = new Map<string, { score: number; matched: string[] }>()
+    const expansions: QueryExpansion[] = []
+
+    for (const phrasing of phrasings) {
+      mergeMaxHits(lexicalMap, this.searchWithin(phrasing, candidates, depth))
+      if (mode !== 'hybrid') continue
+      const expansion = expandQuery(phrasing)
+      if (expansion.added.length === 0) continue
+      expansions.push(expansion)
+      mergeMaxHits(expandedMap, this.searchWithin(expansion.expandedQuery, candidates, depth))
+    }
+
+    // 扩展路准入：只有扩展词撑着、词面路完全没命中的片段，必须先过置信度门槛。
+    // 有词面支撑的片段（mixed）不受准入影响——它本来就出现在原文里。
+    const lexicalIds = new Set(lexicalMap.keys())
+    const expansionOnly = [...expandedMap.entries()]
+      .filter(([id]) => !lexicalIds.has(id))
+      .map(([id, value]) => ({ id, score: value.score, matched: value.matched }))
+    // 覆盖率的「扩展词总数」取所有问法扩展词的并集；分母最多按 8 计（BM25 只保留 8 个命中词）。
+    const expansionTerms = new Set(expansions.flatMap((item) => item.added.map((pair) => pair.to)))
+    const admission: AdmissionOutcome = admitCandidates(
+      expansionOnly,
+      EXPANDED_ADMISSION,
+      coverageDenominatorOf(expansionTerms.size),
+    )
+    const admittedIds = new Set(admission.admitted.map((candidate) => candidate.id))
+    const expandedRanked = [...expandedMap.entries()]
+      .filter(([id]) => lexicalIds.has(id) || admittedIds.has(id))
+      .sort((left, right) => right[1].score - left[1].score)
 
     // 元数据只在两种情况下参与排序：
     // ① 查询很短（像关键词/标签检索）；② 正文两路都没有任何命中（正文里真没有）。
     // 注意不能用「命中不足 topK」当条件：中文问英文文献时词面那一路天然为空，
     // 那时扩展路已经能给出正文结果，再掺元数据只会把正文排名挤下去（评测里 MRR 会掉）。
     const shortQuery = query.trim().length <= 12
-    const bodySignal = lexical.length + expanded.length
+    const bodySignal = lexicalMap.size + expandedRanked.length
     const wantMeta = metaCandidates.length > 0 && (shortQuery || bodySignal === 0)
-
-    const lexicalRank = new Map(lexical.map((hit, index) => [hit.id, index + 1]))
-    const expandedRank = new Map(expanded.map((hit, index) => [hit.id, index + 1]))
+    const expansion = expansions.length === 0 ? null : mergeExpansions(query, expansions)
     const metaHits = wantMeta
       ? this.searchWithin(expansion?.expandedQuery ?? query, metaCandidates, Math.max(topK, 6))
       : []
-    const metaRank = new Map(metaHits.map((hit, index) => [hit.id, index + 1]))
+
     const matchedById = new Map<string, string[]>()
-    for (const hit of [...lexical, ...expanded, ...metaHits]) {
-      const existing = matchedById.get(hit.id) ?? []
-      matchedById.set(hit.id, [...new Set([...existing, ...hit.matched])])
+    for (const source of [lexicalMap, expandedMap]) {
+      for (const [id, value] of source) {
+        matchedById.set(id, [...new Set([...(matchedById.get(id) ?? []), ...value.matched])])
+      }
+    }
+    for (const hit of metaHits) {
+      matchedById.set(hit.id, [...new Set([...(matchedById.get(hit.id) ?? []), ...hit.matched])])
     }
 
-    let ranked: Array<{ id: string; score: number; route: SearchHit['route'] }>
-    if (expanded.length === 0 && metaHits.length === 0) {
-      ranked = lexical.map((hit) => ({ id: hit.id, score: hit.score, route: 'lexical' as const }))
-    } else {
-      const lists: Array<{ ids: string[]; weight: number }> = [
-        { ids: lexical.map((hit) => hit.id), weight: 1 },
-      ]
-      if (expanded.length > 0) lists.push({ ids: expanded.map((hit) => hit.id), weight: 0.9 })
-      // 元数据路只在「短查询/正文不足」时参与；参与时权重与词面相同——
-      // 用户搜一个标签词，就应该看到条目本身，而不是被正文片段淹没。
-      if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 })
-      const fused = fuseRrf(lists, { k: 10, topK })
-      ranked = fused.map((hit) => ({
-        id: hit.id,
-        score: hit.score,
-        route: lexicalRank.has(hit.id) && expandedRank.has(hit.id)
-          ? 'both'
-          : lexicalRank.has(hit.id) ? 'lexical'
-            : expandedRank.has(hit.id) ? 'expanded' : 'lexical',
-      }))
-    }
+    const lists: Array<{ ids: string[]; weight: number }> = []
+    const lexicalRanked = [...lexicalMap.entries()].sort((left, right) => right[1].score - left[1].score)
+    if (lexicalRanked.length > 0) lists.push({ ids: lexicalRanked.map(([id]) => id), weight: 1 })
+    if (expandedRanked.length > 0) lists.push({ ids: expandedRanked.map(([id]) => id), weight: 0.9 })
+    if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 })
 
-    const hits = ranked.slice(0, topK).map((hit) => {
+    const fused = lists.length === 0 ? [] : fuseRrf(lists, { k: 10, topK })
+    // 归一化基准：每一路都拿到第 1 名时的融合分（k=10），这样 scoreNorm 落在 0–1。
+    const maxPossible = lists.reduce((sum, list) => sum + list.weight / 11, 0)
+
+    const hits = fused.slice(0, topK).map((hit) => {
       const chunk = chunkById.get(hit.id)
       if (chunk === undefined) throw new Error(`索引不一致：chunk ${hit.id} 不存在`)
+      const lexical = lexicalMap.get(hit.id)
+      const expanded = expandedMap.get(hit.id)
+      const matchKind: MatchKind = lexical !== undefined && expanded !== undefined
+        ? 'mixed'
+        : lexical !== undefined
+          ? 'literal'
+          : expanded !== undefined
+            ? 'expanded'
+            : 'literal'
       return {
         chunkId: chunk.chunkId,
         itemKey: chunk.itemKey,
@@ -326,13 +423,34 @@ export class Library {
         kind: chunk.kind,
         text: chunk.text.length > maxChars ? `${chunk.text.slice(0, maxChars)}…` : chunk.text,
         score: Number(hit.score.toFixed(4)),
-        route: hit.route,
+        scoreNorm: Number((maxPossible > 0 ? Math.min(1, hit.score / maxPossible) : 0).toFixed(4)),
+        route: (matchKind === 'mixed' ? 'both' : matchKind === 'expanded' ? 'expanded' : 'lexical') as HitRoute,
+        matchKind,
+        lexicalScore: Number((lexical?.score ?? 0).toFixed(4)),
+        expandedScore: Number((expanded?.score ?? 0).toFixed(4)),
         matched: matchedById.get(hit.id) ?? [],
         source: chunk.source ?? 'body',
         indexed: this.index.parsed[chunk.itemKey] !== undefined,
       }
     })
-    return { hits, expansion, mode }
+
+    return {
+      hits,
+      expansion,
+      mode,
+      admission: mode === 'hybrid'
+        ? {
+            minCoverage: EXPANDED_ADMISSION.minCoverage,
+            margin: EXPANDED_ADMISSION.margin,
+            best: Number(admission.best.toFixed(4)),
+            threshold: Number(admission.threshold.toFixed(4)),
+            gated: admission.gated,
+            rejected: admission.rejected,
+            candidates: expansionOnly.length,
+            admitted: admission.admitted.length,
+          }
+        : null,
+    }
   }
 
   private searchWithin(
