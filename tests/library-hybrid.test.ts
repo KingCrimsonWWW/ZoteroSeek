@@ -18,6 +18,7 @@ const ITEM: ZoteroItem = {
   citationKey: null,
   publicationTitle: 'Measurement',
   abstractNote: null,
+  extra: null,
   tags: [],
   collections: [],
   pdfAttachmentKey: null,
@@ -65,9 +66,11 @@ test('hybrid 检索：中文问题能命中英文文献，纯词面检索命中�
     const hybrid = library.search('空洞检测方法', { mode: 'hybrid', topK: 5 })
     assert.equal(lexical.length, 0, '纯词面：中文 token 与英文正文无交集')
     assert.ok(hybrid.length > 0, '混合模式应通过词表扩展命中')
+    const bodyHits = hybrid.filter((hit) => hit.source === 'body')
+    assert.ok(bodyHits.length > 0, '应包含正文命中')
     assert.ok(
-      hybrid.every((hit) => hit.route === 'expanded' || hit.route === 'both'),
-      '命中应标注为扩展或两路命中',
+      bodyHits.every((hit) => hit.route === 'expanded' || hit.route === 'both'),
+      '正文命中应标注为扩展或两路命中',
     )
     assert.ok(hybrid.some((hit) => hit.matched.some((term) => term === 'void' || term === 'detection')))
   } finally {

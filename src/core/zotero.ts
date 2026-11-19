@@ -300,6 +300,7 @@ export class ZoteroClient {
         ? data.publicationTitle
         : typeof data.bookTitle === 'string' ? data.bookTitle : null,
       abstractNote: typeof data.abstractNote === 'string' ? data.abstractNote : null,
+      extra: typeof data.extra === 'string' ? data.extra : null,
       tags: Array.isArray(data.tags)
         ? (data.tags as Array<{ tag?: string } | string>).map((tag) =>
           typeof tag === 'string' ? tag : String(tag.tag ?? ''))

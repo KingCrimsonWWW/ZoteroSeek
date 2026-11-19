@@ -26,7 +26,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/client/index.tsx
 var index_exports = {};
 __export(index_exports, {
-  default: () => index_default
+  default: () => index_default,
+  latexToText: () => latexToText
 });
 module.exports = __toCommonJS(index_exports);
 var import_react = require("react");
@@ -157,7 +158,6 @@ function createPanel(t) {
     const [hasSearched, setHasSearched] = (0, import_react.useState)(false);
     const [history, setHistory] = (0, import_react.useState)(() => loadSearchHistory());
     const [expansionHint, setExpansionHint] = (0, import_react.useState)("");
-    const [crossLingual, setCrossLingual] = (0, import_react.useState)(true);
     const [checked, setChecked] = (0, import_react.useState)(/* @__PURE__ */ new Set());
     const [busy, setBusy] = (0, import_react.useState)("");
     const [toast, setToast] = (0, import_react.useState)("");
@@ -224,7 +224,6 @@ function createPanel(t) {
       try {
         const result = await apiGet("/api/search", {
           q: keyword,
-          mode: crossLingual ? "hybrid" : "lexical",
           ...itemKey === void 0 ? {} : { item_key: itemKey }
         });
         if (result.ok && result.value !== void 0) {
@@ -239,7 +238,7 @@ function createPanel(t) {
       } finally {
         setBusy("");
       }
-    }, [crossLingual, rememberQuery, t.noHits]);
+    }, [rememberQuery, t.noHits]);
     const toggle = (0, import_react.useCallback)((chunkId) => {
       setChecked((current) => {
         const next = new Set(current);
@@ -357,10 +356,21 @@ function createPanel(t) {
           items,
           filter,
           setFilter,
-          onFilter: () => void loadItems(filter),
           busy,
           runIndex,
-          openDoc
+          openDoc,
+          history,
+          clearHistory,
+          onFilter: () => {
+            const keyword = filter.trim();
+            if (keyword.length > 0) rememberQuery(keyword);
+            void loadItems(filter);
+          },
+          pickHistory: (value) => {
+            setFilter(value);
+            rememberQuery(value);
+            void loadItems(value);
+          }
         }) : null,
         view === "reader" ? (0, import_react.createElement)(ReaderView, {
           t,
@@ -386,8 +396,6 @@ function createPanel(t) {
           setQuery,
           busy,
           expansionHint,
-          crossLingual,
-          setCrossLingual,
           hasSearched,
           history,
           clearHistory,
@@ -491,6 +499,18 @@ function LibraryView(props) {
       (0, import_react.createElement)("button", { style: S.button, onClick: onFilter }, t.search)
     ),
     (0, import_react.createElement)("div", { style: S.libraryHint }, t.libraryHint),
+    props.history.length > 0 ? (0, import_react.createElement)(
+      "div",
+      { style: S.historyRow },
+      (0, import_react.createElement)("span", { style: S.historyLabel }, t.history),
+      ...props.history.map((entry) => (0, import_react.createElement)("button", {
+        key: `lh-${entry}`,
+        style: S.historyChip,
+        title: entry,
+        onClick: () => props.pickHistory(entry)
+      }, entry.length > 24 ? `${entry.slice(0, 24)}\u2026` : entry)),
+      (0, import_react.createElement)("button", { style: S.historyClear, onClick: props.clearHistory }, t.clearHistory)
+    ) : null,
     items.length === 0 ? (0, import_react.createElement)("div", { style: S.empty }, t.noItems) : (0, import_react.createElement)(
       "div",
       { style: S.list },
@@ -575,18 +595,7 @@ function HitsView(props) {
       }),
       (0, import_react.createElement)("button", { style: S.button, onClick: props.runSearch }, props.busy === "search" ? t.loading : t.runSearch)
     ),
-    (0, import_react.createElement)(
-      "label",
-      { style: S.modeRow, title: "\u5F00\u542F\u540E\u4F1A\u7528\u9886\u57DF\u53CC\u8BED\u8BCD\u8868\u628A\u4E2D\u6587\u95EE\u9898\u6269\u5C55\u6210\u82F1\u6587\u672F\u8BED\uFF08\u53CD\u4E4B\u4EA6\u7136\uFF09\uFF0C\u518D\u4E0E\u8BCD\u9762\u7ED3\u679C\u505A RRF \u878D\u5408" },
-      (0, import_react.createElement)("input", {
-        type: "checkbox",
-        checked: props.crossLingual,
-        onChange: () => props.setCrossLingual(!props.crossLingual),
-        style: S.checkbox
-      }),
-      (0, import_react.createElement)("span", null, "\u8DE8\u8BED\u8A00\u68C0\u7D22"),
-      props.expansionHint.length > 0 ? (0, import_react.createElement)("span", { style: S.expansionHint }, props.expansionHint) : null
-    ),
+    props.expansionHint.length > 0 ? (0, import_react.createElement)("div", { style: S.expansionHint }, props.expansionHint) : null,
     props.history.length > 0 ? (0, import_react.createElement)(
       "div",
       { style: S.historyRow },
@@ -643,7 +652,13 @@ function HitCard(props) {
         (0, import_react.createElement)(
           "div",
           { style: S.hitMeta },
-          [hit.sectionPath, hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`, hit.kind, `score ${hit.score}`].filter((part) => part.length > 0).join(" \xB7 "),
+          [
+            hit.source === "meta" ? hit.indexed ? "\u5143\u6570\u636E" : "\u5143\u6570\u636E\xB7\u672A\u5165\u5E93" : hit.sectionPath,
+            hit.page === null ? "" : `\u7B2C ${hit.page + 1} \u9875`,
+            hit.source === "meta" ? "" : hit.kind,
+            hit.route === "both" ? "\u8BCD\u9762+\u6269\u5C55" : hit.route === "expanded" ? "\u8DE8\u8BED\u8A00" : hit.route === "lexical" ? "\u8BCD\u9762" : "",
+            `score ${hit.score}`
+          ].filter((part) => part.length > 0).join(" \xB7 "),
           (0, import_react.createElement)("span", { style: S.chunkId }, ` ${hit.chunkId}`)
         )
       )
@@ -652,6 +667,157 @@ function HitCard(props) {
       style: expanded ? S.hitTextExpanded : S.hitText,
       onClick: () => setExpanded((value) => !value)
     }, hit.text)
+  );
+}
+var LATEX_SYMBOLS = {
+  "\\alpha": "\u03B1",
+  "\\beta": "\u03B2",
+  "\\gamma": "\u03B3",
+  "\\delta": "\u03B4",
+  "\\epsilon": "\u03B5",
+  "\\varepsilon": "\u03B5",
+  "\\zeta": "\u03B6",
+  "\\eta": "\u03B7",
+  "\\theta": "\u03B8",
+  "\\vartheta": "\u03D1",
+  "\\iota": "\u03B9",
+  "\\kappa": "\u03BA",
+  "\\lambda": "\u03BB",
+  "\\mu": "\u03BC",
+  "\\nu": "\u03BD",
+  "\\xi": "\u03BE",
+  "\\pi": "\u03C0",
+  "\\rho": "\u03C1",
+  "\\sigma": "\u03C3",
+  "\\tau": "\u03C4",
+  "\\upsilon": "\u03C5",
+  "\\phi": "\u03C6",
+  "\\varphi": "\u03C6",
+  "\\chi": "\u03C7",
+  "\\psi": "\u03C8",
+  "\\omega": "\u03C9",
+  "\\Gamma": "\u0393",
+  "\\Delta": "\u0394",
+  "\\Theta": "\u0398",
+  "\\Lambda": "\u039B",
+  "\\Xi": "\u039E",
+  "\\Pi": "\u03A0",
+  "\\Sigma": "\u03A3",
+  "\\Phi": "\u03A6",
+  "\\Psi": "\u03A8",
+  "\\Omega": "\u03A9",
+  "\\partial": "\u2202",
+  "\\nabla": "\u2207",
+  "\\sum": "\u03A3",
+  "\\prod": "\u220F",
+  "\\int": "\u222B",
+  "\\iint": "\u222C",
+  "\\oint": "\u222E",
+  "\\infty": "\u221E",
+  "\\times": "\xD7",
+  "\\cdot": "\xB7",
+  "\\pm": "\xB1",
+  "\\mp": "\u2213",
+  "\\le": "\u2264",
+  "\\leq": "\u2264",
+  "\\ge": "\u2265",
+  "\\geq": "\u2265",
+  "\\ne": "\u2260",
+  "\\neq": "\u2260",
+  "\\approx": "\u2248",
+  "\\equiv": "\u2261",
+  "\\propto": "\u221D",
+  "\\sim": "~",
+  "\\rightarrow": "\u2192",
+  "\\to": "\u2192",
+  "\\leftarrow": "\u2190",
+  "\\Rightarrow": "\u21D2",
+  "\\leftrightarrow": "\u2194",
+  "\\in": "\u2208",
+  "\\notin": "\u2209",
+  "\\subset": "\u2282",
+  "\\cup": "\u222A",
+  "\\cap": "\u2229",
+  "\\forall": "\u2200",
+  "\\exists": "\u2203",
+  "\\emptyset": "\u2205",
+  "\\angle": "\u2220",
+  "\\perp": "\u22A5",
+  "\\parallel": "\u2225",
+  "\\sin": "sin",
+  "\\cos": "cos",
+  "\\tan": "tan",
+  "\\cot": "cot",
+  "\\log": "log",
+  "\\ln": "ln",
+  "\\exp": "exp",
+  "\\max": "max",
+  "\\min": "min",
+  "\\lim": "lim",
+  "\\det": "det",
+  "\\quad": "  ",
+  "\\qquad": "    ",
+  "\\,": " ",
+  "\\;": " ",
+  "\\!": "",
+  "\\ ": " "
+};
+function readBraceGroup(source, start) {
+  if (source[start] !== "{") return null;
+  let depth = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return { body: source.slice(start + 1, index), next: index + 1 };
+    }
+  }
+  return null;
+}
+function latexToText(source) {
+  let text = source.replace(/\r\n/g, "\n");
+  for (let guard = 0; guard < 20; guard += 1) {
+    const at = text.indexOf("\\frac");
+    if (at < 0) break;
+    const first = readBraceGroup(text, at + 5);
+    if (first === null) {
+      text = text.replace("\\frac", "");
+      continue;
+    }
+    const second = readBraceGroup(text, first.next);
+    if (second === null) {
+      text = text.replace("\\frac", "");
+      continue;
+    }
+    text = `${text.slice(0, at)}(${latexToText(first.body)})/(${latexToText(second.body)})${text.slice(second.next)}`;
+  }
+  text = text.replace(/\\sqrt\s*\[([^\]]*)\]\s*\{([^{}]*)\}/g, "\u221A[$1]($2)");
+  text = text.replace(/\\sqrt\s*\{([^{}]*)\}/g, "\u221A($1)");
+  text = text.replace(/\\(?:text|mathrm|mathbf|mathit|operatorname|mbox)\s*\{([^{}]*)\}/g, "$1");
+  text = text.replace(/\^\s*\{([^{}]*)\}/g, "^($1)");
+  text = text.replace(/_\s*\{([^{}]*)\}/g, "_($1)");
+  text = text.replace(/\^\s*([A-Za-z0-9+\-])/g, "^$1");
+  text = text.replace(/_\s*([A-Za-z0-9+\-])/g, "_$1");
+  text = text.replace(/\\tag\s*\{([^{}]*)\}/g, "  ($1)");
+  text = text.replace(/\\begin\{[^}]*\}/g, "").replace(/\\end\{[^}]*\}/g, "");
+  text = text.replace(/\\(?:left|right|big|Big|bigg|Bigg)\b/g, "");
+  text = text.replace(/\\\\/g, "\n");
+  text = text.replace(/&/g, " ");
+  for (const [command, symbol] of Object.entries(LATEX_SYMBOLS)) {
+    text = text.split(command).join(symbol);
+  }
+  text = text.replace(/[{}]/g, "");
+  text = text.replace(/[ \t]+/g, " ");
+  text = text.replace(/\n{3,}/g, "\n\n");
+  return text.trim();
+}
+function mathBlock(raw, key) {
+  return (0, import_react.createElement)(
+    "div",
+    { key, style: S.formulaBlock, title: raw },
+    (0, import_react.createElement)("div", { style: S.formulaText }, latexToText(raw)),
+    (0, import_react.createElement)("div", { style: S.formulaNote }, "\u516C\u5F0F\uFF08\u60AC\u505C\u67E5\u770B LaTeX\uFF09")
   );
 }
 function renderMarkdown(markdown, options) {
@@ -756,7 +922,7 @@ function renderMarkdown(markdown, options) {
           index += 1;
         }
       }
-      nodes.push((0, import_react.createElement)("pre", { key: nextKey(), style: S.formula }, formula.join("\n").trim()));
+      nodes.push(mathBlock(formula.join("\n").trim(), nextKey()));
       continue;
     }
     if (/^[-*+]\s+/.test(trimmed)) {
@@ -803,21 +969,26 @@ function renderMarkdown(markdown, options) {
 }
 function inline(text, options) {
   const nodes = [];
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\$[^$]+\$)/g;
+  const pattern = /(<sup>[\s\S]*?<\/sup>|<sub>[\s\S]*?<\/sub>|\*\*[^*]+\*\*|`[^`]+`|\$[^$]+\$)/g;
   let cursor = 0;
   let index = 0;
   for (const match of text.matchAll(pattern)) {
     const start = match.index ?? 0;
-    if (start > cursor) nodes.push(text.slice(cursor, start));
+    if (start > cursor) nodes.push(cleanInlineHtml(text.slice(cursor, start)));
     const token = match[0];
-    if (token.startsWith("**")) nodes.push((0, import_react.createElement)("strong", { key: `b-${index++}` }, token.slice(2, -2)));
+    if (token.startsWith("<sup>")) nodes.push((0, import_react.createElement)("sup", { key: `s-${index++}` }, cleanInlineHtml(token.slice(5, -6))));
+    else if (token.startsWith("<sub>")) nodes.push((0, import_react.createElement)("sub", { key: `u-${index++}` }, cleanInlineHtml(token.slice(5, -6))));
+    else if (token.startsWith("**")) nodes.push((0, import_react.createElement)("strong", { key: `b-${index++}` }, token.slice(2, -2)));
     else if (token.startsWith("`")) nodes.push((0, import_react.createElement)("code", { key: `c-${index++}`, style: S.inlineCode }, token.slice(1, -1)));
-    else nodes.push((0, import_react.createElement)("code", { key: `m-${index++}`, style: S.formulaInline }, token));
+    else nodes.push((0, import_react.createElement)("span", { key: `m-${index++}`, style: S.mathInline, title: token }, latexToText(token.slice(1, -1))));
     cursor = start + token.length;
   }
-  if (cursor < text.length) nodes.push(text.slice(cursor));
+  if (cursor < text.length) nodes.push(cleanInlineHtml(text.slice(cursor)));
   void options;
   return nodes;
+}
+function cleanInlineHtml(text) {
+  return text.replace(/<br\s*\/?>/gi, " ").replace(/<\/?[A-Za-z][^>]*>/g, "");
 }
 function markdownTable(rows, nextKey, options) {
   const [head, ...body] = rows;
@@ -929,11 +1100,13 @@ var S = {
     background: "transparent",
     color: "var(--dsw-alias-label-secondary)",
     cursor: "pointer",
-    fontSize: 12
+    fontSize: 12,
+    outline: "none",
+    WebkitTapHighlightColor: "transparent"
   },
   segmentActive: {
-    background: "var(--dsw-alias-bg-layer-2)",
-    borderColor: "var(--dsw-alias-border-l1)",
+    background: "color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, var(--dsw-alias-bg-layer-1))",
+    borderColor: "var(--dsw-alias-brand-primary)",
     color: "var(--dsw-alias-label-primary)",
     fontWeight: 600
   },
@@ -1093,7 +1266,22 @@ var S = {
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
     textAlign: "center"
   },
-  formulaInline: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11.5 },
+  mathInline: { fontFamily: '"Cambria Math", "Latin Modern Math", serif', fontSize: 12.5, fontStyle: "italic" },
+  formulaBlock: {
+    margin: "0 0 10px",
+    padding: "8px 10px",
+    borderRadius: 8,
+    border: "1px solid var(--dsw-alias-border-l1)",
+    background: "var(--dsw-alias-bg-layer-1)",
+    overflowX: "auto"
+  },
+  formulaText: {
+    fontFamily: '"Cambria Math", "Latin Modern Math", "STIX Two Math", serif',
+    fontSize: 12.5,
+    lineHeight: 1.7,
+    whiteSpace: "pre-wrap"
+  },
+  formulaNote: { marginTop: 4, fontSize: 9.5, color: "var(--dsw-alias-label-secondary)", opacity: 0.7 },
   inlineCode: { background: "var(--dsw-alias-bg-layer-2)", borderRadius: 4, padding: "0 3px", fontSize: 11.5 },
   tableWrap: { overflowX: "auto", margin: "0 0 10px" },
   table: { borderCollapse: "collapse", fontSize: 11.5, width: "100%" },
@@ -1121,7 +1309,7 @@ var S = {
     cursor: "pointer",
     flexWrap: "wrap"
   },
-  expansionHint: { color: "var(--dsw-alias-brand-primary)", opacity: 0.9 },
+  expansionHint: { fontSize: 10.5, color: "var(--dsw-alias-brand-primary)", opacity: 0.9, marginBottom: 8 },
   libraryHint: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)", opacity: 0.85, marginBottom: 8 },
   historyRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 8 },
   historyLabel: { fontSize: 10.5, color: "var(--dsw-alias-label-secondary)" },

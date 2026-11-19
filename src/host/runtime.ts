@@ -41,7 +41,7 @@ export interface RuntimeStatus {
   dataDir: string
   zotero: { reachable: boolean; message: string }
   mineru: { configured: boolean; tokenSource: 'settings' | 'env' | 'none'; todayPages: number; tokenValid: boolean | null; tokenMessage: string }
-  library: { items: number; parsedItems: number; chunks: number; builtAt: string | null }
+  library: { items: number; parsedItems: number; chunks: number; metaChunks: number; builtAt: string | null }
 }
 
 const SETTINGS_FILE = 'settings.json'
@@ -133,6 +133,7 @@ export class Runtime {
         items: stats.items,
         parsedItems: stats.parsedItems,
         chunks: stats.chunks,
+        metaChunks: stats.metaChunks,
         builtAt: stats.builtAt,
       },
     }

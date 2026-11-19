@@ -63,6 +63,12 @@ interface HitView {
   kind: string
   text: string
   score: number
+  /** lexical / expanded / both：这条是怎么被找到的。 */
+  route?: 'lexical' | 'expanded' | 'both'
+  /** body = MinerU 正文块；meta = 条目元数据块。 */
+  source?: 'body' | 'meta'
+  /** 该条目是否已入库（元数据命中可能来自未入库条目）。 */
+  indexed?: boolean
 }
 
 interface MarkdownView {
@@ -215,7 +221,6 @@ function createPanel(t: Dict) {
     const [hasSearched, setHasSearched] = useState(false)
     const [history, setHistory] = useState<string[]>(() => loadSearchHistory())
     const [expansionHint, setExpansionHint] = useState('')
-    const [crossLingual, setCrossLingual] = useState(true)
     const [checked, setChecked] = useState<Set<string>>(new Set())
     const [busy, setBusy] = useState<string>('')
     const [toast, setToast] = useState<string>('')
@@ -290,7 +295,6 @@ function createPanel(t: Dict) {
       try {
         const result = await apiGet<{ hits: HitView[]; note?: string; expansion?: { description: string } | null }>('/api/search', {
           q: keyword,
-          mode: crossLingual ? 'hybrid' : 'lexical',
           ...(itemKey === undefined ? {} : { item_key: itemKey }),
         })
         if (result.ok && result.value !== undefined) {
@@ -305,7 +309,7 @@ function createPanel(t: Dict) {
       } finally {
         setBusy('')
       }
-    }, [crossLingual, rememberQuery, t.noHits])
+    }, [rememberQuery, t.noHits])
 
     const toggle = useCallback((chunkId: string) => {
       setChecked((current) => {
@@ -409,7 +413,18 @@ function createPanel(t: Dict) {
       ) : null,
       h('div', { style: S.body, ref: scrollRef },
         view === 'library' ? h(LibraryView, {
-          t, items, filter, setFilter, onFilter: () => void loadItems(filter), busy, runIndex, openDoc,
+          t, items, filter, setFilter, busy, runIndex, openDoc,
+          history, clearHistory,
+          onFilter: () => {
+            const keyword = filter.trim()
+            if (keyword.length > 0) rememberQuery(keyword)
+            void loadItems(filter)
+          },
+          pickHistory: (value: string) => {
+            setFilter(value)
+            rememberQuery(value)
+            void loadItems(value)
+          },
         }) : null,
         view === 'reader' ? h(ReaderView, {
           t, doc, selected, imageUrl, busy, onBack: () => setView('library'),
@@ -421,7 +436,7 @@ function createPanel(t: Dict) {
         }) : null,
         view === 'hits' ? h(HitsView, {
           t, hits, checked, toggle, query, setQuery, busy,
-          expansionHint, crossLingual, setCrossLingual,
+          expansionHint,
           hasSearched, history, clearHistory,
           runSearch: () => { if (query.trim().length > 0) void runSearch(query) },
           pickHistory: (value: string) => { setQuery(value); void runSearch(value) },
@@ -512,6 +527,9 @@ function LibraryView(props: {
   busy: string
   runIndex: (item: ItemView) => void
   openDoc: (item: ItemView) => void
+  history: string[]
+  pickHistory: (value: string) => void
+  clearHistory: () => void
 }): ReactNode {
   const { t, items, filter, setFilter, onFilter, busy, runIndex, openDoc } = props
   return h(Fragment, null,
@@ -526,6 +544,16 @@ function LibraryView(props: {
       h('button', { style: S.button, onClick: onFilter }, t.search),
     ),
     h('div', { style: S.libraryHint }, t.libraryHint),
+    props.history.length > 0 ? h('div', { style: S.historyRow },
+      h('span', { style: S.historyLabel }, t.history),
+      ...props.history.map((entry) => h('button', {
+        key: `lh-${entry}`,
+        style: S.historyChip,
+        title: entry,
+        onClick: () => props.pickHistory(entry),
+      }, entry.length > 24 ? `${entry.slice(0, 24)}…` : entry)),
+      h('button', { style: S.historyClear, onClick: props.clearHistory }, t.clearHistory),
+    ) : null,
     items.length === 0
       ? h('div', { style: S.empty }, t.noItems)
       : h('div', { style: S.list },
@@ -605,8 +633,6 @@ function HitsView(props: {
   busy: string
   runSearch: () => void
   expansionHint: string
-  crossLingual: boolean
-  setCrossLingual: (value: boolean) => void
   hasSearched: boolean
   history: string[]
   clearHistory: () => void
@@ -627,18 +653,9 @@ function HitsView(props: {
       }),
       h('button', { style: S.button, onClick: props.runSearch }, props.busy === 'search' ? t.loading : t.runSearch),
     ),
-    h('label', { style: S.modeRow, title: '开启后会用领域双语词表把中文问题扩展成英文术语（反之亦然），再与词面结果做 RRF 融合' },
-      h('input', {
-        type: 'checkbox',
-        checked: props.crossLingual,
-        onChange: () => props.setCrossLingual(!props.crossLingual),
-        style: S.checkbox,
-      }),
-      h('span', null, '跨语言检索'),
-      props.expansionHint.length > 0
-        ? h('span', { style: S.expansionHint }, props.expansionHint)
-        : null,
-    ),
+    props.expansionHint.length > 0
+      ? h('div', { style: S.expansionHint }, props.expansionHint)
+      : null,
     props.history.length > 0 ? h('div', { style: S.historyRow },
       h('span', { style: S.historyLabel }, t.history),
       ...props.history.map((entry) => h('button', {
@@ -688,7 +705,13 @@ function HitCard(props: {
       h('div', { style: { flex: 1, minWidth: 0 } },
         h('div', { style: S.hitTitle, onClick: props.openItem }, hit.title),
         h('div', { style: S.hitMeta },
-          [hit.sectionPath, hit.page === null ? '' : `第 ${hit.page + 1} 页`, hit.kind, `score ${hit.score}`]
+          [hit.source === 'meta'
+            ? (hit.indexed ? '元数据' : '元数据·未入库')
+            : hit.sectionPath,
+            hit.page === null ? '' : `第 ${hit.page + 1} 页`,
+            hit.source === 'meta' ? '' : hit.kind,
+            hit.route === 'both' ? '词面+扩展' : hit.route === 'expanded' ? '跨语言' : hit.route === 'lexical' ? '词面' : '',
+            `score ${hit.score}`]
             .filter((part) => part.length > 0).join(' · '),
           h('span', { style: S.chunkId }, ` ${hit.chunkId}`),
         ),
@@ -698,6 +721,98 @@ function HitCard(props: {
       style: expanded ? S.hitTextExpanded : S.hitText,
       onClick: () => setExpanded((value) => !value),
     }, hit.text),
+  )
+}
+
+// ------------------------------------------------------------------ 公式渲染
+
+/**
+ * 把 LaTeX 片段转成「人能读」的纯文本。
+ *
+ * 为什么不上 KaTeX：真正的数学排版要打包 ~300 KB 的引擎与字体，而文献阅读里
+ * 99% 的公式只需要「看懂」，不需要「印刷级」。这里做一层确定性的符号替换：
+ * 希腊字母、常用运算符 → Unicode，\frac/\sqrt → 括号形式，上下标 → ^( ) / _( )，
+ * 然后按原样保留换行。原始 LaTeX 留在 title 里，鼠标悬停仍可看到。
+ */
+const LATEX_SYMBOLS: Record<string, string> = {
+  '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ', '\\epsilon': 'ε', '\\varepsilon': 'ε',
+  '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ', '\\vartheta': 'ϑ', '\\iota': 'ι', '\\kappa': 'κ',
+  '\\lambda': 'λ', '\\mu': 'μ', '\\nu': 'ν', '\\xi': 'ξ', '\\pi': 'π', '\\rho': 'ρ', '\\sigma': 'σ',
+  '\\tau': 'τ', '\\upsilon': 'υ', '\\phi': 'φ', '\\varphi': 'φ', '\\chi': 'χ', '\\psi': 'ψ', '\\omega': 'ω',
+  '\\Gamma': 'Γ', '\\Delta': 'Δ', '\\Theta': 'Θ', '\\Lambda': 'Λ', '\\Xi': 'Ξ', '\\Pi': 'Π',
+  '\\Sigma': 'Σ', '\\Phi': 'Φ', '\\Psi': 'Ψ', '\\Omega': 'Ω',
+  '\\partial': '∂', '\\nabla': '∇', '\\sum': 'Σ', '\\prod': '∏', '\\int': '∫', '\\iint': '∬',
+  '\\oint': '∮', '\\infty': '∞', '\\times': '×', '\\cdot': '·', '\\pm': '±', '\\mp': '∓',
+  '\\le': '≤', '\\leq': '≤', '\\ge': '≥', '\\geq': '≥', '\\ne': '≠', '\\neq': '≠',
+  '\\approx': '≈', '\\equiv': '≡', '\\propto': '∝', '\\sim': '~',
+  '\\rightarrow': '→', '\\to': '→', '\\leftarrow': '←', '\\Rightarrow': '⇒', '\\leftrightarrow': '↔',
+  '\\in': '∈', '\\notin': '∉', '\\subset': '⊂', '\\cup': '∪', '\\cap': '∩',
+  '\\forall': '∀', '\\exists': '∃', '\\emptyset': '∅', '\\angle': '∠', '\\perp': '⊥', '\\parallel': '∥',
+  '\\sin': 'sin', '\\cos': 'cos', '\\tan': 'tan', '\\cot': 'cot', '\\log': 'log', '\\ln': 'ln',
+  '\\exp': 'exp', '\\max': 'max', '\\min': 'min', '\\lim': 'lim', '\\det': 'det',
+  '\\quad': '  ', '\\qquad': '    ', '\\,': ' ', '\\;': ' ', '\\!': '', '\\ ': ' ',
+}
+
+/** 读一个平衡的 {…} 组，返回内容与结束位置。 */
+function readBraceGroup(source: string, start: number): { body: string; next: number } | null {
+  if (source[start] !== '{') return null
+  let depth = 0
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index]
+    if (char === '{') depth += 1
+    else if (char === '}') {
+      depth -= 1
+      if (depth === 0) return { body: source.slice(start + 1, index), next: index + 1 }
+    }
+  }
+  return null
+}
+
+export function latexToText(source: string): string {
+  let text = source.replace(/\r\n/g, '\n')
+  // \frac{a}{b} → (a)/(b)，嵌套时递归处理
+  for (let guard = 0; guard < 20; guard += 1) {
+    const at = text.indexOf('\\frac')
+    if (at < 0) break
+    const first = readBraceGroup(text, at + 5)
+    if (first === null) { text = text.replace('\\frac', ''); continue }
+    const second = readBraceGroup(text, first.next)
+    if (second === null) { text = text.replace('\\frac', ''); continue }
+    text = `${text.slice(0, at)}(${latexToText(first.body)})/(${latexToText(second.body)})${text.slice(second.next)}`
+  }
+  // \sqrt[n]{x} / \sqrt{x}
+  text = text.replace(/\\sqrt\s*\[([^\]]*)\]\s*\{([^{}]*)\}/g, '√[$1]($2)')
+  text = text.replace(/\\sqrt\s*\{([^{}]*)\}/g, '√($1)')
+  // \text{…} \mathrm{…} 等：只保留内容
+  text = text.replace(/\\(?:text|mathrm|mathbf|mathit|operatorname|mbox)\s*\{([^{}]*)\}/g, '$1')
+  // 上下标：^{…} → ^(…)，_{…} → _(…)
+  text = text.replace(/\^\s*\{([^{}]*)\}/g, '^($1)')
+  text = text.replace(/_\s*\{([^{}]*)\}/g, '_($1)')
+  text = text.replace(/\^\s*([A-Za-z0-9+\-])/g, '^$1')
+  text = text.replace(/_\s*([A-Za-z0-9+\-])/g, '_$1')
+  // 公式编号 \tag{4} → (4)
+  text = text.replace(/\\tag\s*\{([^{}]*)\}/g, '  ($1)')
+  // 环境与排版指令
+  text = text.replace(/\\begin\{[^}]*\}/g, '').replace(/\\end\{[^}]*\}/g, '')
+  text = text.replace(/\\(?:left|right|big|Big|bigg|Bigg)\b/g, '')
+  text = text.replace(/\\\\/g, '\n')
+  text = text.replace(/&/g, ' ')
+  // 符号表
+  for (const [command, symbol] of Object.entries(LATEX_SYMBOLS)) {
+    text = text.split(command).join(symbol)
+  }
+  // 残留花括号与多余空白
+  text = text.replace(/[{}]/g, '')
+  text = text.replace(/[ \t]+/g, ' ')
+  text = text.replace(/\n{3,}/g, '\n\n')
+  return text.trim()
+}
+
+/** 公式块：读起来像公式，原始 LaTeX 放在 title 提示里。 */
+function mathBlock(raw: string, key: string): ReactNode {
+  return h('div', { key, style: S.formulaBlock, title: raw },
+    h('div', { style: S.formulaText }, latexToText(raw)),
+    h('div', { style: S.formulaNote }, '公式（悬停查看 LaTeX）'),
   )
 }
 
@@ -813,7 +928,7 @@ function renderMarkdown(markdown: string, options: MarkdownOptions): ReactNode[]
           index += 1
         }
       }
-      nodes.push(h('pre', { key: nextKey(), style: S.formula }, formula.join('\n').trim()))
+      nodes.push(mathBlock(formula.join('\n').trim(), nextKey()))
       continue
     }
 
@@ -869,21 +984,29 @@ function renderMarkdown(markdown: string, options: MarkdownOptions): ReactNode[]
 /** 行内样式：**粗体**、`代码`、$行内公式$。 */
 function inline(text: string, options: MarkdownOptions): ReactNode[] {
   const nodes: ReactNode[] = []
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\$[^$]+\$)/g
+  // 行内 HTML（中文文献常见 <sup>[1]</sup>）与公式、粗体、行内代码一起切分
+  const pattern = /(<sup>[\s\S]*?<\/sup>|<sub>[\s\S]*?<\/sub>|\*\*[^*]+\*\*|`[^`]+`|\$[^$]+\$)/g
   let cursor = 0
   let index = 0
   for (const match of text.matchAll(pattern)) {
     const start = match.index ?? 0
-    if (start > cursor) nodes.push(text.slice(cursor, start))
+    if (start > cursor) nodes.push(cleanInlineHtml(text.slice(cursor, start)))
     const token = match[0]
-    if (token.startsWith('**')) nodes.push(h('strong', { key: `b-${index++}` }, token.slice(2, -2)))
+    if (token.startsWith('<sup>')) nodes.push(h('sup', { key: `s-${index++}` }, cleanInlineHtml(token.slice(5, -6))))
+    else if (token.startsWith('<sub>')) nodes.push(h('sub', { key: `u-${index++}` }, cleanInlineHtml(token.slice(5, -6))))
+    else if (token.startsWith('**')) nodes.push(h('strong', { key: `b-${index++}` }, token.slice(2, -2)))
     else if (token.startsWith('`')) nodes.push(h('code', { key: `c-${index++}`, style: S.inlineCode }, token.slice(1, -1)))
-    else nodes.push(h('code', { key: `m-${index++}`, style: S.formulaInline }, token))
+    else nodes.push(h('span', { key: `m-${index++}`, style: S.mathInline, title: token }, latexToText(token.slice(1, -1))))
     cursor = start + token.length
   }
-  if (cursor < text.length) nodes.push(text.slice(cursor))
+  if (cursor < text.length) nodes.push(cleanInlineHtml(text.slice(cursor)))
   void options
   return nodes
+}
+
+/** 去掉行内 HTML 标签，只保留文字（表格另行处理）。 */
+function cleanInlineHtml(text: string): string {
+  return text.replace(/<br\s*\/?>/gi, ' ').replace(/<\/?[A-Za-z][^>]*>/g, '')
 }
 
 function markdownTable(rows: string[][], nextKey: () => string, options: MarkdownOptions): ReactNode {
@@ -1010,10 +1133,12 @@ const S: Record<string, CSSProperties> = {
     color: 'var(--dsw-alias-label-secondary)',
     cursor: 'pointer',
     fontSize: 12,
+    outline: 'none',
+    WebkitTapHighlightColor: 'transparent',
   },
   segmentActive: {
-    background: 'var(--dsw-alias-bg-layer-2)',
-    borderColor: 'var(--dsw-alias-border-l1)',
+    background: 'color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, var(--dsw-alias-bg-layer-1))',
+    borderColor: 'var(--dsw-alias-brand-primary)',
     color: 'var(--dsw-alias-label-primary)',
     fontWeight: 600,
   },
@@ -1173,7 +1298,22 @@ const S: Record<string, CSSProperties> = {
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
     textAlign: 'center',
   },
-  formulaInline: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5 },
+  mathInline: { fontFamily: '"Cambria Math", "Latin Modern Math", serif', fontSize: 12.5, fontStyle: 'italic' },
+  formulaBlock: {
+    margin: '0 0 10px',
+    padding: '8px 10px',
+    borderRadius: 8,
+    border: '1px solid var(--dsw-alias-border-l1)',
+    background: 'var(--dsw-alias-bg-layer-1)',
+    overflowX: 'auto',
+  },
+  formulaText: {
+    fontFamily: '"Cambria Math", "Latin Modern Math", "STIX Two Math", serif',
+    fontSize: 12.5,
+    lineHeight: 1.7,
+    whiteSpace: 'pre-wrap',
+  },
+  formulaNote: { marginTop: 4, fontSize: 9.5, color: 'var(--dsw-alias-label-secondary)', opacity: 0.7 },
   inlineCode: { background: 'var(--dsw-alias-bg-layer-2)', borderRadius: 4, padding: '0 3px', fontSize: 11.5 },
   tableWrap: { overflowX: 'auto', margin: '0 0 10px' },
   table: { borderCollapse: 'collapse', fontSize: 11.5, width: '100%' },
@@ -1201,7 +1341,7 @@ const S: Record<string, CSSProperties> = {
     cursor: 'pointer',
     flexWrap: 'wrap',
   },
-  expansionHint: { color: 'var(--dsw-alias-brand-primary)', opacity: 0.9 },
+  expansionHint: { fontSize: 10.5, color: 'var(--dsw-alias-brand-primary)', opacity: 0.9, marginBottom: 8 },
   libraryHint: { fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)', opacity: 0.85, marginBottom: 8 },
   historyRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 },
   historyLabel: { fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)' },

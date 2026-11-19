@@ -19,6 +19,8 @@ export interface ZoteroItem {
   citationKey: string | null
   publicationTitle: string | null
   abstractNote: string | null
+  /** Zotero 的 extra 字段（期刊分区、关键词等常写在这里）。 */
+  extra: string | null
   tags: string[]
   /** 所属合集 key 列表。 */
   collections: string[]
@@ -52,9 +54,12 @@ export interface ContentBlock {
   imagePath: string | null
 }
 
+/** 分块来源：MinerU 解析出的正文 / 由 Zotero 元数据合成的条目摘要。 */
+export type ChunkSource = 'body' | 'meta'
+
 /** 一个可检索的分块。 */
 export interface Chunk {
-  /** `<itemKey>:<seq:04d>`。 */
+  /** 正文块 `<itemKey>:<seq:04d>`；元数据块 `<itemKey>:meta`。 */
   chunkId: string
   itemKey: string
   /** 文献标题，冗余存一份，检索结果不必再查条目表。 */
@@ -68,6 +73,8 @@ export interface Chunk {
   text: string
   /** 粗略 token 估算（中文按字、英文按 4 字符≈1 token）。 */
   tokenEstimate: number
+  /** 来源；缺省视为正文（兼容旧索引）。 */
+  source?: ChunkSource
 }
 
 /** 检索命中的来源：原始词面 / 跨语言扩展 / 两路都命中。 */
@@ -88,6 +95,10 @@ export interface SearchHit {
   route: HitRoute
   /** 命中的查询词（含扩展词），用于解释与调参。 */
   matched: string[]
+  /** 命中来自正文片段还是条目元数据。 */
+  source: ChunkSource
+  /** 该条目是否已入库（未入库的元数据命中不可引用正文）。 */
+  indexed: boolean
 }
 
 /** 一篇文献的解析状态。 */

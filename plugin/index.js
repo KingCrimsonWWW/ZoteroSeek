@@ -723,6 +723,38 @@ function dominantKind(blocks) {
 
 // src/core/library.ts
 var INDEX_FILE = "index.json";
+function buildMetadataChunk(item) {
+  const str = (value) => typeof value === "string" && value.trim().length > 0 ? value : "";
+  const list = (value) => Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
+  const parts = [`\u6807\u9898\uFF1A${str(item.title) || item.key}`];
+  const creators = list(item.creators);
+  if (creators.length > 0) parts.push(`\u4F5C\u8005\uFF1A${creators.join("; ")}`);
+  if (typeof item.year === "number") parts.push(`\u5E74\u4EFD\uFF1A${item.year}`);
+  const journal = str(item.publicationTitle);
+  if (journal.length > 0) parts.push(`\u51FA\u7248\u7269\uFF1A${journal}`);
+  const tags = list(item.tags);
+  if (tags.length > 0) parts.push(`\u6807\u7B7E\uFF1A${tags.join("\u3001")}`);
+  const abstract = str(item.abstractNote);
+  if (abstract.length > 0) parts.push(`\u6458\u8981\uFF1A${abstract}`);
+  const extra = str(item.extra);
+  if (extra.length > 0) parts.push(`\u8865\u5145\u4FE1\u606F\uFF1A${extra}`);
+  const doi = str(item.doi);
+  if (doi.length > 0) parts.push(`DOI\uFF1A${doi}`);
+  const citationKey = str(item.citationKey);
+  if (citationKey.length > 0) parts.push(`\u5F15\u7528\u952E\uFF1A${citationKey}`);
+  const text = parts.join("\n");
+  return {
+    chunkId: `${item.key}:meta`,
+    itemKey: item.key,
+    title: item.title,
+    sectionPath: "\u5143\u6570\u636E",
+    page: null,
+    kind: "text",
+    text,
+    tokenEstimate: estimateTokens(text),
+    source: "meta"
+  };
+}
 var Library = class _Library {
   index;
   bm25;
@@ -742,16 +774,25 @@ var Library = class _Library {
     } catch {
       index = emptyIndex();
     }
-    return new _Library(dataDir, index);
+    const library = new _Library(dataDir, index);
+    const upgraded = library.upgradeStoredItems();
+    if (upgraded || !library.index.chunks.some((chunk) => chunk.source === "meta")) {
+      if (library.index.items.length > 0) library.replaceMetaChunks();
+      library.rebuild();
+      await library.save();
+    }
+    return library;
   }
   get root() {
     return this.dataDir;
   }
   stats() {
+    const body = this.index.chunks.filter((chunk) => chunk.source !== "meta");
     return {
       items: this.index.items.length,
       parsedItems: Object.keys(this.index.parsed).length,
-      chunks: this.index.chunks.length,
+      chunks: body.length,
+      metaChunks: this.index.chunks.length - body.length,
       builtAt: this.index.builtAt.length > 0 ? this.index.builtAt : null,
       dataDir: this.dataDir
     };
@@ -768,8 +809,9 @@ var Library = class _Library {
   getChunk(chunkId) {
     return this.index.chunks.find((chunk) => chunk.chunkId === chunkId) ?? null;
   }
+  /** 只返回正文块；元数据块用 getChunk(${key}:meta) 单独取。 */
   chunksOf(itemKey) {
-    return this.index.chunks.filter((chunk) => chunk.itemKey === itemKey);
+    return this.index.chunks.filter((chunk) => chunk.itemKey === itemKey && chunk.source !== "meta");
   }
   /** 从 Zotero 刷新条目元数据（最多 maxItems 篇，按添加时间倒序更方便看新文献）。 */
   async refreshItems(zotero, options = {}) {
@@ -791,6 +833,8 @@ var Library = class _Library {
         start += page.items.length;
       }
       this.index.items = collected;
+      this.replaceMetaChunks();
+      this.rebuild();
       this.index.builtAt = (/* @__PURE__ */ new Date()).toISOString();
       await this.save();
       return { items: collected.length, total };
@@ -819,6 +863,7 @@ var Library = class _Library {
       this.index.chunks.push(...chunks);
       this.index.parsed[itemKey] = doc;
       if (!this.index.items.some((existing) => existing.key === itemKey)) this.index.items.push(item);
+      this.upsertMetaChunk(item);
       const indexed = this.index.items.find((existing) => existing.key === itemKey);
       if (indexed !== void 0) {
         indexed.pdfAttachmentKey = pdf.attachmentKey;
@@ -857,33 +902,39 @@ var Library = class _Library {
     const mode = options.mode ?? "hybrid";
     const maxChars = options.maxCharsPerHit ?? 1200;
     const chunkById = new Map(this.index.chunks.map((chunk) => [chunk.chunkId, chunk]));
-    const candidates = options.itemKey === void 0 ? this.index.chunks : this.index.chunks.filter((chunk) => chunk.itemKey === options.itemKey);
+    const scoped = options.itemKey === void 0 ? this.index.chunks : this.index.chunks.filter((chunk) => chunk.itemKey === options.itemKey);
+    const candidates = scoped.filter((chunk) => chunk.source !== "meta");
+    const metaCandidates = scoped.filter((chunk) => chunk.source === "meta");
     const depth = Math.max(topK * 4, 20);
     const lexical = this.searchWithin(query, candidates, depth);
     const expansion = mode === "hybrid" ? expandQuery(query) : null;
     const expanded = expansion !== null && expansion.added.length > 0 ? this.searchWithin(expansion.expandedQuery, candidates, depth) : [];
+    const shortQuery = query.trim().length <= 12;
+    const bodySignal = lexical.length + expanded.length;
+    const wantMeta = metaCandidates.length > 0 && (shortQuery || bodySignal === 0);
     const lexicalRank = new Map(lexical.map((hit, index) => [hit.id, index + 1]));
     const expandedRank = new Map(expanded.map((hit, index) => [hit.id, index + 1]));
+    const metaHits = wantMeta ? this.searchWithin(expansion?.expandedQuery ?? query, metaCandidates, Math.max(topK, 6)) : [];
+    const metaRank = new Map(metaHits.map((hit, index) => [hit.id, index + 1]));
     const matchedById = /* @__PURE__ */ new Map();
-    for (const hit of [...lexical, ...expanded]) {
+    for (const hit of [...lexical, ...expanded, ...metaHits]) {
       const existing = matchedById.get(hit.id) ?? [];
       matchedById.set(hit.id, [.../* @__PURE__ */ new Set([...existing, ...hit.matched])]);
     }
     let ranked;
-    if (expanded.length === 0) {
+    if (expanded.length === 0 && metaHits.length === 0) {
       ranked = lexical.map((hit) => ({ id: hit.id, score: hit.score, route: "lexical" }));
     } else {
-      const fused = fuseRrf(
-        [
-          { ids: lexical.map((hit) => hit.id), weight: 1 },
-          { ids: expanded.map((hit) => hit.id), weight: 0.9 }
-        ],
-        { k: 10, topK }
-      );
+      const lists = [
+        { ids: lexical.map((hit) => hit.id), weight: 1 }
+      ];
+      if (expanded.length > 0) lists.push({ ids: expanded.map((hit) => hit.id), weight: 0.9 });
+      if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 });
+      const fused = fuseRrf(lists, { k: 10, topK });
       ranked = fused.map((hit) => ({
         id: hit.id,
         score: hit.score,
-        route: lexicalRank.has(hit.id) && expandedRank.has(hit.id) ? "both" : lexicalRank.has(hit.id) ? "lexical" : "expanded"
+        route: lexicalRank.has(hit.id) && expandedRank.has(hit.id) ? "both" : lexicalRank.has(hit.id) ? "lexical" : expandedRank.has(hit.id) ? "expanded" : "lexical"
       }));
     }
     const hits = ranked.slice(0, topK).map((hit) => {
@@ -899,7 +950,9 @@ var Library = class _Library {
         text: chunk.text.length > maxChars ? `${chunk.text.slice(0, maxChars)}\u2026` : chunk.text,
         score: Number(hit.score.toFixed(4)),
         route: hit.route,
-        matched: matchedById.get(hit.id) ?? []
+        matched: matchedById.get(hit.id) ?? [],
+        source: chunk.source ?? "body",
+        indexed: this.index.parsed[chunk.itemKey] !== void 0
       };
     });
     return { hits, expansion, mode };
@@ -917,13 +970,61 @@ var Library = class _Library {
     })));
     return scoped.search(query, topK);
   }
+  /** 按当前条目表重算全部元数据块（不动正文块）。 */
+  replaceMetaChunks() {
+    const meta = this.index.items.map((item) => buildMetadataChunk(item));
+    this.index.chunks = [...this.index.chunks.filter((chunk) => chunk.source !== "meta"), ...meta];
+  }
+  /** 单条元数据块 upsert（入库新条目时用）。 */
+  upsertMetaChunk(item) {
+    this.index.chunks = this.index.chunks.filter((chunk) => chunk.chunkId !== `${item.key}:meta`);
+    this.index.chunks.push(buildMetadataChunk(item));
+  }
+  /** 兼容旧索引：补齐后来新增的字段，返回是否有改动。 */
+  upgradeStoredItems() {
+    let changed = false;
+    for (const item of this.index.items) {
+      if (!Array.isArray(item.creators)) {
+        item.creators = [];
+        changed = true;
+      }
+      if (!Array.isArray(item.tags)) {
+        item.tags = [];
+        changed = true;
+      }
+      if (!Array.isArray(item.collections)) {
+        item.collections = [];
+        changed = true;
+      }
+      if (item.extra === void 0) {
+        item.extra = null;
+        changed = true;
+      }
+      if (item.abstractNote === void 0) {
+        item.abstractNote = null;
+        changed = true;
+      }
+      if (item.publicationTitle === void 0) {
+        item.publicationTitle = null;
+        changed = true;
+      }
+      if (item.doi === void 0) {
+        item.doi = null;
+        changed = true;
+      }
+      if (item.citationKey === void 0) {
+        item.citationKey = null;
+        changed = true;
+      }
+      if (item.year === void 0) {
+        item.year = null;
+        changed = true;
+      }
+    }
+    return changed;
+  }
   rebuild() {
-    this.bm25.build(this.index.chunks.map((chunk) => ({
-      id: chunk.chunkId,
-      title: chunk.title,
-      section: chunk.sectionPath,
-      text: chunk.text
-    })));
+    this.bm25.build(this.index.chunks.map((chunk) => chunk.source === "meta" ? { id: chunk.chunkId, title: "", section: "", text: chunk.text } : { id: chunk.chunkId, title: chunk.title, section: chunk.sectionPath, text: chunk.text }));
   }
   serialize(operation) {
     const next = this.queue.then(operation, operation);
@@ -1684,6 +1785,7 @@ var ZoteroClient = class {
       citationKey: typeof data.citationKey === "string" ? data.citationKey : null,
       publicationTitle: typeof data.publicationTitle === "string" ? data.publicationTitle : typeof data.bookTitle === "string" ? data.bookTitle : null,
       abstractNote: typeof data.abstractNote === "string" ? data.abstractNote : null,
+      extra: typeof data.extra === "string" ? data.extra : null,
       tags: Array.isArray(data.tags) ? data.tags.map((tag) => typeof tag === "string" ? tag : String(tag.tag ?? "")).filter((tag) => tag.length > 0) : [],
       collections: Array.isArray(data.collections) ? data.collections : [],
       pdfAttachmentKey: null,
@@ -1844,6 +1946,7 @@ var Runtime = class {
         items: stats.items,
         parsedItems: stats.parsedItems,
         chunks: stats.chunks,
+        metaChunks: stats.metaChunks,
         builtAt: stats.builtAt
       }
     };
@@ -2363,15 +2466,24 @@ function buildTools(runtime, evalDeps) {
           }
         } else {
           const modeLabel = result.mode === "hybrid" ? "BM25 \u8BCD\u9762 + \u9886\u57DF\u53CC\u8BED\u8BCD\u8868\u6269\u5C55\uFF0CRRF \u878D\u5408" : "BM25 \u8BCD\u9762";
-          lines.push(`\u68C0\u7D22\u547D\u4E2D ${result.hits.length} \u4E2A\u7247\u6BB5\uFF08${modeLabel}\uFF09\u3002\u5F15\u7528\u683C\u5F0F\uFF1A[\u6765\u6E90: chunk_id]`);
+          lines.push(`\u68C0\u7D22\u547D\u4E2D ${result.hits.length} \u4E2A\u7247\u6BB5\uFF08${modeLabel}\uFF1B\u6B63\u6587\u4E0E\u6761\u76EE\u5143\u6570\u636E\u90FD\u53C2\u4E0E\u68C0\u7D22\uFF09\u3002\u5F15\u7528\u683C\u5F0F\uFF1A[\u6765\u6E90: chunk_id]`);
           if (result.expansion !== null) lines.push(result.expansion.description);
+          let metaCount = 0;
+          let unindexedMetaCount = 0;
           result.hits.forEach((hit, index) => {
+            const isMeta = hit.source === "meta";
+            if (isMeta) metaCount += 1;
+            if (isMeta && !hit.indexed) unindexedMetaCount += 1;
             const page = hit.page === null ? "" : ` \xB7 \u7B2C ${hit.page + 1} \u9875`;
             const section = hit.sectionPath.length > 0 ? ` \xB7 ${hit.sectionPath}` : "";
             const route = hit.route === "both" ? "\u8BCD\u9762+\u6269\u5C55" : hit.route === "expanded" ? "\u8DE8\u8BED\u8A00\u6269\u5C55" : "\u8BCD\u9762";
-            lines.push("", `[${index + 1}] chunk_id=${hit.chunkId} \xB7 \u300A${hit.title}\u300B${section}${page} \xB7 \u7C7B\u578B=${hit.kind} \xB7 \u547D\u4E2D=${route} \xB7 score=${hit.score}`);
+            const source = isMeta ? hit.indexed ? "\u6765\u6E90=\u5143\u6570\u636E" : "\u6765\u6E90=\u5143\u6570\u636E\uFF08\u672A\u5165\u5E93\uFF09" : `\u7C7B\u578B=${hit.kind}`;
+            lines.push("", `[${index + 1}] chunk_id=${hit.chunkId} \xB7 \u300A${hit.title}\u300B${section}${page} \xB7 ${source} \xB7 \u547D\u4E2D=${route} \xB7 score=${hit.score}`);
             lines.push(hit.text);
           });
+          if (metaCount > 0) {
+            lines.push("", `\u63D0\u793A\uFF1A\u5176\u4E2D ${metaCount} \u6761\u6765\u81EA\u6761\u76EE\u5143\u6570\u636E\uFF08\u6807\u9898/\u4F5C\u8005/\u6807\u7B7E/\u6458\u8981/\u5173\u952E\u8BCD\uFF09${unindexedMetaCount > 0 ? `\uFF0C\u6709 ${unindexedMetaCount} \u6761\u5C1A\u672A\u5165\u5E93\u3001\u6CA1\u6709\u6B63\u6587\u7247\u6BB5` : ""}\u3002\u8981\u5F15\u7528\u6B63\u6587\u7EC6\u8282\u8BF7\u5148\u5BF9\u76F8\u5E94\u6761\u76EE\u8C03\u7528 zotero_index\u3002`);
+          }
           lines.push("", "\u6CE8\u610F\uFF1Achunk_id \u5FC5\u987B\u539F\u6837\u5F15\u7528\uFF0C\u4E0D\u8981\u6539\u5199\u6216\u7F16\u9020\u3002");
         }
         return { text: lines.join("\n"), hits: result.hits, expansion: result.expansion };

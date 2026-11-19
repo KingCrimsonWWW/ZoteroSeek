@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { Bm25Index, type Bm25Hit } from './bm25.ts'
 import { expandQuery, type QueryExpansion } from './glossary.ts'
 import { fuseRrf } from './rrf.ts'
-import { blocksFromContentList, blocksFromMarkdown, buildChunks } from './chunker.ts'
+import { blocksFromContentList, blocksFromMarkdown, buildChunks, estimateTokens } from './chunker.ts'
 import type { MineruClient } from './mineru.ts'
 import type { ZoteroClient } from './zotero.ts'
 import type { Chunk, ContentBlock, LibraryIndex, ParsedDocument, SearchHit, ZoteroItem } from './types.ts'
@@ -32,7 +32,10 @@ export interface SearchOptions {
 export interface LibraryStats {
   items: number
   parsedItems: number
+  /** 正文分块数（不含元数据块）。 */
   chunks: number
+  /** 由条目元数据合成的块数（每个条目一块）。 */
+  metaChunks: number
   builtAt: string | null
   dataDir: string
 }
@@ -44,6 +47,48 @@ export interface IngestResult {
   /** 解析产物来源：MinerU 结构化块 / Markdown 兜底。 */
   source: 'content_list_v2' | 'content_list' | 'markdown'
   dir: string
+}
+
+/**
+ * 把一条 Zotero 元数据压成可检索文本块。
+ *
+ * 「只要 Zotero 能拿到的信息都参与检索」：标题、作者、年份、期刊、标签、摘要、
+ * extra（关键词/分区常写在这里）、DOI、citationKey。块 id 固定为 `<itemKey>:meta`，
+ * 所以它在检索结果里同样可寻址、可被引用，但不会被误当成正文。
+ */
+export function buildMetadataChunk(item: ZoteroItem): Chunk {
+  // 旧索引里的条目可能缺字段（例如早期版本没有 extra），这里一律防御式判断，
+  // 避免「打开一个旧索引就崩」这类问题。
+  const str = (value: unknown): string => (typeof value === 'string' && value.trim().length > 0 ? value : '')
+  const list = (value: unknown): string[] => (Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [])
+  const parts: string[] = [`标题：${str(item.title) || item.key}`]
+  const creators = list(item.creators)
+  if (creators.length > 0) parts.push(`作者：${creators.join('; ')}`)
+  if (typeof item.year === 'number') parts.push(`年份：${item.year}`)
+  const journal = str(item.publicationTitle)
+  if (journal.length > 0) parts.push(`出版物：${journal}`)
+  const tags = list(item.tags)
+  if (tags.length > 0) parts.push(`标签：${tags.join('、')}`)
+  const abstract = str(item.abstractNote)
+  if (abstract.length > 0) parts.push(`摘要：${abstract}`)
+  const extra = str(item.extra)
+  if (extra.length > 0) parts.push(`补充信息：${extra}`)
+  const doi = str(item.doi)
+  if (doi.length > 0) parts.push(`DOI：${doi}`)
+  const citationKey = str(item.citationKey)
+  if (citationKey.length > 0) parts.push(`引用键：${citationKey}`)
+  const text = parts.join('\n')
+  return {
+    chunkId: `${item.key}:meta`,
+    itemKey: item.key,
+    title: item.title,
+    sectionPath: '元数据',
+    page: null,
+    kind: 'text',
+    text,
+    tokenEstimate: estimateTokens(text),
+    source: 'meta',
+  }
 }
 
 export class Library {
@@ -67,7 +112,15 @@ export class Library {
     } catch {
       index = emptyIndex()
     }
-    return new Library(dataDir, index)
+    const library = new Library(dataDir, index)
+    // 旧索引兼容：补齐后加字段（extra 等），再把元数据块补上并落盘
+    const upgraded = library.upgradeStoredItems()
+    if (upgraded || !library.index.chunks.some((chunk) => chunk.source === 'meta')) {
+      if (library.index.items.length > 0) library.replaceMetaChunks()
+      library.rebuild()
+      await library.save()
+    }
+    return library
   }
 
   get root(): string {
@@ -75,10 +128,12 @@ export class Library {
   }
 
   stats(): LibraryStats {
+    const body = this.index.chunks.filter((chunk) => chunk.source !== 'meta')
     return {
       items: this.index.items.length,
       parsedItems: Object.keys(this.index.parsed).length,
-      chunks: this.index.chunks.length,
+      chunks: body.length,
+      metaChunks: this.index.chunks.length - body.length,
       builtAt: this.index.builtAt.length > 0 ? this.index.builtAt : null,
       dataDir: this.dataDir,
     }
@@ -100,8 +155,9 @@ export class Library {
     return this.index.chunks.find((chunk) => chunk.chunkId === chunkId) ?? null
   }
 
+  /** 只返回正文块；元数据块用 getChunk(${key}:meta) 单独取。 */
   chunksOf(itemKey: string): Chunk[] {
-    return this.index.chunks.filter((chunk) => chunk.itemKey === itemKey)
+    return this.index.chunks.filter((chunk) => chunk.itemKey === itemKey && chunk.source !== 'meta')
   }
 
   /** 从 Zotero 刷新条目元数据（最多 maxItems 篇，按添加时间倒序更方便看新文献）。 */
@@ -124,6 +180,8 @@ export class Library {
         start += page.items.length
       }
       this.index.items = collected
+      this.replaceMetaChunks()
+      this.rebuild()
       this.index.builtAt = new Date().toISOString()
       await this.save()
       return { items: collected.length, total }
@@ -153,6 +211,7 @@ export class Library {
       this.index.chunks.push(...chunks)
       this.index.parsed[itemKey] = doc
       if (!this.index.items.some((existing) => existing.key === itemKey)) this.index.items.push(item)
+      this.upsertMetaChunk(item)
       const indexed = this.index.items.find((existing) => existing.key === itemKey)
       if (indexed !== undefined) {
         indexed.pdfAttachmentKey = pdf.attachmentKey
@@ -198,9 +257,12 @@ export class Library {
     const mode: SearchMode = options.mode ?? 'hybrid'
     const maxChars = options.maxCharsPerHit ?? 1200
     const chunkById = new Map(this.index.chunks.map((chunk) => [chunk.chunkId, chunk]))
-    const candidates = options.itemKey === undefined
+    const scoped = options.itemKey === undefined
       ? this.index.chunks
       : this.index.chunks.filter((chunk) => chunk.itemKey === options.itemKey)
+    // 正文与元数据分开打分：正文是「回答问题」的主体，元数据是「发现条目」的补充。
+    const candidates = scoped.filter((chunk) => chunk.source !== 'meta')
+    const metaCandidates = scoped.filter((chunk) => chunk.source === 'meta')
 
     // 每路多取一些候选，融合后再截到 topK：RRF 需要看到两路的排名才有意义。
     const depth = Math.max(topK * 4, 20)
@@ -210,31 +272,45 @@ export class Library {
       ? this.searchWithin(expansion.expandedQuery, candidates, depth)
       : []
 
+    // 元数据只在两种情况下参与排序：
+    // ① 查询很短（像关键词/标签检索）；② 正文两路都没有任何命中（正文里真没有）。
+    // 注意不能用「命中不足 topK」当条件：中文问英文文献时词面那一路天然为空，
+    // 那时扩展路已经能给出正文结果，再掺元数据只会把正文排名挤下去（评测里 MRR 会掉）。
+    const shortQuery = query.trim().length <= 12
+    const bodySignal = lexical.length + expanded.length
+    const wantMeta = metaCandidates.length > 0 && (shortQuery || bodySignal === 0)
+
     const lexicalRank = new Map(lexical.map((hit, index) => [hit.id, index + 1]))
     const expandedRank = new Map(expanded.map((hit, index) => [hit.id, index + 1]))
+    const metaHits = wantMeta
+      ? this.searchWithin(expansion?.expandedQuery ?? query, metaCandidates, Math.max(topK, 6))
+      : []
+    const metaRank = new Map(metaHits.map((hit, index) => [hit.id, index + 1]))
     const matchedById = new Map<string, string[]>()
-    for (const hit of [...lexical, ...expanded]) {
+    for (const hit of [...lexical, ...expanded, ...metaHits]) {
       const existing = matchedById.get(hit.id) ?? []
       matchedById.set(hit.id, [...new Set([...existing, ...hit.matched])])
     }
 
     let ranked: Array<{ id: string; score: number; route: SearchHit['route'] }>
-    if (expanded.length === 0) {
+    if (expanded.length === 0 && metaHits.length === 0) {
       ranked = lexical.map((hit) => ({ id: hit.id, score: hit.score, route: 'lexical' as const }))
     } else {
-      const fused = fuseRrf(
-        [
-          { ids: lexical.map((hit) => hit.id), weight: 1 },
-          { ids: expanded.map((hit) => hit.id), weight: 0.9 },
-        ],
-        { k: 10, topK },
-      )
+      const lists: Array<{ ids: string[]; weight: number }> = [
+        { ids: lexical.map((hit) => hit.id), weight: 1 },
+      ]
+      if (expanded.length > 0) lists.push({ ids: expanded.map((hit) => hit.id), weight: 0.9 })
+      // 元数据路只在「短查询/正文不足」时参与；参与时权重与词面相同——
+      // 用户搜一个标签词，就应该看到条目本身，而不是被正文片段淹没。
+      if (metaHits.length > 0) lists.push({ ids: metaHits.map((hit) => hit.id), weight: 1 })
+      const fused = fuseRrf(lists, { k: 10, topK })
       ranked = fused.map((hit) => ({
         id: hit.id,
         score: hit.score,
         route: lexicalRank.has(hit.id) && expandedRank.has(hit.id)
           ? 'both'
-          : lexicalRank.has(hit.id) ? 'lexical' : 'expanded',
+          : lexicalRank.has(hit.id) ? 'lexical'
+            : expandedRank.has(hit.id) ? 'expanded' : 'lexical',
       }))
     }
 
@@ -252,6 +328,8 @@ export class Library {
         score: Number(hit.score.toFixed(4)),
         route: hit.route,
         matched: matchedById.get(hit.id) ?? [],
+        source: chunk.source ?? 'body',
+        indexed: this.index.parsed[chunk.itemKey] !== undefined,
       }
     })
     return { hits, expansion, mode }
@@ -276,13 +354,40 @@ export class Library {
     return scoped.search(query, topK)
   }
 
+  /** 按当前条目表重算全部元数据块（不动正文块）。 */
+  private replaceMetaChunks(): void {
+    const meta = this.index.items.map((item) => buildMetadataChunk(item))
+    this.index.chunks = [...this.index.chunks.filter((chunk) => chunk.source !== 'meta'), ...meta]
+  }
+
+  /** 单条元数据块 upsert（入库新条目时用）。 */
+  private upsertMetaChunk(item: ZoteroItem): void {
+    this.index.chunks = this.index.chunks.filter((chunk) => chunk.chunkId !== `${item.key}:meta`)
+    this.index.chunks.push(buildMetadataChunk(item))
+  }
+
+  /** 兼容旧索引：补齐后来新增的字段，返回是否有改动。 */
+  private upgradeStoredItems(): boolean {
+    let changed = false
+    for (const item of this.index.items) {
+      if (!Array.isArray(item.creators)) { item.creators = []; changed = true }
+      if (!Array.isArray(item.tags)) { item.tags = []; changed = true }
+      if (!Array.isArray(item.collections)) { item.collections = []; changed = true }
+      if (item.extra === undefined) { item.extra = null; changed = true }
+      if (item.abstractNote === undefined) { item.abstractNote = null; changed = true }
+      if (item.publicationTitle === undefined) { item.publicationTitle = null; changed = true }
+      if (item.doi === undefined) { item.doi = null; changed = true }
+      if (item.citationKey === undefined) { item.citationKey = null; changed = true }
+      if (item.year === undefined) { item.year = null; changed = true }
+    }
+    return changed
+  }
+
   private rebuild(): void {
-    this.bm25.build(this.index.chunks.map((chunk) => ({
-      id: chunk.chunkId,
-      title: chunk.title,
-      section: chunk.sectionPath,
-      text: chunk.text,
-    })))
+    this.bm25.build(this.index.chunks.map((chunk) => chunk.source === 'meta'
+      // 元数据块正文里已包含标题，再按标题/章节加权会重复计分
+      ? { id: chunk.chunkId, title: '', section: '', text: chunk.text }
+      : { id: chunk.chunkId, title: chunk.title, section: chunk.sectionPath, text: chunk.text }))
   }
 
   private serialize<T>(operation: () => Promise<T>): Promise<T> {

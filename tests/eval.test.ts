@@ -15,6 +15,8 @@ function hit(chunkId: string, text = 'relevant passage'): SearchHit {
     score: 1,
     route: 'lexical',
     matched: [],
+    source: 'body',
+    indexed: true,
   }
 }
 

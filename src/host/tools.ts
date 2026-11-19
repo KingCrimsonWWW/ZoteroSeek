@@ -103,15 +103,26 @@ function buildTools(runtime: Runtime, evalDeps: EvalDeps | undefined): HostToolD
           }
         } else {
           const modeLabel = result.mode === 'hybrid' ? 'BM25 词面 + 领域双语词表扩展，RRF 融合' : 'BM25 词面'
-          lines.push(`检索命中 ${result.hits.length} 个片段（${modeLabel}）。引用格式：[来源: chunk_id]`)
+          lines.push(`检索命中 ${result.hits.length} 个片段（${modeLabel}；正文与条目元数据都参与检索）。引用格式：[来源: chunk_id]`)
           if (result.expansion !== null) lines.push(result.expansion.description)
+          let metaCount = 0
+          let unindexedMetaCount = 0
           result.hits.forEach((hit, index) => {
+            const isMeta = hit.source === 'meta'
+            if (isMeta) metaCount += 1
+            if (isMeta && !hit.indexed) unindexedMetaCount += 1
             const page = hit.page === null ? '' : ` · 第 ${hit.page + 1} 页`
             const section = hit.sectionPath.length > 0 ? ` · ${hit.sectionPath}` : ''
             const route = hit.route === 'both' ? '词面+扩展' : hit.route === 'expanded' ? '跨语言扩展' : '词面'
-            lines.push('', `[${index + 1}] chunk_id=${hit.chunkId} · 《${hit.title}》${section}${page} · 类型=${hit.kind} · 命中=${route} · score=${hit.score}`)
+            const source = isMeta
+              ? (hit.indexed ? '来源=元数据' : '来源=元数据（未入库）')
+              : `类型=${hit.kind}`
+            lines.push('', `[${index + 1}] chunk_id=${hit.chunkId} · 《${hit.title}》${section}${page} · ${source} · 命中=${route} · score=${hit.score}`)
             lines.push(hit.text)
           })
+          if (metaCount > 0) {
+            lines.push('', `提示：其中 ${metaCount} 条来自条目元数据（标题/作者/标签/摘要/关键词）${unindexedMetaCount > 0 ? `，有 ${unindexedMetaCount} 条尚未入库、没有正文片段` : ''}。要引用正文细节请先对相应条目调用 zotero_index。`)
+          }
           lines.push('', '注意：chunk_id 必须原样引用，不要改写或编造。')
         }
         return { text: lines.join('\n'), hits: result.hits, expansion: result.expansion }
