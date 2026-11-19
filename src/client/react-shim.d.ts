@@ -45,3 +45,9 @@ declare module '*.png' {
   const source: string
   export default source
 }
+
+/** esbuild text loader 把 CSS 变成字符串（KaTeX 样式内联进 bundle）。 */
+declare module '*.css' {
+  const source: string
+  export default source
+}

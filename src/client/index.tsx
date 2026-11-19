@@ -11,6 +11,7 @@
  */
 import { createElement as h, Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import zsIcon from './assets/zs-icon.png'
+import { createMarkdownRenderer, KATEX_CSS, MARKDOWN_CSS } from './markdown.ts'
 import type { CSSProperties, ReactNode } from 'react'
 
 // ------------------------------------------------------------------ 类型
@@ -591,6 +592,14 @@ function ReaderView(props: {
   runSearch: (keyword: string, itemKey?: string) => void
 }): ReactNode {
   const { t, doc, selected } = props
+  const renderMarkdownToHtml = useMemo(
+    () => createMarkdownRenderer({ imageUrl: props.imageUrl }),
+    [props.imageUrl],
+  )
+  const renderedHtml = useMemo(
+    () => (doc === null ? '' : renderMarkdownToHtml(doc.markdown)),
+    [doc, renderMarkdownToHtml],
+  )
   if (selected === null) return h('div', { style: S.empty }, t.readerEmpty)
   const title = doc?.item.title ?? selected.title
   return h(Fragment, null,
@@ -618,7 +627,8 @@ function ReaderView(props: {
       : doc.parsed === null
         ? h('div', { style: S.empty }, t.notParsed)
         : h('div', { style: S.markdown },
-          renderMarkdown(doc.markdown, { imageUrl: props.imageUrl, translate: t }),
+          h('style', { dangerouslySetInnerHTML: { __html: `${KATEX_CSS}\n${MARKDOWN_CSS}` } }),
+          h('div', { className: 'zse-md', dangerouslySetInnerHTML: { __html: renderedHtml } }),
         ),
   )
 }
@@ -1126,21 +1136,27 @@ const S: Record<string, CSSProperties> = {
   segmented: { display: 'flex', gap: 4, padding: '0 12px 8px' },
   segment: {
     flex: 1,
-    padding: '5px 8px',
-    borderRadius: 6,
-    border: '1px solid transparent',
+    padding: '6px 8px',
+    borderRadius: 7,
+    // 不用 border：宿主的默认 button 样式/焦点环可能在深色主题下画出白边（用户反馈过）
+    border: 'none',
     background: 'transparent',
     color: 'var(--dsw-alias-label-secondary)',
     cursor: 'pointer',
     fontSize: 12,
     outline: 'none',
+    boxShadow: 'none',
+    appearance: 'none',
+    WebkitAppearance: 'none',
     WebkitTapHighlightColor: 'transparent',
+    transition: 'background-color .15s ease, color .15s ease',
   },
   segmentActive: {
-    background: 'color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, var(--dsw-alias-bg-layer-1))',
-    borderColor: 'var(--dsw-alias-brand-primary)',
+    // 选中态用「品牌色淡底 + 内描边」，不依赖 border，暗色主题下也不会出现白框
+    background: 'color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-brand-primary) 60%, transparent)',
     color: 'var(--dsw-alias-label-primary)',
-    fontWeight: 600,
+    fontWeight: 650,
   },
   segmentDisabled: { opacity: 0.45, cursor: 'default' },
   statusBar: {

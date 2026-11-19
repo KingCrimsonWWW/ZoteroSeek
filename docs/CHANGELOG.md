@@ -1,5 +1,21 @@
 # 变更记录
 
+## v0.2.6 — 2026-11-19
+
+**阅读页换渲染引擎：markdown-it + KaTeX**
+
+- 用 markdown-it 替换自写的轻量渲染器：标题/列表/表格（管道表 + MinerU 的 HTML 表）/代码块/
+  链接/图片/引用全部按 CommonMark 规则渲染；图片路径统一改写为 `/zotero-seek/file` 路由；
+- 公式交给 KaTeX：`$$…$$` → display 模式，`$…$` → inline 模式（`math-render.ts` 可单测），
+  坏公式不抛异常；`\tag{}` 编号保留；货币符号（`$5`）不会被误判成公式；
+- KaTeX 样式用 esbuild 的 text loader 内联、去掉 `@font-face`（字体文件不进包，回落到系统数学字体）；
+- 正文改为 `dangerouslySetInnerHTML` 渲染，同时保留脚本/iframe/内联事件的消毒；
+- **页签样式重写**：去掉 `border`，选中态用「品牌色淡底 + inset 描边」，修掉深色主题下
+  页签出现白框的问题；
+- 依赖说明：`markdown-it` 与 `katex` 在构建时打进 `plugin/client.js`（约 750 KB），
+  插件安装后仍然没有任何运行时依赖；
+- 单测 44 → 50（新增公式预渲染 6 个）；版本 0.2.5 → 0.2.6。
+
 ## v0.2.5 — 2026-11-19
 
 **检索纳入 Zotero 元数据（标签/摘要/关键词/DOI 也参与检索）**
