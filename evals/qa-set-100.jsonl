@@ -1,0 +1,47 @@
+{"item":"EHC5UR3B","v":"Why can voids inside a structure only be detected with indirect methods?","q":"为什么结构内部的空洞只能通过间接方法检测？","gold":"EHC5UR3B:0002","id":"n01"}
+{"item":"EHC5UR3B","v":"Since inspection windows on high-speed railways are extremely limited, what kind of void detection method do the authors say is needed?","q":"高速铁路可用检测窗口极其有限，作者据此提出需要什么样的空洞检测方法？","gold":"EHC5UR3B:0004","id":"n02"}
+{"item":"EHC5UR3B","v":"Why are conventional piezoelectric accelerometers unsuitable for rapid inspection?","q":"传统压电加速度计为什么难以用于快速检测？","gold":"EHC5UR3B:0005","id":"n03"}
+{"item":"EHC5UR3B","v":"What instrument is used to acquire the hammer-impact vibration signals of the track slab?","q":"本文用什么设备采集轨道板锤击振动信号？","gold":"EHC5UR3B:0006","id":"n04"}
+{"item":"EHC5UR3B","v":"What does the vibration response of the track slab consist of after an impact?","q":"轨道板受冲击后的振动响应由什么组成？","gold":"EHC5UR3B:0008","id":"n05"}
+{"item":"EHC5UR3B","v":"Which software builds the finite element model, and how are the layer interfaces treated?","q":"有限元模型用什么软件建立、层间接触怎么处理？","gold":"EHC5UR3B:0011","id":"n06"}
+{"item":"EHC5UR3B","v":"Below what slab size is the local vibration frequency lower and the vibration energy more concentrated?","q":"轨道板尺寸小于多少时局部振动频率更低、振动能量更集中？","gold":"EHC5UR3B:0012","id":"n07"}
+{"item":"EHC5UR3B","v":"Below what D_ER does the peak frequency decrease gradually as the void extent increases?","q":"当 D_ER 小于多少时，峰值频率随空洞尺寸增大而逐渐降低？","gold":"EHC5UR3B:0014","id":"n08"}
+{"item":"GUW7QDMH","q":"文中用哪两起隧道事故说明衬砌病害对行车安全的威胁？","gold":"GUW7QDMH:0001","v":"Which two tunnel accidents are cited to show the threat of lining defects to traffic safety?","id":"n09"}
+{"item":"GUW7QDMH","q":"微动法最早在哪一年被用于研究土岩地层的动力响应？","gold":"GUW7QDMH:0003","v":"In which year was the microtremor method first applied to study the dynamic response of soil and rock ground?","id":"n10"}
+{"item":"GUW7QDMH","q":"表 2 从哪三个方面归纳其他常用检测方法？","gold":"GUW7QDMH:0004","v":"From which three aspects are the other common inspection methods summarized in Table 2?","id":"n11"}
+{"item":"GUW7QDMH","q":"施工阶段空洞缺陷主要由哪些原因造成？","gold":"GUW7QDMH:0006","v":"What mainly causes void defects during the construction stage?","id":"n12"}
+{"item":"GUW7QDMH","q":"建设前阶段衬砌缺陷主要由哪些原因造成？","gold":"GUW7QDMH:0007","v":"What mainly causes lining defects in the stage before construction?","id":"n13"}
+{"item":"GUW7QDMH","q":"内表面加固技术如何提高衬砌的承载能力？","gold":"GUW7QDMH:0011","v":"How does the inner-surface reinforcement technique improve the bearing capacity of the lining?","id":"n14"}
+{"item":"GUW7QDMH","q":"讨论部分把健康检测与加固设计划分为哪三个阶段？","gold":"GUW7QDMH:0016","v":"Into which three stages does the discussion divide health inspection and reinforcement design?","id":"n15"}
+{"item":"GUW7QDMH","q":"关于隧道质量缺陷的成因控制，作者提出了几个层级的控制层？","gold":"GUW7QDMH:0017","v":"How many levels of control layers are proposed for controlling the causes of tunnel quality defects?","id":"n16"}
+{"v":"Which factors cause tunnel lining concrete to deteriorate during long-term service?","item":"W5QY3SIH","gold":"W5QY3SIH:0001","id":"n17","q":"隧道衬砌混凝土在长期服役中会因哪些因素劣化？"}
+{"v":"Why have non-contact NDT methods received increasing attention?","item":"W5QY3SIH","gold":"W5QY3SIH:0003","id":"n18","q":"为什么非接触式无损检测方法受到越来越多的关注？"}
+{"v":"Which conventional NDT methods requiring contact or close-range access are shown in Fig. 2?","item":"W5QY3SIH","gold":"W5QY3SIH:0004","id":"n19","q":"图 2 列出了哪几种需要接触或近距离作业的常规无损检测方法？"}
+{"v":"What knowledge gap do existing studies leave regarding multiple subsurface delaminations?","item":"W5QY3SIH","gold":"W5QY3SIH:0005","id":"n20","q":"现有研究在多重分层缺陷方面留下了什么空白？"}
+{"v":"Over which frequency band and exclusion bandwidth is the spectral peak-to-background ratio computed for comparing excitation performance?","item":"W5QY3SIH","gold":"W5QY3SIH:0010","id":"n21","q":"对比激励性能时使用的谱峰背比按什么频段与排除带宽计算？"}
+{"v":"How many experimental cases were designed in total, and how many of them were delamination cases?","item":"W5QY3SIH","gold":"W5QY3SIH:0012","id":"n22","q":"实验一共设计了多少个工况，其中多少个是分层缺陷工况？"}
+{"v":"How were the delamination defects in the specimens fabricated?","item":"W5QY3SIH","gold":"W5QY3SIH:0013","id":"n23","q":"试件中的分层缺陷是如何制作的？"}
+{"v":"Which conditions were kept identical between the two specimens to control unrelated variables?","item":"W5QY3SIH","gold":"W5QY3SIH:0014","id":"n24","q":"为控制无关变量，两个试件在哪些方面保持一致？"}
+{"gold":"EVRF6GD8:0001","q":"空洞区域的振动幅度随空洞尺寸和空洞深度分别如何变化？","item":"EVRF6GD8","id":"n25","v":"How does the vibration amplitude in cavity regions change with cavity size and cavity depth, respectively?"}
+{"gold":"EVRF6GD8:0004","q":"隧道衬砌空洞通常由哪些因素形成？","item":"EVRF6GD8","id":"n26","v":"Which factors typically cause voids in tunnel linings?"}
+{"gold":"EVRF6GD8:0005","q":"1996 年日本 Rebunhama 隧道发生了什么事故？","item":"EVRF6GD8","id":"n27","v":"What accident happened in the Rebunhama Tunnel in Japan in 1996?"}
+{"gold":"EVRF6GD8:0007","q":"高清摄像法存在哪些局限？","item":"EVRF6GD8","id":"n28","v":"What limitations does the high-definition camera method have?"}
+{"gold":"EVRF6GD8:0008","q":"非接触远程声学检测基于什么原理？","item":"EVRF6GD8","id":"n29","v":"What principle underlies non-contact remote acoustic detection?"}
+{"gold":"EVRF6GD8:0010","q":"激光多普勒测振仪（LDV）的工作原理是什么？","item":"EVRF6GD8","id":"n30","v":"What is the working principle of a laser Doppler vibrometer (LDV)?"}
+{"gold":"EVRF6GD8:0011","q":"Sugimoto 等人开发的非接触声学检测方法使用了哪些设备？","item":"EVRF6GD8","id":"n31","v":"Which devices did Sugimoto et al. use in their non-contact acoustic inspection method?"}
+{"gold":"EVRF6GD8:0013","q":"影响 LDV 检测精度的主要因素有哪些？","item":"EVRF6GD8","id":"n32","v":"What are the main factors affecting the accuracy of LDV detection?"}
+{"gold":"EVRF6GD8:0014","q":"本文提出的隧道衬砌空洞检测方法由哪两部分组成？","item":"EVRF6GD8","id":"n33","v":"Which two components make up the tunnel lining void detection method proposed in this thesis?"}
+{"gold":"EVRF6GD8:0015","q":"本文用什么方法定量分析空洞区域与健康区域的振动响应差异？","item":"EVRF6GD8","id":"n34","v":"Which method is used to quantitatively analyze the vibration response difference between void regions and healthy regions?"}
+{"gold":"EVRF6GD8:0016","q":"在连续无限介质中，波动现象主要表现为哪两种基本模式？","item":"EVRF6GD8","id":"n35","v":"In a continuous infinite medium, which two basic wave modes does wave propagation show?"}
+{"gold":"EVRF6GD8:0018","q":"P 波与 S 波波速的比值是什么物理量的函数？","item":"EVRF6GD8","id":"n36","v":"The ratio of P-wave to S-wave velocity is a function of which physical quantity?"}
+{"q":"在隧道衬砌空洞检测任务上，所提网络达到多少准确率，比残差网络和 SVM 分别高多少？","item":"HG4N8X9X","v":"What accuracy did the proposed network reach on tunnel lining cavity detection, and how much higher was it than the residual network and SVM?","id":"n37","gold":"HG4N8X9X:0002"}
+{"q":"五十多年前我国铁路客车的平均速度大约是多少？","item":"HG4N8X9X","v":"What was the approximate average speed of China railway passenger trains about fifty years ago?","id":"n38","gold":"HG4N8X9X:0005"}
+{"q":"为什么需要设计自动化的隧道衬砌空洞检测设备？","item":"HG4N8X9X","v":"Why is an automated tunnel lining cavity detection device needed?","id":"n39","gold":"HG4N8X9X:0007"}
+{"q":"人工手持小锤敲击检测存在哪些问题？","item":"HG4N8X9X","v":"What problems does manual hammer sounding have?","id":"n40","gold":"HG4N8X9X:0009"}
+{"q":"频域声音特征包括哪些类型？","item":"HG4N8X9X","v":"Which types of frequency-domain acoustic features are mentioned?","id":"n41","gold":"HG4N8X9X:0010"}
+{"q":"为什么敲击信号适合用时频结合的方法分析？","item":"HG4N8X9X","v":"Why are tapping signals suitable for time-frequency combined analysis?","id":"n42","gold":"HG4N8X9X:0011"}
+{"q":"早期用于环境声音分类的机器学习模型有哪些？","item":"HG4N8X9X","v":"Which machine learning models were used early for environment sound classification?","id":"n43","gold":"HG4N8X9X:0012"}
+{"q":"为什么要把原始音频信号转换为二维频谱图再输入 CNN？","item":"HG4N8X9X","v":"Why must raw audio be converted into two-dimensional spectrograms before being fed to a CNN?","id":"n44","gold":"HG4N8X9X:0013"}
+{"q":"为什么二维卷积与音频数据并不完全兼容？","item":"HG4N8X9X","v":"Why is 2D convolution not fully compatible with audio data?","id":"n45","gold":"HG4N8X9X:0014"}
+{"q":"敲击法区分实心与脱空的物理依据是什么？","item":"HG4N8X9X","v":"What is the physical basis for distinguishing solid lining from voids by hammer tapping?","id":"n46","gold":"HG4N8X9X:0017"}
+{"q":"隧道衬砌空洞检测系统框图包含哪五个步骤？","item":"HG4N8X9X","v":"Which five steps are included in the flow diagram of the tunnel lining cavity detection system?","id":"n47","gold":"HG4N8X9X:0018"}
