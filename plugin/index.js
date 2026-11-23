@@ -2975,10 +2975,10 @@ var KEY_PATTERN = /^[A-Za-z0-9]{6,16}$/;
 function isZoteroKey(value) {
   return KEY_PATTERN.test(value);
 }
-function zoteroUriOf(itemKey, attachmentKey, page) {
+function zoteroUriOf(itemKey, attachmentKey, page, mode = "select") {
   const safeItem = isZoteroKey(itemKey) ? itemKey : "";
   if (safeItem.length === 0) throw new Error("\u975E\u6CD5 item_key");
-  if (attachmentKey !== null && attachmentKey !== void 0 && isZoteroKey(attachmentKey)) {
+  if (mode === "pdf" && attachmentKey !== null && attachmentKey !== void 0 && isZoteroKey(attachmentKey)) {
     const paged = typeof page === "number" && Number.isInteger(page) && page >= 1 && page <= 9999 ? `?page=${page}` : "";
     return `zotero://open-pdf/library/items/${attachmentKey}${paged}`;
   }
@@ -3077,12 +3077,13 @@ async function handle(req, res, runtime) {
           if (!/^[A-Za-z0-9]{6,16}$/.test(itemKey)) {
             return fail(res, 400, "invalid-item-key", "item_key \u975E\u6CD5");
           }
+          const mode = body["mode"] === "pdf" ? "pdf" : "select";
           const pageRaw = body["page"];
           const page = typeof pageRaw === "number" ? pageRaw : null;
           const item = await runtime.item(itemKey);
-          const opened = await openZoteroItem(itemKey, item?.pdfAttachmentKey ?? null, page);
+          const opened = await openZoteroItem(itemKey, item?.pdfAttachmentKey ?? null, page, mode);
           if (!opened.ok) return fail(res, 500, "open-failed", opened.message ?? "\u6253\u5F00\u5931\u8D25");
-          return ok(res, { uri: opened.uri, openedPdf: item?.pdfAttachmentKey !== null && item?.pdfAttachmentKey !== void 0 });
+          return ok(res, { uri: opened.uri, mode, openedPdf: mode === "pdf" && item?.pdfAttachmentKey !== null && item?.pdfAttachmentKey !== void 0 });
         }
         case "/api/refresh":
           return ok(res, await runtime.refresh());
@@ -3170,11 +3171,11 @@ async function readJsonBody(req) {
   const parsed = JSON.parse(raw);
   return parsed !== null && typeof parsed === "object" ? parsed : {};
 }
-async function openZoteroItem(itemKey, attachmentKey, page) {
+async function openZoteroItem(itemKey, attachmentKey, page, mode) {
   const { execFile } = await import("node:child_process");
   let uri;
   try {
-    uri = zoteroUriOf(itemKey, attachmentKey, page);
+    uri = zoteroUriOf(itemKey, attachmentKey, page, mode);
   } catch (error) {
     return { ok: false, uri: "", message: error instanceof Error ? error.message : "\u94FE\u63A5\u6784\u9020\u5931\u8D25" };
   }

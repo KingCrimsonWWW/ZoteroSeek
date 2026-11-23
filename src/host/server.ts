@@ -121,12 +121,14 @@ async function handle(req: IncomingMessage, res: ServerResponse, runtime: Runtim
           if (!/^[A-Za-z0-9]{6,16}$/.test(itemKey)) {
             return fail(res, 400, 'invalid-item-key', 'item_key 非法')
           }
+          // 默认只在 Zotero 里选中条目；只有显式 mode=pdf 才打开 PDF（可带页码）。
+          const mode = body['mode'] === 'pdf' ? 'pdf' : 'select'
           const pageRaw = body['page']
           const page = typeof pageRaw === 'number' ? pageRaw : null
           const item = await runtime.item(itemKey)
-          const opened = await openZoteroItem(itemKey, item?.pdfAttachmentKey ?? null, page)
+          const opened = await openZoteroItem(itemKey, item?.pdfAttachmentKey ?? null, page, mode)
           if (!opened.ok) return fail(res, 500, 'open-failed', opened.message ?? '打开失败')
-          return ok(res, { uri: opened.uri, openedPdf: item?.pdfAttachmentKey !== null && item?.pdfAttachmentKey !== undefined })
+          return ok(res, { uri: opened.uri, mode, openedPdf: mode === 'pdf' && item?.pdfAttachmentKey !== null && item?.pdfAttachmentKey !== undefined })
         }
         case '/api/refresh':
           return ok(res, await runtime.refresh())
@@ -216,11 +218,12 @@ async function openZoteroItem(
   itemKey: string,
   attachmentKey: string | null,
   page: number | null,
+  mode: 'select' | 'pdf',
 ): Promise<{ ok: boolean; uri: string; message?: string }> {
   const { execFile } = await import('node:child_process')
   let uri: string
   try {
-    uri = zoteroUriOf(itemKey, attachmentKey, page)
+    uri = zoteroUriOf(itemKey, attachmentKey, page, mode)
   } catch (error) {
     return { ok: false, uri: '', message: error instanceof Error ? error.message : '链接构造失败' }
   }

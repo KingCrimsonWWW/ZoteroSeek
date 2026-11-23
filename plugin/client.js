@@ -19885,7 +19885,7 @@ function createPanel(t) {
     const [busy, setBusy] = (0, import_react.useState)("");
     const [toast, setToast] = (0, import_react.useState)("");
     const [error2, setError] = (0, import_react.useState)("");
-    const [indexJob, setIndexJob] = (0, import_react.useState)(null);
+    const [jobs, setJobs] = (0, import_react.useState)([]);
     const [tick, setTick] = (0, import_react.useState)(Date.now());
     const [bulk, setBulk] = (0, import_react.useState)(null);
     const [status, setStatus] = (0, import_react.useState)(null);
@@ -19932,6 +19932,12 @@ function createPanel(t) {
       const accepted = await writeClipboard(quoteText);
       setToast(accepted ? t.copied : t.copyFailed);
     }, [props.inputActions, t.copied, t.copyFailed, t.quoteInserted]);
+    const enqueueJob = (0, import_react.useCallback)((item) => {
+      setJobs((current) => current.some((job) => job.itemKey === item.key) ? current : [...current, { itemKey: item.key, title: item.title, startedAt: Date.now() }]);
+    }, []);
+    const dequeueJob = (0, import_react.useCallback)((itemKey) => {
+      setJobs((current) => current.filter((job) => job.itemKey !== itemKey));
+    }, []);
     const openHitItem = (0, import_react.useCallback)(async (itemKey) => {
       const existing = items.find((candidate) => candidate.key === itemKey);
       const item = existing ?? (await apiGet("/api/item", { key: itemKey })).value;
@@ -19940,7 +19946,7 @@ function createPanel(t) {
         return;
       }
       if (!item.parsed) {
-        setIndexJob({ itemKey: item.key, title: item.title, startedAt: Date.now() });
+        enqueueJob(item);
         setTick(Date.now());
         setError("");
         try {
@@ -19954,7 +19960,7 @@ function createPanel(t) {
           await loadItems(filter);
           await loadStatus();
         } finally {
-          setIndexJob(null);
+          dequeueJob(item.key);
         }
         return;
       }
@@ -19984,10 +19990,11 @@ function createPanel(t) {
         setBulk(null);
       }
     }, [items, filter, loadItems, loadStatus, t.indexAllDone]);
-    const openInZotero = (0, import_react.useCallback)(async (itemKey, page) => {
+    const openInZotero = (0, import_react.useCallback)(async (itemKey, page, pdf = false) => {
       const result = await apiPost("/api/open-zotero", {
         item_key: itemKey,
-        ...page === void 0 || page === null ? {} : { page }
+        ...pdf ? { mode: "pdf" } : {},
+        ...pdf && page !== void 0 && page !== null ? { page } : {}
       });
       if (result.ok) {
         setToast(t.zoteroHint);
@@ -19998,7 +20005,8 @@ function createPanel(t) {
       setToast(accepted ? "Zotero \u672A\u80FD\u81EA\u52A8\u6253\u5F00\uFF0C\u94FE\u63A5\u5DF2\u590D\u5236" : result.message ?? "\u6253\u5F00\u5931\u8D25");
     }, [t.zoteroHint]);
     const runIndex = (0, import_react.useCallback)(async (item) => {
-      setBusy(item.key);
+      if (jobs.some((job) => job.itemKey === item.key)) return;
+      enqueueJob(item);
       setError("");
       try {
         const result = await apiPost("/api/index", { item_key: item.key });
@@ -20011,9 +20019,9 @@ function createPanel(t) {
           setError(result.message ?? "\u5165\u5E93\u5931\u8D25");
         }
       } finally {
-        setBusy("");
+        dequeueJob(item.key);
       }
-    }, [filter, loadItems, loadStatus, openDoc, selected]);
+    }, [jobs, enqueueJob, dequeueJob, filter, loadItems, loadStatus, openDoc, selected]);
     const rememberQuery = (0, import_react.useCallback)((keyword) => {
       setHistory((current) => {
         const next = [keyword, ...current.filter((entry) => entry !== keyword)].slice(0, 10);
@@ -20109,10 +20117,10 @@ function createPanel(t) {
       return () => clearTimeout(id);
     }, [toast]);
     (0, import_react.useEffect)(() => {
-      if (indexJob === null) return;
+      if (jobs.length === 0) return;
       const id = setInterval(() => setTick(Date.now()), 1e3);
       return () => clearInterval(id);
-    }, [indexJob]);
+    }, [jobs.length]);
     const imageUrl = (0, import_react.useCallback)((src) => {
       const itemKey = doc?.item.key ?? selected?.key ?? "";
       return `/zotero-seek/file?item_key=${encodeURIComponent(itemKey)}&path=${encodeURIComponent(src)}`;
@@ -20164,11 +20172,15 @@ function createPanel(t) {
         (0, import_react.createElement)("span", { style: { flex: 1 } }, error2),
         (0, import_react.createElement)("button", { style: S3.linkButton, onClick: () => setError("") }, t.close)
       ) : null,
-      indexJob !== null ? (0, import_react.createElement)(
+      jobs.length > 0 ? (0, import_react.createElement)(
         "div",
         { style: S3.jobStrip },
         (0, import_react.createElement)("div", { style: S3.jobBar }),
-        (0, import_react.createElement)("div", { style: S3.jobText }, `\u6B63\u5728\u5165\u5E93\u300A${indexJob.title.slice(0, 30)}\u300B\u2026 \u5DF2\u7528 ${Math.max(0, Math.round((tick - indexJob.startedAt) / 1e3))}s`)
+        (0, import_react.createElement)(
+          "div",
+          { style: S3.jobText },
+          `\u6B63\u5728\u5165\u5E93\u300A${jobs[0].title.slice(0, 30)}\u300B\u2026 \u5DF2\u7528 ${Math.max(0, Math.round((tick - jobs[0].startedAt) / 1e3))}s` + (jobs.length > 1 ? ` \xB7 \u961F\u5217 ${jobs.length - 1} \u7BC7` : "")
+        )
       ) : bulk !== null ? (0, import_react.createElement)(
         "div",
         { style: S3.jobStrip },
@@ -20183,7 +20195,7 @@ function createPanel(t) {
           items,
           filter,
           setFilter,
-          busy,
+          busyKeys: new Set(jobs.map((job) => job.itemKey)),
           runIndex,
           openDoc,
           onRefresh: () => {
@@ -20329,7 +20341,7 @@ function SettingsDrawer(props) {
   );
 }
 function LibraryView(props) {
-  const { t, items, filter, setFilter, onFilter, busy, runIndex, openDoc } = props;
+  const { t, items, filter, setFilter, onFilter, busyKeys, runIndex, openDoc } = props;
   return (0, import_react.createElement)(
     import_react.Fragment,
     null,
@@ -20397,10 +20409,10 @@ function LibraryView(props) {
           onClick: () => props.openZotero(item.key)
         }, "Z"),
         item.parsed ? (0, import_react.createElement)("span", { style: S3.badgeOk }, t.indexOk) : (0, import_react.createElement)("button", {
-          style: busy === item.key ? S3.buttonDisabled : S3.button,
-          disabled: busy === item.key,
+          style: busyKeys.has(item.key) ? S3.buttonDisabled : S3.button,
+          disabled: busyKeys.has(item.key),
           onClick: () => runIndex(item)
-        }, busy === item.key ? t.indexing : t.index)
+        }, busyKeys.has(item.key) ? t.indexing : t.index)
       ))
     )
   );
@@ -20571,7 +20583,7 @@ function HitsView(props) {
           checked: checked.has(hit.chunkId),
           toggle: () => toggle(hit.chunkId),
           openItem: () => props.openItem(hit.itemKey),
-          openZotero: () => props.openZotero(hit.itemKey, hit.page === null ? null : hit.page + 1)
+          openZotero: () => props.openZotero(hit.itemKey)
         }))
       ),
       checked.size > 0 ? (0, import_react.createElement)(
@@ -21347,8 +21359,38 @@ var S3 = {
   searchLegend: {},
   admissionLine: {}
 };
-function createOpenButton(t, open2) {
-  return function ZoteroSeekOpenButton() {
+var panelOpenLast = false;
+function createOpenButton(t, sidebar) {
+  return function ZoteroSeekOpenButton(props) {
+    const sessionId = typeof props?.sessionId === "string" ? props.sessionId : "";
+    (0, import_react.useEffect)(() => {
+      const shouldReopen = panelOpenLast;
+      if (!shouldReopen) {
+        const timer2 = setTimeout(() => {
+          try {
+            panelOpenLast = sidebar.isExpanded();
+          } catch {
+          }
+        }, 120);
+        return () => clearTimeout(timer2);
+      }
+      const timer = setTimeout(() => {
+        try {
+          if (!sidebar.isExpanded()) sidebar.openTab(TAB_KIND);
+        } catch {
+        }
+      }, 80);
+      return () => clearTimeout(timer);
+    }, [sessionId]);
+    (0, import_react.useEffect)(() => {
+      const id = setInterval(() => {
+        try {
+          panelOpenLast = sidebar.isExpanded();
+        } catch {
+        }
+      }, 800);
+      return () => clearInterval(id);
+    }, []);
     return (0, import_react.createElement)("button", {
       type: "button",
       title: t.appName + " \u6587\u732E\u5E93",
@@ -21365,7 +21407,10 @@ function createOpenButton(t, open2) {
         background: "transparent",
         cursor: "pointer"
       },
-      onClick: open2
+      onClick: () => {
+        panelOpenLast = true;
+        sidebar.openTab(TAB_KIND);
+      }
     }, (0, import_react.createElement)("img", {
       src: zs_icon_default,
       alt: "",
@@ -21404,7 +21449,7 @@ var index_default = {
       name: "conversation.input.left",
       id: "zotero-seek/open",
       order: 60
-    }, createOpenButton(translate, () => ctx.sidebarRight.openTab(TAB_KIND)))), "zotero-seek: composer button");
+    }, createOpenButton(translate, ctx.sidebarRight))), "zotero-seek: composer button");
   }
 };
 /*! Bundled license information:

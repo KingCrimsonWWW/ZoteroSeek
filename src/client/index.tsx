@@ -29,7 +29,11 @@ interface ClientContextLike {
     inject(key: string, callback: () => (() => void) | void): () => void
     register(options: SlotOptions, component: (props: any) => ReactNode): () => void
   }
-  sidebarRight: { openTab(kind: string, options?: Record<string, unknown>): void }
+  sidebarRight: {
+    openTab(kind: string, options?: Record<string, unknown>): void
+    isExpanded(): boolean
+    active(): { kind?: string } | undefined
+  }
   sidebarRightTabs: { register(definition: Record<string, unknown>): () => void }
   locale: {
     register(namespace: string, dicts: Record<string, Record<string, string>>): () => void
@@ -361,8 +365,8 @@ function createPanel(t: Dict) {
     const [busy, setBusy] = useState<string>('')
     const [toast, setToast] = useState<string>('')
     const [error, setError] = useState<string>('')
-    /** 单篇入库任务（用于顶部进度条与耗时显示）。 */
-    const [indexJob, setIndexJob] = useState<{ itemKey: string; title: string; startedAt: number } | null>(null)
+    /** 入库任务队列（第一项是正在解析的，其余是排队中；用于顶部进度条与耗时显示）。 */
+    const [jobs, setJobs] = useState<Array<{ itemKey: string; title: string; startedAt: number }>>([])
     const [tick, setTick] = useState(Date.now())
     /** 批量入库进度。 */
     const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null)
@@ -420,6 +424,16 @@ function createPanel(t: Dict) {
       setToast(accepted ? t.copied : t.copyFailed)
     }, [props.inputActions, t.copied, t.copyFailed, t.quoteInserted])
 
+    /** 申请一个入库任务：同一篇不重复入队；第一项是正在跑的，其余排队。 */
+    const enqueueJob = useCallback((item: { key: string; title: string }) => {
+      setJobs((current) => current.some((job) => job.itemKey === item.key)
+        ? current
+        : [...current, { itemKey: item.key, title: item.title, startedAt: Date.now() }])
+    }, [])
+    const dequeueJob = useCallback((itemKey: string) => {
+      setJobs((current) => current.filter((job) => job.itemKey !== itemKey))
+    }, [])
+
     const openHitItem = useCallback(async (itemKey: string) => {
       const existing = items.find((candidate) => candidate.key === itemKey)
       const item = existing ?? (await apiGet<ItemView>('/api/item', { key: itemKey })).value
@@ -429,7 +443,7 @@ function createPanel(t: Dict) {
       }
       if (!item.parsed) {
         // 未入库：只入库、并把结果标成「已入库」，不替用户决定打开哪一篇。
-        setIndexJob({ itemKey: item.key, title: item.title, startedAt: Date.now() })
+        enqueueJob(item)
         setTick(Date.now())
         setError('')
         try {
@@ -445,7 +459,7 @@ function createPanel(t: Dict) {
           await loadItems(filter)
           await loadStatus()
         } finally {
-          setIndexJob(null)
+          dequeueJob(item.key)
         }
         return
       }
@@ -482,10 +496,11 @@ function createPanel(t: Dict) {
      * 在 Zotero 中定位条目：渲染进程不能直接打开自定义协议（Electron 会拦，实测点了没反应），
      * 所以交给 Host 用系统命令拉起 zotero://；失败时把链接复制到剪贴板，至少用户能手动打开。
      */
-    const openInZotero = useCallback(async (itemKey: string, page?: number | null) => {
-      const result = await apiPost<{ uri: string }>('/api/open-zotero', {
+    const openInZotero = useCallback(async (itemKey: string, page?: number | null, pdf = false) => {
+      const result = await apiPost<{ uri: string; mode: string }>('/api/open-zotero', {
         item_key: itemKey,
-        ...(page === undefined || page === null ? {} : { page }),
+        ...(pdf ? { mode: 'pdf' } : {}),
+        ...(pdf && page !== undefined && page !== null ? { page } : {}),
       })
       if (result.ok) {
         setToast(t.zoteroHint)
@@ -497,7 +512,8 @@ function createPanel(t: Dict) {
     }, [t.zoteroHint])
 
     const runIndex = useCallback(async (item: ItemView) => {
-      setBusy(item.key)
+      if (jobs.some((job) => job.itemKey === item.key)) return
+      enqueueJob(item)
       setError('')
       try {
         const result = await apiPost<{ chunks: number; source: string; cached: boolean }>('/api/index', { item_key: item.key })
@@ -510,9 +526,9 @@ function createPanel(t: Dict) {
           setError(result.message ?? '入库失败')
         }
       } finally {
-        setBusy('')
+        dequeueJob(item.key)
       }
-    }, [filter, loadItems, loadStatus, openDoc, selected])
+    }, [jobs, enqueueJob, dequeueJob, filter, loadItems, loadStatus, openDoc, selected])
 
     const rememberQuery = useCallback((keyword: string) => {
       setHistory((current) => {
@@ -619,10 +635,10 @@ function createPanel(t: Dict) {
     }, [toast])
 
     useEffect(() => {
-      if (indexJob === null) return
+      if (jobs.length === 0) return
       const id = setInterval(() => setTick(Date.now()), 1000)
       return () => clearInterval(id)
-    }, [indexJob])
+    }, [jobs.length])
 
     const imageUrl = useCallback((src: string) => {
       const itemKey = doc?.item.key ?? selected?.key ?? ''
@@ -660,10 +676,12 @@ function createPanel(t: Dict) {
         h('span', { style: { flex: 1 } }, error),
         h('button', { style: S.linkButton, onClick: () => setError('') }, t.close),
       ) : null,
-      indexJob !== null
+      jobs.length > 0
         ? h('div', { style: S.jobStrip },
           h('div', { style: S.jobBar }),
-          h('div', { style: S.jobText }, `正在入库《${indexJob.title.slice(0, 30)}》… 已用 ${Math.max(0, Math.round((tick - indexJob.startedAt) / 1000))}s`),
+          h('div', { style: S.jobText },
+            `正在入库《${jobs[0]!.title.slice(0, 30)}》… 已用 ${Math.max(0, Math.round((tick - jobs[0]!.startedAt) / 1000))}s`
+            + (jobs.length > 1 ? ` · 队列 ${jobs.length - 1} 篇` : '')),
         )
         : bulk !== null
           ? h('div', { style: S.jobStrip },
@@ -673,7 +691,7 @@ function createPanel(t: Dict) {
           : null,
       h('div', { style: S.body, ref: scrollRef },
         view === 'library' ? h(LibraryView, {
-          t, items, filter, setFilter, busy, runIndex, openDoc,
+          t, items, filter, setFilter, busyKeys: new Set(jobs.map((job) => job.itemKey)), runIndex, openDoc,
           onRefresh: () => { void loadItems(filter) },
           onIndexAll: () => { void indexAll() },
           bulk,
@@ -801,7 +819,7 @@ function LibraryView(props: {
   filter: string
   setFilter: (value: string) => void
   onFilter: () => void
-  busy: string
+  busyKeys: ReadonlySet<string>
   runIndex: (item: ItemView) => void
   openDoc: (item: ItemView) => void
   onRefresh: () => void
@@ -812,7 +830,7 @@ function LibraryView(props: {
   pickHistory: (value: string) => void
   clearHistory: () => void
 }): ReactNode {
-  const { t, items, filter, setFilter, onFilter, busy, runIndex, openDoc } = props
+  const { t, items, filter, setFilter, onFilter, busyKeys, runIndex, openDoc } = props
   return h(Fragment, null,
     h('div', { style: S.searchRow },
       h('input', {
@@ -867,10 +885,10 @@ function LibraryView(props: {
           item.parsed
             ? h('span', { style: S.badgeOk }, t.indexOk)
             : h('button', {
-              style: busy === item.key ? S.buttonDisabled : S.button,
-              disabled: busy === item.key,
+              style: busyKeys.has(item.key) ? S.buttonDisabled : S.button,
+              disabled: busyKeys.has(item.key),
               onClick: () => runIndex(item),
-            }, busy === item.key ? t.indexing : t.index),
+            }, busyKeys.has(item.key) ? t.indexing : t.index),
         )),
       ),
   )
@@ -1013,7 +1031,7 @@ function HitsView(props: {
   copyCitations: (format: 'author-year' | 'reference' | 'bibtex') => void
   quoteSelected: () => void
   openItem: (itemKey: string) => void
-  openZotero: (itemKey: string, page?: number | null) => void
+  openZotero: (itemKey: string, page?: number | null, pdf?: boolean) => void
 }): ReactNode {
   const { t, hits, checked, toggle } = props
   const allChecked = hits.length > 0 && checked.size >= hits.length
@@ -1060,7 +1078,7 @@ function HitsView(props: {
             checked: checked.has(hit.chunkId),
             toggle: () => toggle(hit.chunkId),
             openItem: () => props.openItem(hit.itemKey),
-            openZotero: () => props.openZotero(hit.itemKey, hit.page === null ? null : hit.page + 1),
+            openZotero: () => props.openZotero(hit.itemKey),
           })),
         ),
         checked.size > 0 ? h('div', { style: S.actionBar },
@@ -2015,8 +2033,42 @@ function headingStyle(level: number): CSSProperties {
 // ------------------------------------------------------------------ 入口
 
 /** 「打开文献库」按钮：放在输入框左侧的工具行里；只放图标，文字靠 tooltip / aria-label。 */
-function createOpenButton(t: Dict, open: () => void) {
-  return function ZoteroSeekOpenButton(): ReactNode {
+/**
+ * 右栏布局是「每个会话一份」的：新会话默认收起。
+ * 这里记住用户上一次是否把文献库面板开着；切换会话时如果之前是开着的，就自动重新打开。
+ */
+let panelOpenLast = false
+
+function createOpenButton(t: Dict, sidebar: ClientContextLike['sidebarRight']) {
+  return function ZoteroSeekOpenButton(props: { sessionId?: string }): ReactNode {
+    const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : ''
+
+    // 会话切换 / 首次挂载：沿用上一个会话的面板状态（只认「开着」，不强制新会话都打开）。
+    useEffect(() => {
+      const shouldReopen = panelOpenLast
+      if (!shouldReopen) {
+        // 仍然记录当前会话的状态，供下一次切换使用。
+        const timer = setTimeout(() => {
+          try { panelOpenLast = sidebar.isExpanded() } catch { /* 无会话时会抛错 */ }
+        }, 120)
+        return () => clearTimeout(timer)
+      }
+      const timer = setTimeout(() => {
+        try {
+          if (!sidebar.isExpanded()) sidebar.openTab(TAB_KIND)
+        } catch { /* 无会话时会抛错 */ }
+      }, 80)
+      return () => clearTimeout(timer)
+    }, [sessionId])
+
+    // 持续记录面板开合，用户关掉后不会再自动打开。
+    useEffect(() => {
+      const id = setInterval(() => {
+        try { panelOpenLast = sidebar.isExpanded() } catch { /* 无会话时会抛错 */ }
+      }, 800)
+      return () => clearInterval(id)
+    }, [])
+
     return h('button', {
       type: 'button',
       title: t.appName + ' 文献库',
@@ -2033,7 +2085,10 @@ function createOpenButton(t: Dict, open: () => void) {
         background: 'transparent',
         cursor: 'pointer',
       },
-      onClick: open,
+      onClick: () => {
+        panelOpenLast = true
+        sidebar.openTab(TAB_KIND)
+      },
     }, h('img', {
       src: zsIcon,
       alt: '',
@@ -2080,6 +2135,6 @@ export default {
       name: 'conversation.input.left',
       id: 'zotero-seek/open',
       order: 60,
-    }, createOpenButton(translate, () => ctx.sidebarRight.openTab(TAB_KIND)))), 'zotero-seek: composer button')
+    }, createOpenButton(translate, ctx.sidebarRight))), 'zotero-seek: composer button')
   },
 }
